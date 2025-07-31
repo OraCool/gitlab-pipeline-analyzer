@@ -12,16 +12,14 @@ dependencies = [
 ]
 requires-python = ">=3.10"
 
-[project.scripts]
-gitlab-analyzer = "gitlab_analyzer:main"
-
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
+    "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "tox>=4.0.0",
+    "bandit[toml]>=1.7.0",
 ]
 
 [build-system]
@@ -29,18 +27,94 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["gitlab_analyzer", "config"]
+packages = ["gitlab_analyzer"]
+package-dir = { "" = "src" }
 
-[tool.black]
+# Ruff configuration
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
 line-length = 88
-target-version = ['py310']
+indent-width = 4
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+# Assume Python 3.12
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = [
+    "E4",  # pycodestyle errors
+    "E7",  # pycodestyle errors  
+    "E9",  # pycodestyle errors
+    "F",   # Pyflakes
+    "W",   # pycodestyle warnings
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+]
+
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "B008", # do not perform function calls in argument defaults
+    "B904", # raise-without-from-inside-except
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # Allow unused imports in __init__.py files
+
+[tool.ruff.lint.isort]
+known-first-party = ["gitlab_analyzer"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -62,15 +136,9 @@ ignore_missing_imports = true
 module = "fastmcp.*"
 ignore_missing_imports = true
 
-[tool.flake8]
-max-line-length = 88
-extend-ignore = ["E203", "W503", "E501"]
-exclude = [
-    ".git",
-    "__pycache__",
-    ".venv",
-    ".mypy_cache",
-    ".pytest_cache",
-    "build",
-    "dist",
-]
+[tool.bandit]
+exclude_dirs = ["tests", "test_*.py", "*_test.py"]
+skips = ["B101"]                                   # Skip assert_used test
+
+[dependency-groups]
+dev = ["ruff>=0.12.7", "tox>=4.28.3"]

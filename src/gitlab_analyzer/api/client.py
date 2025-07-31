@@ -2,8 +2,10 @@
 GitLab API client for analyzing pipelines
 """
 
-from typing import Any, Dict, List, Union
+from typing import Any
+
 import httpx
+
 from ..models import JobInfo
 
 
@@ -21,10 +23,10 @@ class GitLabAnalyzer:
         }
 
     async def get_pipeline(
-        self, project_id: Union[str, int], pipeline_id: int
-    ) -> Dict[str, Any]:
+        self, project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
         """Get pipeline information"""
-        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}"
+        url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}"
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
@@ -32,10 +34,10 @@ class GitLabAnalyzer:
             return response.json()  # type: ignore
 
     async def get_pipeline_jobs(
-        self, project_id: Union[str, int], pipeline_id: int
-    ) -> List[JobInfo]:
+        self, project_id: str | int, pipeline_id: int
+    ) -> list[JobInfo]:
         """Get all jobs for a pipeline"""
-        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}/jobs"
+        url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}/jobs"
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
@@ -60,10 +62,10 @@ class GitLabAnalyzer:
             return jobs
 
     async def get_failed_pipeline_jobs(
-        self, project_id: Union[str, int], pipeline_id: int
-    ) -> List[JobInfo]:
+        self, project_id: str | int, pipeline_id: int
+    ) -> list[JobInfo]:
         """Get only failed jobs for a specific pipeline (more efficient)"""
-        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}/jobs"
+        url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}/jobs"
         params = {"scope[]": "failed"}
 
         async with httpx.AsyncClient() as client:
@@ -88,7 +90,7 @@ class GitLabAnalyzer:
 
             return jobs
 
-    async def get_job_trace(self, project_id: Union[str, int], job_id: int) -> str:
+    async def get_job_trace(self, project_id: str | int, job_id: int) -> str:
         """Get the trace log for a specific job"""
         url = f"{self.api_url}/projects/{project_id}/jobs/{job_id}/trace"
 

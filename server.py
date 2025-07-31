@@ -3,12 +3,6 @@
 GitLab Pipeline Analyzer MCP Server
 """
 
-import sys
-import os
-
-# Add src to Python path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-
 from gitlab_analyzer.mcp.server import create_server, load_env_file
 
 

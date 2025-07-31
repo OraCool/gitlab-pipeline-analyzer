@@ -4,41 +4,41 @@ MCP tool functions for GitLab Pipeline Analyzer
 
 import os
 from datetime import datetime
-from typing import Any, Dict, Union
+from typing import Any
+
 import httpx
 from fastmcp import FastMCP
 
 from ..api.client import GitLabAnalyzer
 from ..parsers.log_parser import LogParser
 
-
 # GitLab analyzer singleton instance
-_gitlab_analyzer = None
+_GITLAB_ANALYZER = None
 
 
 def get_gitlab_analyzer() -> GitLabAnalyzer:
     """Get or create GitLab analyzer instance"""
-    global _gitlab_analyzer  # pylint: disable=global-statement
+    global _GITLAB_ANALYZER  # pylint: disable=global-statement
 
-    if _gitlab_analyzer is None:
+    if _GITLAB_ANALYZER is None:
         gitlab_url = os.getenv("GITLAB_URL", "https://gitlab.com")
         gitlab_token = os.getenv("GITLAB_TOKEN")
 
         if not gitlab_token:
             raise ValueError("GITLAB_TOKEN environment variable is required")
 
-        _gitlab_analyzer = GitLabAnalyzer(gitlab_url, gitlab_token)
+        _GITLAB_ANALYZER = GitLabAnalyzer(gitlab_url, gitlab_token)
 
-    return _gitlab_analyzer
+    return _GITLAB_ANALYZER
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: FastMCP) -> None:
     """Register all MCP tools"""
 
-    @mcp.tool
+    @mcp.tool  # type: ignore[misc]
     async def analyze_failed_pipeline(
-        project_id: Union[str, int], pipeline_id: int
-    ) -> Dict[str, Any]:
+        project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
         """
         Analyze a failed GitLab CI/CD pipeline and extract errors/warnings from all
         failed jobs. Uses optimized API calls to fetch only failed jobs.
@@ -53,10 +53,8 @@ def register_tools(mcp: FastMCP):
         """
         return await analyze_failed_pipeline_optimized(project_id, pipeline_id)
 
-    @mcp.tool
-    async def analyze_single_job(
-        project_id: Union[str, int], job_id: int
-    ) -> Dict[str, Any]:
+    @mcp.tool  # type: ignore[misc]
+    async def analyze_single_job(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
         Analyze a single GitLab CI/CD job and extract errors/warnings from its
         trace.
@@ -118,10 +116,10 @@ def register_tools(mcp: FastMCP):
                 "job_id": job_id,
             }
 
-    @mcp.tool
+    @mcp.tool  # type: ignore[misc]
     async def get_pipeline_jobs(
-        project_id: Union[str, int], pipeline_id: int
-    ) -> Dict[str, Any]:
+        project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
         """
         Get all jobs for a specific GitLab pipeline.
 
@@ -151,8 +149,8 @@ def register_tools(mcp: FastMCP):
                 "pipeline_id": pipeline_id,
             }
 
-    @mcp.tool
-    async def get_job_trace(project_id: Union[str, int], job_id: int) -> Dict[str, Any]:
+    @mcp.tool  # type: ignore[misc]
+    async def get_job_trace(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
         Get the trace log for a specific GitLab CI/CD job.
 
@@ -181,8 +179,8 @@ def register_tools(mcp: FastMCP):
                 "job_id": job_id,
             }
 
-    @mcp.tool
-    async def extract_log_errors(log_text: str) -> Dict[str, Any]:
+    @mcp.tool  # type: ignore[misc]
+    async def extract_log_errors(log_text: str) -> dict[str, Any]:
         """
         Extract errors and warnings from log text.
 
@@ -211,10 +209,10 @@ def register_tools(mcp: FastMCP):
         except (ValueError, TypeError, AttributeError) as e:
             return {"error": f"Failed to extract log errors: {str(e)}"}
 
-    @mcp.tool
+    @mcp.tool  # type: ignore[misc]
     async def get_pipeline_status(
-        project_id: Union[str, int], pipeline_id: int
-    ) -> Dict[str, Any]:
+        project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
         """
         Get the current status and basic information of a GitLab pipeline.
 
@@ -249,8 +247,8 @@ def register_tools(mcp: FastMCP):
 
 
 async def analyze_failed_pipeline_optimized(
-    project_id: Union[str, int], pipeline_id: int
-) -> Dict[str, Any]:
+    project_id: str | int, pipeline_id: int
+) -> dict[str, Any]:
     """
     Optimized version that only fetches failed jobs (faster for large
     pipelines)
@@ -294,7 +292,7 @@ async def analyze_failed_pipeline_optimized(
             "failed_jobs_count": len(failed_jobs),
             "total_errors": total_errors,
             "total_warnings": total_warnings,
-            "failed_stages": list(set(job.stage for job in failed_jobs)),
+            "failed_stages": list({job.stage for job in failed_jobs}),
             "analysis_timestamp": datetime.now().isoformat(),
         }
 

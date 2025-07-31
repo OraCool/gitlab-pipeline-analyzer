@@ -3,7 +3,7 @@ Parser for extracting errors and warnings from CI/CD logs
 """
 
 import re
-from typing import List
+
 from ..models import LogEntry
 
 
@@ -45,7 +45,7 @@ class LogParser:
     ]
 
     @classmethod
-    def extract_log_entries(cls, log_text: str) -> List[LogEntry]:
+    def extract_log_entries(cls, log_text: str) -> list[LogEntry]:
         """Extract error and warning entries from log text"""
         entries = []
         lines = log_text.split("\n")
@@ -85,7 +85,7 @@ class LogParser:
 
     @classmethod
     def _get_context(
-        cls, lines: List[str], current_line: int, context_size: int = 2
+        cls, lines: list[str], current_line: int, context_size: int = 2
     ) -> str:
         """Get surrounding context for a log entry"""
         start = max(0, current_line - context_size - 1)

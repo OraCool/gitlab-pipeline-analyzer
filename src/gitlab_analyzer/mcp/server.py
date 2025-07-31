@@ -3,7 +3,10 @@ FastMCP server creation and configuration
 """
 
 import os
+from pathlib import Path
+
 from fastmcp import FastMCP
+
 from .tools import register_tools
 
 
@@ -22,11 +25,11 @@ def create_server() -> FastMCP:
     return mcp
 
 
-def load_env_file():
+def load_env_file() -> None:
     """Load environment variables from .env file if it exists"""
-    env_file = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
-    if os.path.exists(env_file):
-        with open(env_file, encoding="utf-8") as f:
+    env_file = Path(__file__).parent / ".." / ".." / ".." / ".env"
+    if env_file.exists():
+        with env_file.open(encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:

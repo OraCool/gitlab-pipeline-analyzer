@@ -2,7 +2,6 @@
 JobInfo model for GitLab CI/CD job information
 """
 
-from typing import Optional
 from pydantic import BaseModel
 
 
@@ -14,7 +13,7 @@ class JobInfo(BaseModel):
     status: str
     stage: str
     created_at: str
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
-    failure_reason: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    failure_reason: str | None = None
     web_url: str

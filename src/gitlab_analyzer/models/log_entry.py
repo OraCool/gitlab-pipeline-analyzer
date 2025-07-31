@@ -2,7 +2,6 @@
 LogEntry model for parsed log entries
 """
 
-from typing import Optional
 from pydantic import BaseModel
 
 
@@ -11,6 +10,6 @@ class LogEntry(BaseModel):
 
     level: str  # "error", "warning", "info"
     message: str
-    line_number: Optional[int] = None
-    timestamp: Optional[str] = None
-    context: Optional[str] = None
+    line_number: int | None = None
+    timestamp: str | None = None
+    context: str | None = None

@@ -2,8 +2,10 @@
 PipelineAnalysis model for complete pipeline analysis results
 """
 
-from typing import Any, Dict, List
+from typing import Any
+
 from pydantic import BaseModel
+
 from .job_info import JobInfo
 from .log_entry import LogEntry
 
@@ -13,6 +15,6 @@ class PipelineAnalysis(BaseModel):
 
     pipeline_id: int
     pipeline_status: str
-    failed_jobs: List[JobInfo]
-    analysis: Dict[str, List[LogEntry]]
-    summary: Dict[str, Any]
+    failed_jobs: list[JobInfo]
+    analysis: dict[str, list[LogEntry]]
+    summary: dict[str, Any]
