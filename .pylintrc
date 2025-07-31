@@ -1,0 +1,22 @@
+[MASTER]
+init-hook='import sys; sys.path.append(".")'
+
+[MESSAGES CONTROL]
+disable=
+    import-error,
+    too-few-public-methods
+
+[FORMAT]
+max-line-length=88
+good-names=i,j,k,ex,Run,_,e,f,id
+
+[BASIC]
+# Good variable names which should always be accepted, separated by a comma
+good-names=i,j,k,ex,Run,_,e,f,id,url,api
+
+[DESIGN]
+max-args=7
+max-locals=15
+max-returns=6
+max-branches=12
+max-statements=50

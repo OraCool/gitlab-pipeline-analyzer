@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 class JobInfo(BaseModel):
     """Information about a GitLab CI/CD job"""
+
     id: int
     name: str
     status: str
@@ -32,6 +33,7 @@ class JobInfo(BaseModel):
 
 class LogEntry(BaseModel):
     """A parsed log entry with error/warning information"""
+
     level: str  # "error", "warning", "info"
     message: str
     line_number: Optional[int] = None
@@ -41,6 +43,7 @@ class LogEntry(BaseModel):
 
 class PipelineAnalysis(BaseModel):
     """Complete analysis of a failed pipeline"""
+
     pipeline_id: int
     pipeline_status: str
     failed_jobs: List[JobInfo]
@@ -50,45 +53,39 @@ class PipelineAnalysis(BaseModel):
 
 class GitLabAnalyzer:
     """GitLab API client for analyzing pipelines"""
-    
+
     def __init__(self, gitlab_url: str, token: str):
-        self.gitlab_url = gitlab_url.rstrip('/')
+        self.gitlab_url = gitlab_url.rstrip("/")
         self.token = token
         self.api_url = f"{self.gitlab_url}/api/v4"
-        
+
         self.headers = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-    
+
     async def get_pipeline(
         self, project_id: Union[str, int], pipeline_id: int
     ) -> Dict[str, Any]:
         """Get pipeline information"""
-        url = (
-            f"{self.api_url}/projects/{project_id}/"
-            f"pipelines/{pipeline_id}"
-        )
-        
+        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}"
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
-            return response.json()
-    
+            return response.json()  # type: ignore
+
     async def get_pipeline_jobs(
         self, project_id: Union[str, int], pipeline_id: int
     ) -> List[JobInfo]:
         """Get all jobs for a pipeline"""
-        url = (
-            f"{self.api_url}/projects/{project_id}/"
-            f"pipelines/{pipeline_id}/jobs"
-        )
-        
+        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}/jobs"
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
             jobs_data = response.json()
-            
+
             jobs = []
             for job_data in jobs_data:
                 job = JobInfo(
@@ -100,29 +97,24 @@ class GitLabAnalyzer:
                     started_at=job_data.get("started_at"),
                     finished_at=job_data.get("finished_at"),
                     failure_reason=job_data.get("failure_reason"),
-                    web_url=job_data["web_url"]
+                    web_url=job_data["web_url"],
                 )
                 jobs.append(job)
-            
+
             return jobs
-    
+
     async def get_failed_pipeline_jobs(
         self, project_id: Union[str, int], pipeline_id: int
     ) -> List[JobInfo]:
         """Get only failed jobs for a specific pipeline (more efficient)"""
-        url = (
-            f"{self.api_url}/projects/{project_id}/"
-            f"pipelines/{pipeline_id}/jobs"
-        )
+        url = f"{self.api_url}/projects/{project_id}/" f"pipelines/{pipeline_id}/jobs"
         params = {"scope[]": "failed"}
-        
+
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                url, headers=self.headers, params=params
-            )
+            response = await client.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             jobs_data = response.json()
-            
+
             jobs = []
             for job_data in jobs_data:
                 job = JobInfo(
@@ -134,18 +126,16 @@ class GitLabAnalyzer:
                     started_at=job_data.get("started_at"),
                     finished_at=job_data.get("finished_at"),
                     failure_reason=job_data.get("failure_reason"),
-                    web_url=job_data["web_url"]
+                    web_url=job_data["web_url"],
                 )
                 jobs.append(job)
-            
+
             return jobs
-    
-    async def get_job_trace(
-        self, project_id: Union[str, int], job_id: int
-    ) -> str:
+
+    async def get_job_trace(self, project_id: Union[str, int], job_id: int) -> str:
         """Get the trace log for a specific job"""
         url = f"{self.api_url}/projects/{project_id}/jobs/{job_id}/trace"
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
             if response.status_code == 404:
@@ -156,56 +146,52 @@ class GitLabAnalyzer:
 
 class LogParser:
     """Parser for extracting errors and warnings from CI/CD logs"""
-    
+
     # Common error patterns for Python projects
     ERROR_PATTERNS = [
         # Python errors
-        (r'(.*)Error: (.+)', 'error'),
-        (r'(.*)Exception: (.+)', 'error'),
-        (r'(.*)Traceback \(most recent call last\):', 'error'),
-        (r'(.*)FAILED (.+)', 'error'),
-        (r'(.*)FAIL: (.+)', 'error'),
-        (r'(.*)E\s+(.+)', 'error'),  # pytest errors
-        
+        (r"(.*)Error: (.+)", "error"),
+        (r"(.*)Exception: (.+)", "error"),
+        (r"(.*)Traceback \(most recent call last\):", "error"),
+        (r"(.*)FAILED (.+)", "error"),
+        (r"(.*)FAIL: (.+)", "error"),
+        (r"(.*)E\s+(.+)", "error"),  # pytest errors
         # Build/compilation errors
-        (r'(.*)fatal error: (.+)', 'error'),
-        (r'(.*)error: (.+)', 'error'),
-        (r'(.*)ERROR: (.+)', 'error'),
-        
+        (r"(.*)fatal error: (.+)", "error"),
+        (r"(.*)error: (.+)", "error"),
+        (r"(.*)ERROR: (.+)", "error"),
         # Linting errors
-        (r'(.*)pylint: (.+)', 'error'),
-        (r'(.*)flake8: (.+)', 'error'),
-        (r'(.*)mypy: (.+)', 'error'),
-        
+        (r"(.*)pylint: (.+)", "error"),
+        (r"(.*)flake8: (.+)", "error"),
+        (r"(.*)mypy: (.+)", "error"),
         # Test framework errors
-        (r'(.*)AssertionError: (.+)', 'error'),
-        (r'(.*)Test failed: (.+)', 'error'),
-        
+        (r"(.*)AssertionError: (.+)", "error"),
+        (r"(.*)Test failed: (.+)", "error"),
         # General failure patterns
-        (r'(.*)Command failed with exit code (\d+)', 'error'),
-        (r'(.*)Process exited with code (\d+)', 'error'),
+        (r"(.*)Command failed with exit code (\d+)", "error"),
+        (r"(.*)Process exited with code (\d+)", "error"),
     ]
-    
+
     WARNING_PATTERNS = [
-        (r'(.*)Warning: (.+)', 'warning'),
-        (r'(.*)WARNING: (.+)', 'warning'),
-        (r'(.*)WARN: (.+)', 'warning'),
-        (r'(.*)DeprecationWarning: (.+)', 'warning'),
-        (r'(.*)UserWarning: (.+)', 'warning'),
-        (r'(.*)FutureWarning: (.+)', 'warning'),
+        (r"(.*)Warning: (.+)", "warning"),
+        (r"(.*)WARNING: (.+)", "warning"),
+        (r"(.*)WARN: (.+)", "warning"),
+        (r"(.*)DeprecationWarning: (.+)", "warning"),
+        (r"(.*)UserWarning: (.+)", "warning"),
+        (r"(.*)FutureWarning: (.+)", "warning"),
     ]
-    
+
     @classmethod
     def extract_log_entries(cls, log_text: str) -> List[LogEntry]:
         """Extract error and warning entries from log text"""
         entries = []
-        lines = log_text.split('\n')
-        
+        lines = log_text.split("\n")
+
         for line_num, log_line in enumerate(lines, 1):
             log_line = log_line.strip()
             if not log_line:
                 continue
-            
+
             # Check for errors
             for pattern, level in cls.ERROR_PATTERNS:
                 match = re.search(pattern, log_line, re.IGNORECASE)
@@ -214,11 +200,11 @@ class LogParser:
                         level=level,
                         message=log_line,
                         line_number=line_num,
-                        context=cls._get_context(lines, line_num)
+                        context=cls._get_context(lines, line_num),
                     )
                     entries.append(entry)
                     break
-            
+
             # Check for warnings
             for pattern, level in cls.WARNING_PATTERNS:
                 match = re.search(pattern, log_line, re.IGNORECASE)
@@ -227,43 +213,50 @@ class LogParser:
                         level=level,
                         message=log_line,
                         line_number=line_num,
-                        context=cls._get_context(lines, line_num)
+                        context=cls._get_context(lines, line_num),
                     )
                     entries.append(entry)
                     break
-        
+
         return entries
-    
+
     @classmethod
-    def _get_context(cls, lines: List[str], current_line: int, context_size: int = 2) -> str:
+    def _get_context(
+        cls, lines: List[str], current_line: int, context_size: int = 2
+    ) -> str:
         """Get surrounding context for a log entry"""
         start = max(0, current_line - context_size - 1)
         end = min(len(lines), current_line + context_size)
         context_lines = lines[start:end]
-        return '\n'.join(context_lines)
+        return "\n".join(context_lines)
 
 
 # Initialize FastMCP server
-mcp = FastMCP("GitLab Pipeline Analyzer")
+mcp: FastMCP = FastMCP(
+    name="GitLab Pipeline Analyzer",
+    instructions="""
+    Analyze GitLab CI/CD pipelines for errors and warnings
+    """,
+)
 
-# Initialize GitLab analyzer (will be configured from environment variables)
-gitlab_analyzer: Optional[GitLabAnalyzer] = None
+# GitLab analyzer singleton instance
+_gitlab_analyzer: Optional[GitLabAnalyzer] = None
 
 
 def get_gitlab_analyzer() -> GitLabAnalyzer:
     """Get or create GitLab analyzer instance"""
-    global gitlab_analyzer
-    
-    if gitlab_analyzer is None:
+    global _gitlab_analyzer  # pylint: disable=global-statement
+
+    if _gitlab_analyzer is None:
         gitlab_url = os.getenv("GITLAB_URL", "https://gitlab.com")
         gitlab_token = os.getenv("GITLAB_TOKEN")
-        
+
         if not gitlab_token:
             raise ValueError("GITLAB_TOKEN environment variable is required")
-        
-        gitlab_analyzer = GitLabAnalyzer(gitlab_url, gitlab_token)
-    
-    return gitlab_analyzer
+
+        _gitlab_analyzer = GitLabAnalyzer(gitlab_url, gitlab_token)
+
+    return _gitlab_analyzer
 
 
 @mcp.tool
@@ -271,15 +264,15 @@ async def analyze_failed_pipeline(
     project_id: Union[str, int], pipeline_id: int
 ) -> Dict[str, Any]:
     """
-    Analyze a failed GitLab CI/CD pipeline and extract errors/warnings from all 
+    Analyze a failed GitLab CI/CD pipeline and extract errors/warnings from all
     failed jobs. Uses optimized API calls to fetch only failed jobs.
-    
+
     Args:
         project_id: The GitLab project ID or path
         pipeline_id: The ID of the GitLab pipeline to analyze
-        
+
     Returns:
-        Complete analysis including pipeline info, failed jobs, and extracted 
+        Complete analysis including pipeline info, failed jobs, and extracted
         errors/warnings
     """
     return await analyze_failed_pipeline_optimized(project_id, pipeline_id)
@@ -289,33 +282,32 @@ async def analyze_failed_pipeline_optimized(
     project_id: Union[str, int], pipeline_id: int
 ) -> Dict[str, Any]:
     """
-    Optimized version that only fetches failed jobs (faster for large pipelines)
-    
+    Optimized version that only fetches failed jobs (faster for large
+    pipelines)
+
     Args:
         project_id: The GitLab project ID or path
         pipeline_id: The ID of the GitLab pipeline to analyze
-        
+
     Returns:
         Analysis focusing only on failed jobs without total job statistics
     """
     analyzer = get_gitlab_analyzer()
-    
+
     try:
         # Get pipeline information
         pipeline = await analyzer.get_pipeline(project_id, pipeline_id)
-        
+
         # Get only failed jobs (optimized - single API call)
-        failed_jobs = await analyzer.get_failed_pipeline_jobs(
-            project_id, pipeline_id
-        )
-        
+        failed_jobs = await analyzer.get_failed_pipeline_jobs(project_id, pipeline_id)
+
         # Analyze each failed job
         analysis = {}
         for job in failed_jobs:
             trace = await analyzer.get_job_trace(project_id, job.id)
             log_entries = LogParser.extract_log_entries(trace)
             analysis[job.name] = [entry.dict() for entry in log_entries]
-        
+
         # Create summary (without total job count for efficiency)
         total_errors = sum(
             len([entry for entry in entries if entry["level"] == "error"])
@@ -325,7 +317,7 @@ async def analyze_failed_pipeline_optimized(
             len([entry for entry in entries if entry["level"] == "warning"])
             for entries in analysis.values()
         )
-        
+
         summary = {
             "pipeline_id": pipeline_id,
             "pipeline_status": pipeline["status"],
@@ -333,24 +325,24 @@ async def analyze_failed_pipeline_optimized(
             "total_errors": total_errors,
             "total_warnings": total_warnings,
             "failed_stages": list(set(job.stage for job in failed_jobs)),
-            "analysis_timestamp": datetime.now().isoformat()
+            "analysis_timestamp": datetime.now().isoformat(),
         }
-        
+
         result = {
             "pipeline_id": pipeline_id,
             "pipeline_status": pipeline["status"],
             "pipeline_url": pipeline["web_url"],
             "failed_jobs": [job.dict() for job in failed_jobs],
             "analysis": analysis,
-            "summary": summary
+            "summary": summary,
         }
-        
+
         return result
-        
-    except Exception as e:
+
+    except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
         return {
             "error": f"Failed to analyze pipeline {pipeline_id}: {str(e)}",
-            "pipeline_id": pipeline_id
+            "pipeline_id": pipeline_id,
         }
 
 
@@ -361,74 +353,65 @@ async def analyze_single_job(
     """
     Analyze a single GitLab CI/CD job and extract errors/warnings from its
     trace.
-    
+
     Args:
         project_id: The GitLab project ID or path
         job_id: The ID of the specific job to analyze
-        
+
     Returns:
         Analysis of the single job including extracted errors/warnings
     """
     analyzer = get_gitlab_analyzer()
-    
+
     try:
         # Get job information by fetching all jobs and finding the specific one
         # Note: GitLab API doesn't have a direct single job endpoint, so we
         # need to get it through a pipeline or use the jobs/{id} endpoint
         # differently
-        
+
         # Get job trace
         trace = await analyzer.get_job_trace(project_id, job_id)
-        
+
         if not trace.strip():
             return {
                 "error": f"No trace found for job {job_id}",
                 "project_id": str(project_id),
-                "job_id": job_id
+                "job_id": job_id,
             }
-        
+
         # Extract errors and warnings from the trace
         log_entries = LogParser.extract_log_entries(trace)
-        
+
         # Categorize entries
-        errors = [
-            entry.dict() for entry in log_entries
-            if entry.level == "error"
-        ]
-        warnings = [
-            entry.dict() for entry in log_entries
-            if entry.level == "warning"
-        ]
-        
+        errors = [entry.dict() for entry in log_entries if entry.level == "error"]
+        warnings = [entry.dict() for entry in log_entries if entry.level == "warning"]
+
         # Get job URL (construct based on GitLab URL pattern)
         analyzer_instance = get_gitlab_analyzer()
         job_url = f"{analyzer_instance.gitlab_url}/-/jobs/{job_id}"
-        
+
         result = {
             "project_id": str(project_id),
             "job_id": job_id,
             "job_url": job_url,
-            "analysis": {
-                "errors": errors,
-                "warnings": warnings
-            },
+            "analysis": {"errors": errors, "warnings": warnings},
             "summary": {
                 "total_errors": len(errors),
                 "total_warnings": len(warnings),
                 "total_log_entries": len(log_entries),
                 "has_trace": bool(trace.strip()),
                 "trace_length": len(trace),
-                "analysis_timestamp": datetime.now().isoformat()
-            }
+                "analysis_timestamp": datetime.now().isoformat(),
+            },
         }
-        
+
         return result
-        
-    except Exception as e:
+
+    except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
         return {
             "error": f"Failed to analyze job {job_id}: {str(e)}",
             "project_id": str(project_id),
-            "job_id": job_id
+            "job_id": job_id,
         }
 
 
@@ -438,16 +421,16 @@ async def get_pipeline_jobs(
 ) -> Dict[str, Any]:
     """
     Get all jobs for a specific GitLab pipeline.
-    
+
     Args:
         project_id: The GitLab project ID or path
         pipeline_id: The ID of the GitLab pipeline
-        
+
     Returns:
         List of all jobs in the pipeline with their status and details
     """
     analyzer = get_gitlab_analyzer()
-    
+
     try:
         jobs = await analyzer.get_pipeline_jobs(project_id, pipeline_id)
         return {
@@ -455,39 +438,31 @@ async def get_pipeline_jobs(
             "pipeline_id": pipeline_id,
             "jobs": [job.dict() for job in jobs],
             "total_jobs": len(jobs),
-            "failed_jobs": len([
-                job for job in jobs if job.status == "failed"
-            ]),
-            "passed_jobs": len([
-                job for job in jobs if job.status == "success"
-            ]),
+            "failed_jobs": len([job for job in jobs if job.status == "failed"]),
+            "passed_jobs": len([job for job in jobs if job.status == "success"]),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
         return {
-            "error": (
-                f"Failed to get jobs for pipeline {pipeline_id}: {str(e)}"
-            ),
+            "error": (f"Failed to get jobs for pipeline {pipeline_id}: {str(e)}"),
             "project_id": str(project_id),
-            "pipeline_id": pipeline_id
+            "pipeline_id": pipeline_id,
         }
 
 
 @mcp.tool
-async def get_job_trace(
-    project_id: Union[str, int], job_id: int
-) -> Dict[str, Any]:
+async def get_job_trace(project_id: Union[str, int], job_id: int) -> Dict[str, Any]:
     """
     Get the trace log for a specific GitLab CI/CD job.
-    
+
     Args:
         project_id: The GitLab project ID or path
         job_id: The ID of the GitLab job
-        
+
     Returns:
         The complete trace log for the job
     """
     analyzer = get_gitlab_analyzer()
-    
+
     try:
         trace = await analyzer.get_job_trace(project_id, job_id)
         return {
@@ -495,13 +470,13 @@ async def get_job_trace(
             "job_id": job_id,
             "trace": trace,
             "trace_length": len(trace),
-            "has_content": bool(trace.strip())
+            "has_content": bool(trace.strip()),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError, ValueError) as e:
         return {
             "error": f"Failed to get trace for job {job_id}: {str(e)}",
             "project_id": str(project_id),
-            "job_id": job_id
+            "job_id": job_id,
         }
 
 
@@ -509,35 +484,29 @@ async def get_job_trace(
 async def extract_log_errors(log_text: str) -> Dict[str, Any]:
     """
     Extract errors and warnings from log text.
-    
+
     Args:
         log_text: The log text to analyze
-        
+
     Returns:
         Extracted errors and warnings with context
     """
     try:
         log_entries = LogParser.extract_log_entries(log_text)
-        
-        errors = [
-            entry.dict() for entry in log_entries if entry.level == "error"
-        ]
-        warnings = [
-            entry.dict() for entry in log_entries if entry.level == "warning"
-        ]
-        
+
+        errors = [entry.dict() for entry in log_entries if entry.level == "error"]
+        warnings = [entry.dict() for entry in log_entries if entry.level == "warning"]
+
         return {
             "total_entries": len(log_entries),
             "errors": errors,
             "warnings": warnings,
             "error_count": len(errors),
             "warning_count": len(warnings),
-            "analysis_timestamp": datetime.now().isoformat()
+            "analysis_timestamp": datetime.now().isoformat(),
         }
-    except Exception as e:
-        return {
-            "error": f"Failed to extract log errors: {str(e)}"
-        }
+    except (ValueError, TypeError, AttributeError) as e:
+        return {"error": f"Failed to extract log errors: {str(e)}"}
 
 
 @mcp.tool
@@ -546,16 +515,16 @@ async def get_pipeline_status(
 ) -> Dict[str, Any]:
     """
     Get the current status and basic information of a GitLab pipeline.
-    
+
     Args:
         project_id: The GitLab project ID or path
         pipeline_id: The ID of the GitLab pipeline
-        
+
     Returns:
         Pipeline status and basic information
     """
     analyzer = get_gitlab_analyzer()
-    
+
     try:
         pipeline = await analyzer.get_pipeline(project_id, pipeline_id)
         return {
@@ -567,28 +536,26 @@ async def get_pipeline_status(
             "web_url": pipeline["web_url"],
             "ref": pipeline["ref"],
             "sha": pipeline["sha"],
-            "source": pipeline.get("source", "unknown")
+            "source": pipeline.get("source", "unknown"),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
         return {
-            "error": (
-                f"Failed to get pipeline status for {pipeline_id}: {str(e)}"
-            ),
+            "error": (f"Failed to get pipeline status for {pipeline_id}: {str(e)}"),
             "project_id": str(project_id),
-            "pipeline_id": pipeline_id
+            "pipeline_id": pipeline_id,
         }
 
 
 if __name__ == "__main__":
     # Load environment variables from .env file if it exists
-    env_file = os.path.join(os.path.dirname(__file__), '.env')
+    env_file = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_file):
         with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
                     os.environ[key] = value
-    
+
     # Run the FastMCP server
     mcp.run()
