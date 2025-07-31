@@ -355,6 +355,84 @@ async def analyze_failed_pipeline_optimized(
 
 
 @mcp.tool
+async def analyze_single_job(
+    project_id: Union[str, int], job_id: int
+) -> Dict[str, Any]:
+    """
+    Analyze a single GitLab CI/CD job and extract errors/warnings from its
+    trace.
+    
+    Args:
+        project_id: The GitLab project ID or path
+        job_id: The ID of the specific job to analyze
+        
+    Returns:
+        Analysis of the single job including extracted errors/warnings
+    """
+    analyzer = get_gitlab_analyzer()
+    
+    try:
+        # Get job information by fetching all jobs and finding the specific one
+        # Note: GitLab API doesn't have a direct single job endpoint, so we
+        # need to get it through a pipeline or use the jobs/{id} endpoint
+        # differently
+        
+        # Get job trace
+        trace = await analyzer.get_job_trace(project_id, job_id)
+        
+        if not trace.strip():
+            return {
+                "error": f"No trace found for job {job_id}",
+                "project_id": str(project_id),
+                "job_id": job_id
+            }
+        
+        # Extract errors and warnings from the trace
+        log_entries = LogParser.extract_log_entries(trace)
+        
+        # Categorize entries
+        errors = [
+            entry.dict() for entry in log_entries
+            if entry.level == "error"
+        ]
+        warnings = [
+            entry.dict() for entry in log_entries
+            if entry.level == "warning"
+        ]
+        
+        # Get job URL (construct based on GitLab URL pattern)
+        analyzer_instance = get_gitlab_analyzer()
+        job_url = f"{analyzer_instance.gitlab_url}/-/jobs/{job_id}"
+        
+        result = {
+            "project_id": str(project_id),
+            "job_id": job_id,
+            "job_url": job_url,
+            "analysis": {
+                "errors": errors,
+                "warnings": warnings
+            },
+            "summary": {
+                "total_errors": len(errors),
+                "total_warnings": len(warnings),
+                "total_log_entries": len(log_entries),
+                "has_trace": bool(trace.strip()),
+                "trace_length": len(trace),
+                "analysis_timestamp": datetime.now().isoformat()
+            }
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "error": f"Failed to analyze job {job_id}: {str(e)}",
+            "project_id": str(project_id),
+            "job_id": job_id
+        }
+
+
+@mcp.tool
 async def get_pipeline_jobs(
     project_id: Union[str, int], pipeline_id: int
 ) -> Dict[str, Any]:
@@ -377,12 +455,18 @@ async def get_pipeline_jobs(
             "pipeline_id": pipeline_id,
             "jobs": [job.dict() for job in jobs],
             "total_jobs": len(jobs),
-            "failed_jobs": len([job for job in jobs if job.status == "failed"]),
-            "passed_jobs": len([job for job in jobs if job.status == "success"]),
+            "failed_jobs": len([
+                job for job in jobs if job.status == "failed"
+            ]),
+            "passed_jobs": len([
+                job for job in jobs if job.status == "success"
+            ]),
         }
     except Exception as e:
         return {
-            "error": f"Failed to get jobs for pipeline {pipeline_id}: {str(e)}",
+            "error": (
+                f"Failed to get jobs for pipeline {pipeline_id}: {str(e)}"
+            ),
             "project_id": str(project_id),
             "pipeline_id": pipeline_id
         }
@@ -435,8 +519,12 @@ async def extract_log_errors(log_text: str) -> Dict[str, Any]:
     try:
         log_entries = LogParser.extract_log_entries(log_text)
         
-        errors = [entry.dict() for entry in log_entries if entry.level == "error"]
-        warnings = [entry.dict() for entry in log_entries if entry.level == "warning"]
+        errors = [
+            entry.dict() for entry in log_entries if entry.level == "error"
+        ]
+        warnings = [
+            entry.dict() for entry in log_entries if entry.level == "warning"
+        ]
         
         return {
             "total_entries": len(log_entries),
@@ -483,7 +571,9 @@ async def get_pipeline_status(
         }
     except Exception as e:
         return {
-            "error": f"Failed to get pipeline status for {pipeline_id}: {str(e)}",
+            "error": (
+                f"Failed to get pipeline status for {pipeline_id}: {str(e)}"
+            ),
             "project_id": str(project_id),
             "pipeline_id": pipeline_id
         }
