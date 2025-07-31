@@ -1,5 +1,8 @@
 """
 MCP tool functions for GitLab Pipeline Analyzer
+
+Copyright (c) 2025 Siarhei Skuratovich
+Licensed under the MIT License - see LICENSE file for details
 """
 
 import os

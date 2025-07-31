@@ -78,3 +78,39 @@ Create a `.env` file with your GitLab configuration:
 GITLAB_URL=https://gitlab.com
 GITLAB_TOKEN=your-personal-access-token
 ```
+
+## Development
+
+```bash
+# Install development dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run linting and type checking
+uv run tox -e lint,type
+
+# Run all quality checks
+uv run tox
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+**Siarhei Skuratovich**
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run the test suite
+5. Submit a pull request
+
+---
+
+**Note**: This MCP server is designed to work with GitLab CI/CD pipelines and requires appropriate API access tokens.

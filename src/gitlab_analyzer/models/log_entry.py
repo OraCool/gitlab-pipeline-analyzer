@@ -1,5 +1,8 @@
 """
-LogEntry model for parsed log entries
+LogEntry model for CI/CD log entries
+
+Copyright (c) 2025 Siarhei Skuratovich
+Licensed under the MIT License - see LICENSE file for details
 """
 
 from pydantic import BaseModel

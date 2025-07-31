@@ -1,5 +1,8 @@
 """
 Parser for extracting errors and warnings from CI/CD logs
+
+Copyright (c) 2025 Siarhei Skuratovich
+Licensed under the MIT License - see LICENSE file for details
 """
 
 import re
