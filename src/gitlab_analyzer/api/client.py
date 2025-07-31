@@ -31,10 +31,10 @@ class GitLabAnalyzer:
         """Get pipeline information"""
         url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}"
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
-            return response.json()  # type: ignore
+            return response.json()
 
     async def get_pipeline_jobs(
         self, project_id: str | int, pipeline_id: int
@@ -42,7 +42,7 @@ class GitLabAnalyzer:
         """Get all jobs for a pipeline"""
         url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}/jobs"
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
             jobs_data = response.json()
@@ -71,7 +71,7 @@ class GitLabAnalyzer:
         url = f"{self.api_url}/projects/{project_id}/pipelines/{pipeline_id}/jobs"
         params = {"scope[]": "failed"}
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             jobs_data = response.json()
@@ -97,7 +97,7 @@ class GitLabAnalyzer:
         """Get the trace log for a specific job"""
         url = f"{self.api_url}/projects/{project_id}/jobs/{job_id}/trace"
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for logs
             response = await client.get(url, headers=self.headers)
             if response.status_code == 404:
                 return ""

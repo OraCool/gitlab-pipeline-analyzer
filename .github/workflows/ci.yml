@@ -36,7 +36,7 @@ jobs:
 
     - name: Type check with mypy
       run: |
-        uv run mypy src/
+        uv run mypy --config-file=mypy.ini
 
     - name: Security check with bandit
       run: |

@@ -38,7 +38,7 @@ def get_gitlab_analyzer() -> GitLabAnalyzer:
 def register_tools(mcp: FastMCP) -> None:
     """Register all MCP tools"""
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
     async def analyze_failed_pipeline(
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
@@ -56,7 +56,7 @@ def register_tools(mcp: FastMCP) -> None:
         """
         return await analyze_failed_pipeline_optimized(project_id, pipeline_id)
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
     async def analyze_single_job(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
         Analyze a single GitLab CI/CD job and extract errors/warnings from its
@@ -119,7 +119,7 @@ def register_tools(mcp: FastMCP) -> None:
                 "job_id": job_id,
             }
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
     async def get_pipeline_jobs(
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
@@ -152,7 +152,53 @@ def register_tools(mcp: FastMCP) -> None:
                 "pipeline_id": pipeline_id,
             }
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
+    async def get_failed_jobs(
+        project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
+        """
+        Get only the failed jobs for a specific GitLab CI/CD pipeline.
+
+        Args:
+            project_id: The GitLab project ID or path
+            pipeline_id: The ID of the GitLab pipeline
+
+        Returns:
+            List of failed jobs with their details
+        """
+        analyzer = get_gitlab_analyzer()
+
+        try:
+            failed_jobs = await analyzer.get_failed_pipeline_jobs(
+                project_id, pipeline_id
+            )
+            return {
+                "project_id": str(project_id),
+                "pipeline_id": pipeline_id,
+                "failed_jobs": [
+                    {
+                        "id": job.id,
+                        "name": job.name,
+                        "stage": job.stage,
+                        "status": job.status,
+                        "created_at": job.created_at,
+                        "started_at": job.started_at,
+                        "finished_at": job.finished_at,
+                        "failure_reason": job.failure_reason,
+                        "web_url": job.web_url,
+                    }
+                    for job in failed_jobs
+                ],
+                "failed_job_count": len(failed_jobs),
+            }
+        except (httpx.HTTPError, httpx.RequestError, ValueError) as e:
+            return {
+                "error": f"Failed to get failed jobs for pipeline {pipeline_id}: {str(e)}",
+                "project_id": str(project_id),
+                "pipeline_id": pipeline_id,
+            }
+
+    @mcp.tool
     async def get_job_trace(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
         Get the trace log for a specific GitLab CI/CD job.
@@ -182,7 +228,7 @@ def register_tools(mcp: FastMCP) -> None:
                 "job_id": job_id,
             }
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
     async def extract_log_errors(log_text: str) -> dict[str, Any]:
         """
         Extract errors and warnings from log text.
@@ -212,7 +258,7 @@ def register_tools(mcp: FastMCP) -> None:
         except (ValueError, TypeError, AttributeError) as e:
             return {"error": f"Failed to extract log errors: {str(e)}"}
 
-    @mcp.tool  # type: ignore[misc]
+    @mcp.tool
     async def get_pipeline_status(
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
