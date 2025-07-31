@@ -106,6 +106,40 @@ class GitLabAnalyzer:
             
             return jobs
     
+    async def get_failed_pipeline_jobs(
+        self, project_id: Union[str, int], pipeline_id: int
+    ) -> List[JobInfo]:
+        """Get only failed jobs for a specific pipeline (more efficient)"""
+        url = (
+            f"{self.api_url}/projects/{project_id}/"
+            f"pipelines/{pipeline_id}/jobs"
+        )
+        params = {"scope[]": "failed"}
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url, headers=self.headers, params=params
+            )
+            response.raise_for_status()
+            jobs_data = response.json()
+            
+            jobs = []
+            for job_data in jobs_data:
+                job = JobInfo(
+                    id=job_data["id"],
+                    name=job_data["name"],
+                    status=job_data["status"],
+                    stage=job_data["stage"],
+                    created_at=job_data["created_at"],
+                    started_at=job_data.get("started_at"),
+                    finished_at=job_data.get("finished_at"),
+                    failure_reason=job_data.get("failure_reason"),
+                    web_url=job_data["web_url"]
+                )
+                jobs.append(job)
+            
+            return jobs
+    
     async def get_job_trace(
         self, project_id: Union[str, int], job_id: int
     ) -> str:
@@ -238,7 +272,7 @@ async def analyze_failed_pipeline(
 ) -> Dict[str, Any]:
     """
     Analyze a failed GitLab CI/CD pipeline and extract errors/warnings from all 
-    failed jobs.
+    failed jobs. Uses optimized API calls to fetch only failed jobs.
     
     Args:
         project_id: The GitLab project ID or path
@@ -248,17 +282,32 @@ async def analyze_failed_pipeline(
         Complete analysis including pipeline info, failed jobs, and extracted 
         errors/warnings
     """
+    return await analyze_failed_pipeline_optimized(project_id, pipeline_id)
+
+
+async def analyze_failed_pipeline_optimized(
+    project_id: Union[str, int], pipeline_id: int
+) -> Dict[str, Any]:
+    """
+    Optimized version that only fetches failed jobs (faster for large pipelines)
+    
+    Args:
+        project_id: The GitLab project ID or path
+        pipeline_id: The ID of the GitLab pipeline to analyze
+        
+    Returns:
+        Analysis focusing only on failed jobs without total job statistics
+    """
     analyzer = get_gitlab_analyzer()
     
     try:
         # Get pipeline information
         pipeline = await analyzer.get_pipeline(project_id, pipeline_id)
         
-        # Get all jobs for the pipeline
-        jobs = await analyzer.get_pipeline_jobs(project_id, pipeline_id)
-        
-        # Filter failed jobs
-        failed_jobs = [job for job in jobs if job.status == "failed"]
+        # Get only failed jobs (optimized - single API call)
+        failed_jobs = await analyzer.get_failed_pipeline_jobs(
+            project_id, pipeline_id
+        )
         
         # Analyze each failed job
         analysis = {}
@@ -267,7 +316,7 @@ async def analyze_failed_pipeline(
             log_entries = LogParser.extract_log_entries(trace)
             analysis[job.name] = [entry.dict() for entry in log_entries]
         
-        # Create summary
+        # Create summary (without total job count for efficiency)
         total_errors = sum(
             len([entry for entry in entries if entry["level"] == "error"])
             for entries in analysis.values()
@@ -280,7 +329,6 @@ async def analyze_failed_pipeline(
         summary = {
             "pipeline_id": pipeline_id,
             "pipeline_status": pipeline["status"],
-            "total_jobs": len(jobs),
             "failed_jobs_count": len(failed_jobs),
             "total_errors": total_errors,
             "total_warnings": total_warnings,
