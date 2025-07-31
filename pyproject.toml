@@ -2,9 +2,7 @@
 name = "gitlab-pipeline-analyzer"
 version = "0.1.0"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
-authors = [
-    { name = "Siarhei Skuratovich", email = "siarhei.skuratovich@example.com" },
-]
+authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
 keywords = ["gitlab", "ci/cd", "pipeline", "analysis", "mcp", "fastmcp"]
@@ -32,10 +30,14 @@ requires-python = ">=3.10"
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "tox>=4.0.0",
     "bandit[toml]>=1.7.0",
+    "pre-commit>=3.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
 ]
 
 [build-system]
@@ -155,6 +157,42 @@ ignore_missing_imports = true
 [tool.bandit]
 exclude_dirs = ["tests", "test_*.py", "*_test.py"]
 skips = ["B101"]                                   # Skip assert_used test
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=gitlab_analyzer",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=80",
+]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
 
 [dependency-groups]
 dev = ["ruff>=0.12.7", "tox>=4.28.3"]

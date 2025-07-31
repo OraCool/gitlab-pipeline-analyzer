@@ -32,6 +32,115 @@ export GITLAB_TOKEN="your-access-token"  # Your GitLab personal access token
 
 Note: Project ID is now passed as a parameter to each tool, making the server more flexible.
 
+## Development
+
+### Setup
+
+```bash
+# Install dependencies
+uv sync --all-extras
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+### Running tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=gitlab_analyzer --cov-report=html
+
+# Run security scans
+uv run bandit -r src/
+```
+
+### Code quality
+
+```bash
+# Format code
+uv run ruff format
+
+# Lint code
+uv run ruff check --fix
+
+# Type checking
+uv run mypy src/
+```
+
+## GitHub Actions
+
+This project includes comprehensive CI/CD workflows:
+
+### CI Workflow (`.github/workflows/ci.yml`)
+- **Triggers**: Push to `main`/`develop`, Pull requests
+- **Features**:
+  - Tests across Python 3.10, 3.11, 3.12
+  - Code formatting with Ruff
+  - Linting with Ruff
+  - Type checking with MyPy
+  - Security scanning with Bandit
+  - Test coverage reporting
+  - Build validation
+
+### Release Workflow (`.github/workflows/release.yml`)
+- **Triggers**: GitHub releases, Manual dispatch
+- **Features**:
+  - Automated PyPI publishing with trusted publishing
+  - Support for TestPyPI deployment
+  - Build artifacts validation
+  - Secure publishing without API tokens
+
+### Security Workflow (`.github/workflows/security.yml`)
+- **Triggers**: Push, Pull requests, Weekly schedule
+- **Features**:
+  - Bandit security scanning
+  - Trivy vulnerability scanning
+  - SARIF upload to GitHub Security tab
+  - Automated dependency scanning
+
+### Setting up PyPI Publishing
+
+1. **Configure PyPI Trusted Publishing**:
+   - Go to [PyPI](https://pypi.org/manage/account/publishing/) or [TestPyPI](https://test.pypi.org/manage/account/publishing/)
+   - Add a new trusted publisher with:
+     - PyPI project name: `gitlab-pipeline-analyzer`
+     - Owner: `your-github-username`
+     - Repository name: `your-repo-name`
+     - Workflow name: `release.yml`
+     - Environment name: `pypi` (or `testpypi`)
+
+2. **Create GitHub Environment**:
+   - Go to repository Settings → Environments
+   - Create environments named `pypi` and `testpypi`
+   - Configure protection rules as needed
+
+3. **Publishing**:
+   - **TestPyPI**: Use workflow dispatch in Actions tab
+   - **PyPI**: Create a GitHub release to trigger automatic publishing
+
+### Pre-commit Hooks
+
+The project uses pre-commit hooks for code quality:
+
+```bash
+# Install hooks
+uv run pre-commit install
+
+# Run hooks manually
+uv run pre-commit run --all-files
+```
+
+Hooks include:
+- Trailing whitespace removal
+- End-of-file fixing
+- YAML/TOML validation
+- Ruff formatting and linting
+- MyPy type checking
+- Bandit security scanning
+
 ## Usage
 
 ### Running the server
