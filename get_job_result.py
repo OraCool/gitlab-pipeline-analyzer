@@ -282,6 +282,44 @@ class JobResultAnalyzer:
                     f"   • {job['name']} (Stage: {job['stage']}, Reason: {job.get('failure_reason', 'Unknown')})"
                 )
 
+        # Show detailed errors if available
+        analysis = result.get("analysis", {})
+        if analysis:
+            print("\n🔥 Detailed Errors by Job:")
+            for job_name, job_analysis in analysis.items():
+                if isinstance(job_analysis, list) and job_analysis:
+                    print(f"\n   📋 Job: {job_name}")
+
+                    # Show first few errors
+                    errors = [
+                        entry for entry in job_analysis if entry.get("level") == "error"
+                    ]
+                    warnings = [
+                        entry
+                        for entry in job_analysis
+                        if entry.get("level") == "warning"
+                    ]
+
+                    if errors:
+                        print("      🔴 Errors:")
+                        for i, error in enumerate(errors[:3], 1):
+                            message = error.get("message", "")[:100]
+                            if len(message) == 100:
+                                message += "..."
+                            print(f"         {i}. {message}")
+                        if len(errors) > 3:
+                            print(f"         ... and {len(errors) - 3} more errors")
+
+                    if warnings:
+                        print("      🟡 Warnings:")
+                        for i, warning in enumerate(warnings[:2], 1):
+                            message = warning.get("message", "")[:100]
+                            if len(message) == 100:
+                                message += "..."
+                            print(f"         {i}. {message}")
+                        if len(warnings) > 2:
+                            print(f"         ... and {len(warnings) - 2} more warnings")
+
 
 def main():
     """Main CLI interface"""
