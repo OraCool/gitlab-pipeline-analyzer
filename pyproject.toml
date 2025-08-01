@@ -224,4 +224,10 @@ exclude_lines = [
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.12.7", "tox>=4.28.3"]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.7",
+    "tox>=4.28.3",
+]
