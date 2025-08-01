@@ -5,8 +5,8 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.models import LogEntry
+from gitlab_analyzer.parsers.log_parser import LogParser
 
 
 class TestLogParser:
@@ -120,12 +120,12 @@ class TestLogParser:
         $ npm test
         > myproject@1.0.0 test /builds/project
         > jest
-        
+
         FAIL src/utils.test.js
         ● Test suite failed to run
-        
+
             TypeError: Cannot read property 'length' of undefined
-            
+
                 at Object.<anonymous> (src/utils.test.js:5:20)
         """
 

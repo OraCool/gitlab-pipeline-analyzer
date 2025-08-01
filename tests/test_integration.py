@@ -34,20 +34,6 @@ class TestMCPIntegration:
             "web_url": "https://gitlab.example.com/project/-/pipelines/12345",
         }
 
-        mock_failed_jobs = [
-            {
-                "id": 1001,
-                "name": "test-job",
-                "status": "failed",
-                "stage": "test",
-                "created_at": "2025-01-01T10:05:00.000Z",
-                "started_at": "2025-01-01T10:06:00.000Z",
-                "finished_at": "2025-01-01T10:15:00.000Z",
-                "duration": 540.0,
-                "web_url": "https://gitlab.example.com/project/-/jobs/1001",
-            }
-        ]
-
         mock_job_trace = """
         $ npm ci
         npm ERR! code ENOENT
