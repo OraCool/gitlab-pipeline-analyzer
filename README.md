@@ -10,6 +10,7 @@ A FastMCP server that analyzes GitLab CI/CD pipeline failures, extracts errors a
 - Extract errors and warnings from logs
 - Return structured JSON responses for AI analysis
 - Support for Python projects with lint, test, and build stages
+- Multiple transport protocols: STDIO, HTTP, and SSE
 
 ## Installation
 
@@ -28,9 +29,99 @@ Set the following environment variables:
 ```bash
 export GITLAB_URL="https://gitlab.com"  # Your GitLab instance URL
 export GITLAB_TOKEN="your-access-token"  # Your GitLab personal access token
+
+# Optional: Configure transport settings
+export MCP_HOST="127.0.0.1"  # Host for HTTP/SSE transport (default: 127.0.0.1)
+export MCP_PORT="8000"       # Port for HTTP/SSE transport (default: 8000)
+export MCP_PATH="/mcp"       # Path for HTTP transport (default: /mcp)
 ```
 
 Note: Project ID is now passed as a parameter to each tool, making the server more flexible.
+
+## Running the Server
+
+The server supports three transport protocols:
+
+### 1. STDIO Transport (Default)
+
+Best for local tools and command-line scripts:
+
+```bash
+# Default STDIO transport
+python server.py
+
+# Or explicitly specify
+python server.py --transport stdio
+```
+
+### 2. HTTP Transport
+
+Recommended for web deployments and remote access:
+
+```bash
+# Start HTTP server
+python http_server.py
+
+# Or using the main server script
+python server.py --transport http --host 127.0.0.1 --port 8000 --path /mcp
+
+# Or using environment variables
+MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8080 python server.py
+```
+
+The HTTP server will be available at: `http://127.0.0.1:8000/mcp`
+
+### 3. SSE Transport
+
+For compatibility with existing SSE clients:
+
+```bash
+# Start SSE server
+python sse_server.py
+
+# Or using the main server script  
+python server.py --transport sse --host 127.0.0.1 --port 8000
+```
+
+The SSE server will be available at: `http://127.0.0.1:8000`
+
+## Using with MCP Clients
+
+### HTTP Transport Client Example
+
+```python
+from fastmcp.client import Client
+
+# Connect to HTTP MCP server
+async with Client("http://127.0.0.1:8000/mcp") as client:
+    # List available tools
+    tools = await client.list_tools()
+    
+    # Analyze a pipeline
+    result = await client.call_tool("analyze_pipeline", {
+        "project_id": "123",
+        "pipeline_id": "456"
+    })
+```
+
+### Configuration for Multiple Servers
+
+```python
+config = {
+    "mcpServers": {
+        "gitlab": {
+            "url": "http://127.0.0.1:8000/mcp",
+            "transport": "http"
+        }
+    }
+}
+
+async with Client(config) as client:
+    result = await client.call_tool("gitlab_analyze_pipeline", {
+        "project_id": "123", 
+        "pipeline_id": "456"
+    })
+```
 
 ## Development
 

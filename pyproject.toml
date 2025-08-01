@@ -26,6 +26,11 @@ dependencies = [
 ]
 requires-python = ">=3.10"
 
+[project.scripts]
+gitlab-analyzer = "server:main"
+gitlab-analyzer-http = "http_server:main"
+gitlab-analyzer-sse = "sse_server:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
