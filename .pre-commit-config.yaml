@@ -32,4 +32,4 @@ repos:
     hooks:
       - id: bandit
         args: [-r, src/]
-        exclude: ^tests/
+        exclude: ^(tests/|run_tests\.py|.*_test\.py|test_.*\.py)

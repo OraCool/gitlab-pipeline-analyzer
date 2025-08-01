@@ -7,7 +7,7 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404 - subprocess is safe in this test runner context
 import sys
 from pathlib import Path
 
@@ -28,7 +28,7 @@ def run_tests():
         print("✅ pytest is available")
     except ImportError:
         print("❌ pytest not found. Installing pytest...")
-        subprocess.run(
+        subprocess.run(  # nosec B603 - trusted input: installing known packages
             [sys.executable, "-m", "pip", "install", "pytest", "pytest-asyncio"],
             check=True,
         )
@@ -61,7 +61,7 @@ def run_coverage():
     print("-" * 40)
 
     try:
-        subprocess.run(
+        subprocess.run(  # nosec B603 - trusted input: running pytest with known args
             [
                 sys.executable,
                 "-m",
