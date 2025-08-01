@@ -40,14 +40,14 @@ def check_environment():
 
     # Check server script
     server_script = Path("server.py")
-    print(f"\n📄 MCP Server Script:")
+    print("\n📄 MCP Server Script:")
     if server_script.exists():
         print(f"   ✅ server.py: Found ({server_script.stat().st_size} bytes)")
     else:
         print("   ❌ server.py: Not found")
 
     # Check Python dependencies
-    print(f"\n📦 Python Dependencies:")
+    print("\n📦 Python Dependencies:")
     try:
         import fastmcp
 
@@ -56,7 +56,7 @@ def check_environment():
         print("   ❌ fastmcp: Not installed")
 
     # Overall status
-    print(f"\n🎯 Overall Status:")
+    print("\n🎯 Overall Status:")
     if gitlab_url and gitlab_token and server_script.exists():
         print("   ✅ Ready to use GitLab Job Result Analyzer!")
         print("\n📚 Next steps:")

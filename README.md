@@ -79,7 +79,7 @@ For compatibility with existing SSE clients:
 # Start SSE server
 python sse_server.py
 
-# Or using the main server script  
+# Or using the main server script
 python server.py --transport sse --host 127.0.0.1 --port 8000
 ```
 
@@ -96,7 +96,7 @@ from fastmcp.client import Client
 async with Client("http://127.0.0.1:8000/mcp") as client:
     # List available tools
     tools = await client.list_tools()
-    
+
     # Analyze a pipeline
     result = await client.call_tool("analyze_pipeline", {
         "project_id": "123",
@@ -118,7 +118,7 @@ config = {
 
 async with Client(config) as client:
     result = await client.call_tool("gitlab_analyze_pipeline", {
-        "project_id": "123", 
+        "project_id": "123",
         "pipeline_id": "456"
     })
 ```

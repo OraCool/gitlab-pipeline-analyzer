@@ -360,22 +360,22 @@ def main():
 Examples:
   # Analyze a single job
   python get_job_result.py --project-id 12345 --job-id 67890
-  
+
   # Get raw trace for a job
   python get_job_result.py --project-id 12345 --job-id 67890 --trace-only
-  
+
   # Analyze failed pipeline
   python get_job_result.py --project-id 12345 --pipeline-id 11111 --analyze-failures
-  
+
   # Get all jobs in a pipeline
   python get_job_result.py --project-id 12345 --pipeline-id 11111 --all-jobs
-  
+
   # Get only failed jobs
   python get_job_result.py --project-id 12345 --pipeline-id 11111 --failed-jobs-only
-  
+
   # Get pipeline status
   python get_job_result.py --project-id 12345 --pipeline-id 11111 --status-only
-  
+
   # Output as JSON
   python get_job_result.py --project-id 12345 --job-id 67890 --json
         """,
@@ -512,7 +512,7 @@ Examples:
                             print(
                                 f"📋 Job Trace (Length: {result.get('trace_length', 0)} chars)"
                             )
-                            print(f"{'='*60}")
+                            print(f"{'=' * 60}")
                             print(result.get("trace", "No trace available"))
                     else:
                         analyzer.print_job_summary(result)
@@ -533,7 +533,9 @@ Examples:
                                 status_emoji = (
                                     "❌"
                                     if job["status"] == "failed"
-                                    else "✅" if job["status"] == "success" else "🟡"
+                                    else "✅"
+                                    if job["status"] == "success"
+                                    else "🟡"
                                 )
                                 print(
                                     f"   {status_emoji} {job['name']} (Stage: {job['stage']}, Status: {job['status']})"
