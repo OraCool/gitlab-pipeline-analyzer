@@ -16,7 +16,7 @@ from .tools import register_tools
 def create_server() -> FastMCP:
     """Create and configure the FastMCP server"""
     # Initialize FastMCP server
-    mcp = FastMCP(
+    mcp: FastMCP = FastMCP(
         name="GitLab Pipeline Analyzer",
         instructions="""
         Analyze GitLab CI/CD pipelines for errors and warnings
