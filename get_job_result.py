@@ -302,23 +302,53 @@ class JobResultAnalyzer:
 
                     if errors:
                         print("      🔴 Errors:")
-                        for i, error in enumerate(errors[:3], 1):
-                            message = error.get("message", "")[:100]
-                            if len(message) == 100:
-                                message += "..."
+                        for i, error in enumerate(errors[:5], 1):  # Show up to 5 errors
+                            message = error.get("message", "").strip()
+                            context = error.get("context", "").strip()
+                            line_num = error.get("line_number")
+
                             print(f"         {i}. {message}")
-                        if len(errors) > 3:
-                            print(f"         ... and {len(errors) - 3} more errors")
+                            if line_num:
+                                print(f"            📍 Line {line_num}")
+                            if context:
+                                # Show relevant context lines
+                                context_lines = context.split("\n")[
+                                    max(0, len(context.split("\n")) // 2 - 1) :
+                                ]
+                                for ctx_line in context_lines[
+                                    :3
+                                ]:  # Show up to 3 context lines
+                                    if ctx_line.strip() and ctx_line.strip() != message:
+                                        print(f"            💬 {ctx_line.strip()}")
+                            print()  # Empty line between errors
+                        if len(errors) > 5:
+                            print(f"         ... and {len(errors) - 5} more errors")
 
                     if warnings:
                         print("      🟡 Warnings:")
-                        for i, warning in enumerate(warnings[:2], 1):
-                            message = warning.get("message", "")[:100]
-                            if len(message) == 100:
-                                message += "..."
+                        for i, warning in enumerate(
+                            warnings[:3], 1
+                        ):  # Show up to 3 warnings
+                            message = warning.get("message", "").strip()
+                            context = warning.get("context", "").strip()
+                            line_num = warning.get("line_number")
+
                             print(f"         {i}. {message}")
-                        if len(warnings) > 2:
-                            print(f"         ... and {len(warnings) - 2} more warnings")
+                            if line_num:
+                                print(f"            📍 Line {line_num}")
+                            if context:
+                                # Show relevant context lines
+                                context_lines = context.split("\n")[
+                                    max(0, len(context.split("\n")) // 2 - 1) :
+                                ]
+                                for ctx_line in context_lines[
+                                    :2
+                                ]:  # Show up to 2 context lines
+                                    if ctx_line.strip() and ctx_line.strip() != message:
+                                        print(f"            💬 {ctx_line.strip()}")
+                            print()  # Empty line between warnings
+                        if len(warnings) > 3:
+                            print(f"         ... and {len(warnings) - 3} more warnings")
 
 
 def main():
