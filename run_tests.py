@@ -7,14 +7,15 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import os
-import sys
 import subprocess
+import sys
+from pathlib import Path
 
 
 def run_tests():
     """Run all tests for the MCP server"""
     # Change to the project root directory
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = Path(__file__).parent.resolve()
     os.chdir(project_root)
 
     print("🚀 Running MCP Server Tests")
