@@ -25,11 +25,14 @@ repos:
           - types-requests
           - pydantic
           - httpx
+          - fastmcp
+          - python-gitlab
         args: [--config-file=mypy.ini]
+        files: ^src/
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.10
     hooks:
       - id: bandit
         args: [-r, src/]
-        exclude: ^(tests/|run_tests\.py|.*_test\.py|test_.*\.py)
+        exclude: ^(tests/.*|.*test.*\.py|run_tests\.py)$
