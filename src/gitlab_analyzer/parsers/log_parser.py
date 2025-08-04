@@ -30,6 +30,11 @@ class LogParser:
         (r"(.*)AssertionError: (.+)", "error"),
         (r"(.*)Test failed: (.+)", "error"),
         (r"(.*)E\s+(.+test.*)", "error"),  # pytest errors (only test-related)
+        # Pytest detailed format: test/test_failures.py:10: in test_intentional_failure
+        (
+            r"^(.+\.py):(\d+):\s+in\s+(\w+)",
+            "error",
+        ),  # pytest detailed test failure format
         # Build/compilation failures
         (r"(.*)compilation error", "error"),
         (r"(.*)build failed", "error"),
@@ -379,117 +384,94 @@ class LogParser:
         ) or re.match(r".+\.py:\d+: in test_.+", message):
             # Extract test details with enhanced parsing for source line numbers
 
-            # Check context for pytest line format first (most accurate)
-            source_line_from_context = None
-            if context:
-                # Look for pytest format in context: test_user_model.py:15: AssertionError
-                context_line_match = re.search(r"([^/\s]+\.py):(\d+):\s*(.*)", context)
-                if context_line_match:
-                    source_line_from_context = {
-                        "file": context_line_match.group(1),
-                        "line": int(context_line_match.group(2)),
-                        "error": context_line_match.group(3),
-                    }
+            # PRIORITY 1: Check if this is a pytest detailed format line: test/test_failures.py:10: in test_intentional_failure
+            detailed_format_match = re.match(r"^(.+\.py):(\d+):\s+in\s+(\w+)", message)
 
-            # First check for pytest format: test/test_failures.py:10: in test_intentional_failure
-            source_line_match = re.match(
-                r"([^/\s]+/)?([^/\s]+\.py):(\d+):\s+in\s+(\w+)", message
-            )
+            if detailed_format_match:
+                # This is the detailed pytest format - use this as the authoritative source
+                source_file = detailed_format_match.group(1)
+                source_line = int(detailed_format_match.group(2))
+                test_function = detailed_format_match.group(3)
 
-            if source_line_match:
-                source_file = source_line_match.group(2)  # Just the filename
-                source_line = source_line_match.group(3)
-                test_function = source_line_match.group(4)
-                details = f"Test case '{test_function}' in '{source_file}' failed at line {source_line}"
+                # Try to extract error details from context
+                error_context = ""
+                if context:
+                    # Look for the actual error in the context
+                    error_match = re.search(
+                        r"(AssertionError|Exception|.*Error):\s*(.+)", context
+                    )
+                    if error_match:
+                        error_context = (
+                            f" - {error_match.group(1)}: {error_match.group(2)}"
+                        )
+
+                details = f"Test case '{test_function}' in '{source_file}' failed execution{error_context}"
 
                 return {
                     "category": "Test Failure",
                     "severity": "high",
                     "description": "Unit test or integration test failed",
                     "details": details,
-                    "solution": f"Review {source_file} at line {source_line} and fix the failing test or code",
+                    "solution": "Review test output and fix the failing test or code",
                     "impact": "Code quality issues, potential bugs",
                     "source_file": source_file,
-                    "source_line": int(source_line),
+                    "source_line": source_line,
                     "test_function": test_function,
                 }
 
-            test_match = (
-                re.search(r"FAILED (.+)", message)
-                or re.search(r"AssertionError:\s*(.+)", message)
-                or re.search(r"Test failed:\s*(.+)", message)
-            )
+            # PRIORITY 2: Check if this is a pytest summary format: FAILED test/test_failures.py::test_name - Error
+            # Only process if we haven't already found a detailed format for this test
+            test_match = re.search(r"FAILED\s+(.+)", message)
 
-            # Try to extract source file and line number from pytest format in test_match content
             if test_match:
                 test_detail = test_match.group(1)
-                source_line_match = re.search(
-                    r"([^/\s]+\.py):(\d+):\s+in\s+(\w+)", test_detail
-                )
 
-                if source_line_match:
-                    source_file = source_line_match.group(1)
-                    source_line = source_line_match.group(2)
-                    test_function = source_line_match.group(3)
-                    details = f"Test case '{test_function}' in '{source_file}' failed at line {source_line}"
+                # Parse pytest summary format: test/test_failures.py::test_name - Error message
+                if "::" in test_detail:
+                    parts = test_detail.split("::")
+                    test_file = parts[0] if parts else "unknown file"
+                    remaining = parts[1] if len(parts) > 1 else ""
 
-                    # Try to extract the specific error reason from the context
-                    error_reason_match = re.search(
-                        r"(AssertionError|Exception|.*Error):\s*(.+)", message
-                    )
-                    if error_reason_match:
-                        error_type = error_reason_match.group(1)
-                        error_msg = error_reason_match.group(2)
-                        details += f" - {error_type}: {error_msg}"
+                    # Extract test function name and error message
+                    if " - " in remaining:
+                        test_function = remaining.split(" - ")[0].strip()
+                        failure_reason = remaining.split(" - ", 1)[1]
+                    else:
+                        test_function = (
+                            remaining.split()[0] if remaining else "unknown test"
+                        )
+                        failure_reason = "Test failed"
+
+                    # Note: Summary format doesn't contain source line numbers, so we indicate this
+                    details = f"Test case '{test_function}' in '{test_file}' failed execution - Reason: {failure_reason}"
 
                     return {
                         "category": "Test Failure",
                         "severity": "high",
                         "description": "Unit test or integration test failed",
                         "details": details,
-                        "solution": f"Review {source_file} at line {source_line} and fix the failing test or code",
+                        "solution": "Review test output and fix the failing test or code",
                         "impact": "Code quality issues, potential bugs",
-                        "source_file": source_file,
-                        "source_line": int(source_line),
+                        "source_file": (
+                            test_file.split("/")[-1] if "/" in test_file else test_file
+                        ),  # Just filename
                         "test_function": test_function,
+                        # Note: No source_line provided as summary format doesn't include it
                     }
-
-                # More descriptive details
-                if "::" in test_detail:
-                    parts = test_detail.split("::")
-                    test_file = parts[0] if parts else "unknown file"
-                    test_function = (
-                        parts[1].split(" ")[0] if len(parts) > 1 else "unknown test"
-                    )
-
-                    # Use context source line if available (most accurate)
-                    if source_line_from_context:
-                        details = f"Test case '{test_function}' in '{source_line_from_context['file']}' failed at line {source_line_from_context['line']}"
-                        if " - " in test_detail:
-                            failure_reason = test_detail.split(" - ", 1)[1]
-                            details += f" - Reason: {failure_reason}"
-
-                        return {
-                            "category": "Test Failure",
-                            "severity": "high",
-                            "description": "Unit test or integration test failed",
-                            "details": details,
-                            "solution": f"Review {source_line_from_context['file']} at line {source_line_from_context['line']} and fix the failing test or code",
-                            "impact": "Code quality issues, potential bugs",
-                            "source_file": source_line_from_context["file"],
-                            "source_line": source_line_from_context["line"],
-                            "test_function": test_function,
-                        }
-
-                    # Fallback to standard processing
-                    details = (
-                        f"Test case '{test_function}' in '{test_file}' failed execution"
-                    )
-                    if " - " in test_detail:
-                        failure_reason = test_detail.split(" - ", 1)[1]
-                        details += f" - Reason: {failure_reason}"
                 else:
                     details = f"Test execution failed: {test_detail}"
+
+            # PRIORITY 3: Generic test failure handling
+            elif "assertion" in message_lower or "test" in message_lower:
+                # Generic test failure without specific format
+                error_match = re.search(
+                    r"(AssertionError|Exception|.*Error):\s*(.+)", message
+                )
+                if error_match:
+                    error_msg = error_match.group(2)
+                    details = f"Job execution error: {error_msg}"
+                else:
+                    details = "Test failure detected but specific details could not be extracted"
             else:
                 details = (
                     "Test failure detected but specific details could not be extracted"

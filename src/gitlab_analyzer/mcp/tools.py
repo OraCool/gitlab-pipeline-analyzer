@@ -441,6 +441,15 @@ async def analyze_failed_pipeline_optimized(
                             "impact": error_details["impact"],
                         }
                     )
+
+                    # Add test-specific fields if available
+                    if "test_function" in error_details:
+                        entry_dict["test_function"] = error_details["test_function"]
+                    if "source_file" in error_details:
+                        entry_dict["source_file"] = error_details["source_file"]
+                    if "source_line" in error_details:
+                        entry_dict["source_line"] = error_details["source_line"]
+
                     job_errors.append(entry_dict)
 
                     # Update global statistics
@@ -470,6 +479,33 @@ async def analyze_failed_pipeline_optimized(
                         }
                     )
                     job_warnings.append(entry_dict)
+
+            # Post-process: deduplicate test failures, keeping detailed format over summary
+            if job_errors:
+                test_failures = (
+                    {}
+                )  # test_function -> error_entry (keeping the best one)
+                other_errors = []
+
+                for error in job_errors:
+                    if error.get("category") == "Test Failure" and error.get(
+                        "test_function"
+                    ):
+                        test_func = error["test_function"]
+                        existing = test_failures.get(test_func)
+
+                        # Keep this error if:
+                        # 1. We don't have one for this test yet, OR
+                        # 2. This one has source_line and the existing doesn't
+                        if not existing or (
+                            "source_line" in error and "source_line" not in existing
+                        ):
+                            test_failures[test_func] = error
+                    else:
+                        other_errors.append(error)
+
+                # Rebuild job_errors with deduplicated test failures
+                job_errors = other_errors + list(test_failures.values())
 
             analysis[job.name] = {
                 "errors": job_errors,
