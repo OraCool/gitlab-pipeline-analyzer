@@ -103,7 +103,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        uv run pytest tests/test_integration.py -v
+        uv run pytest tests/test_integration.py -v --no-cov
       env:
         GITLAB_URL: https://gitlab.example.com
         GITLAB_TOKEN: fake-token-for-testing
