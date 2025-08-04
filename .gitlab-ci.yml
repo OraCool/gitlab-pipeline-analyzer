@@ -1,0 +1,139 @@
+# GitLab CI/CD Pipeline for gitlab-pipeline-analyzer
+# This pipeline builds, tests, and publishes the package to PyPI
+
+stages:
+  - test
+  - build
+  - publish
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+
+# Cache configuration for faster builds
+cache:
+  paths:
+    - .cache/pip
+    - .cache/uv
+    - .venv/
+
+# Test stage - runs on all branches and MRs
+test:
+  stage: test
+  image: python:3.12
+  before_script:
+    - pip install uv
+    - uv sync --all-extras
+  script:
+    # Run code quality checks
+    - echo "🔍 Running code quality checks..."
+    - uv run ruff check
+    - uv run ruff format --check
+
+    # Run type checking
+    - echo "🔍 Running type checks..."
+    - uv run mypy src/
+
+    # Run security checks
+    - echo "🔍 Running security checks..."
+    - uv run bandit -r src/
+
+    # Run tests with coverage
+    - echo "🧪 Running tests..."
+    - uv run pytest --tb=short --cov-report=xml --cov-report=term
+
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Build stage - creates distribution packages
+build:
+  stage: build
+  image: python:3.12
+  before_script:
+    - pip install uv
+    - uv sync --all-extras
+  script:
+    - echo "📦 Building package..."
+    - uv run python -m build
+    - echo "✅ Checking package integrity..."
+    - uv run twine check dist/*
+    - ls -la dist/
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Publish to TestPyPI - for testing releases
+publish_test:
+  stage: publish
+  image: python:3.12
+  before_script:
+    - pip install uv
+  script:
+    - echo "🚀 Publishing to TestPyPI..."
+    - uv run twine upload --repository testpypi dist/*
+  dependencies:
+    - build
+  rules:
+    # Only publish to TestPyPI on main branch (not tags)
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TAG == null
+  environment:
+    name: testpypi
+    url: https://test.pypi.org/project/gitlab-pipeline-analyzer/
+  variables:
+    TWINE_USERNAME: "__token__"
+    TWINE_PASSWORD: "$TWINE_PASSWORD_TESTPYPI"
+
+# Publish to PyPI - production releases only
+publish_pypi:
+  stage: publish
+  image: python:3.12
+  before_script:
+    - pip install uv
+  script:
+    - echo "🎉 Publishing to PyPI..."
+    - uv run twine upload dist/*
+    - echo "✅ Package published successfully!"
+    - echo "📦 Available at https://pypi.org/project/gitlab-pipeline-analyzer/"
+  dependencies:
+    - build
+  rules:
+    # Only publish to PyPI when a version tag is pushed (e.g., v0.1.0, 0.1.0)
+    - if: $CI_COMMIT_TAG =~ /^v?\d+\.\d+\.\d+.*$/
+  environment:
+    name: pypi
+    url: https://pypi.org/project/gitlab-pipeline-analyzer/
+  when: manual # Require manual approval for production releases
+  variables:
+    TWINE_USERNAME: "__token__"
+    TWINE_PASSWORD: "$TWINE_PASSWORD_PYPI"
+
+# Optional: Create GitHub/GitLab release
+create_release:
+  stage: publish
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script:
+    - echo "Creating release for $CI_COMMIT_TAG"
+  release:
+    name: "Release $CI_COMMIT_TAG"
+    description: "Release notes for $CI_COMMIT_TAG"
+    tag_name: $CI_COMMIT_TAG
+    ref: $CI_COMMIT_TAG
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v?\d+\.\d+\.\d+.*$/
+  dependencies:
+    - publish_pypi
