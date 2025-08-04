@@ -17,43 +17,43 @@ jobs:
   test:
     name: Test and Quality Checks
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-      
+
     - name: Install dependencies
       run: uv sync --all-extras
-      
+
     - name: Run code quality checks
       run: |
         echo "🔍 Running code quality checks..."
         uv run ruff check
         uv run ruff format --check
-        
+
     - name: Run type checking
       run: |
         echo "🔍 Running type checks..."
         uv run mypy src/
-        
+
     - name: Run security checks
       run: |
         echo "🔍 Running security checks..."
         uv run bandit -r src/
-        
+
     - name: Run tests with coverage
       run: |
         echo "🧪 Running tests..."
         uv run pytest --tb=short --cov-report=xml --cov-report=term
-        
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
@@ -66,33 +66,33 @@ jobs:
     name: Build Package
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-      
+
     - name: Install dependencies
       run: uv sync --all-extras
-      
+
     - name: Build package
       run: |
         echo "📦 Building package..."
         uv run python -m build
-        
+
     - name: Check package
       run: |
         echo "✅ Checking package integrity..."
         uv run twine check dist/*
         ls -la dist/
-        
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -108,14 +108,14 @@ jobs:
     environment:
       name: testpypi
       url: https://test.pypi.org/project/gitlab-pipeline-analyzer/
-    
+
     steps:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
         name: dist
         path: dist/
-        
+
     - name: Publish to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
@@ -130,14 +130,14 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/project/gitlab-pipeline-analyzer/
-    
+
     steps:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
         name: dist
         path: dist/
-        
+
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
@@ -148,11 +148,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: publish-pypi
     if: startsWith(github.ref, 'refs/tags/v')
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Create Release
       uses: actions/create-release@v1
       env:
@@ -162,14 +162,14 @@ jobs:
         release_name: Release ${{ github.ref_name }}
         body: |
           ## Changes in ${{ github.ref_name }}
-          
+
           See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
-          
+
           ## Installation
           ```bash
           pip install gitlab-pipeline-analyzer==${{ github.ref_name }}
           ```
-          
+
           ## Links
           - 📦 [PyPI Package](https://pypi.org/project/gitlab-pipeline-analyzer/${{ github.ref_name }}/)
           - 📚 [Documentation](README.md)

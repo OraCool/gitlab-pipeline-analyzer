@@ -16,7 +16,7 @@
 #### For PyPI (production):
 1. Go to https://pypi.org/account/login/
 2. Log in or create an account
-3. Go to Account Settings → API tokens  
+3. Go to Account Settings → API tokens
 4. Click "Add API token"
 5. Name: `github-actions-pypi`
 6. Scope: `Entire account` (or specific project after first upload)

@@ -3,7 +3,7 @@
 ## 📋 Overview
 I've set up a complete GitHub Actions workflow that will:
 1. **Test** your code on every push/PR
-2. **Build** packages automatically  
+2. **Build** packages automatically
 3. **Publish to TestPyPI** on main branch pushes (for testing)
 4. **Publish to PyPI** when you create version tags (automatic)
 5. **Create GitHub releases** with release notes
@@ -220,7 +220,7 @@ Your GitHub Actions workflow is now configured for automated PyPI publishing!
 
 ### **Next Steps:**
 1. ✅ **Commit and push** the new workflow files
-2. ✅ **Set up PyPI tokens** in GitHub repository secrets  
+2. ✅ **Set up PyPI tokens** in GitHub repository secrets
 3. ✅ **Test with a development push** to main (triggers TestPyPI)
 4. ✅ **Create your first production release!** 🚀
 

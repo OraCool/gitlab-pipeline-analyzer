@@ -138,7 +138,7 @@ def register_tools(mcp: FastMCP) -> None:
             job_url = f"{analyzer_instance.gitlab_url}/-/jobs/{job_id}"
 
             # Calculate error statistics by category and severity
-            error_categories = {}
+            error_categories: dict[str, int] = {}
             severity_counts = {"high": 0, "medium": 0, "low": 0}
             affected_files = set()
 
@@ -400,7 +400,7 @@ async def analyze_failed_pipeline_optimized(
 
         # Analyze each failed job
         analysis = {}
-        error_categories = {}
+        error_categories: dict[str, int] = {}
         severity_counts = {"high": 0, "medium": 0, "low": 0}
         affected_files = set()
 
@@ -482,7 +482,7 @@ async def analyze_failed_pipeline_optimized(
 
             # Post-process: deduplicate test failures, keeping detailed format over summary
             if job_errors:
-                test_failures = (
+                test_failures: dict[str, dict] = (
                     {}
                 )  # test_function -> error_entry (keeping the best one)
                 other_errors = []

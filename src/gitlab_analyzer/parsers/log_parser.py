@@ -415,7 +415,9 @@ class LogParser:
                     "solution": "Review test output and fix the failing test or code",
                     "impact": "Code quality issues, potential bugs",
                     "source_file": source_file,
-                    "source_line": source_line,
+                    "source_line": (
+                        str(source_line) if source_line is not None else "Not found"
+                    ),
                     "test_function": test_function,
                 }
 
