@@ -150,6 +150,14 @@ class LogParser:
         r"ERROR: Job failed: exit code",
         r"Cleaning up project directory and file based variables",
         r"upload project directory and file based variables",
+        # GitLab runner script errors (infrastructure, not user code)
+        r"/scripts-.*get_sources: line .* export:.*not a valid identifier",
+        r"/scripts-.*upload_artifacts_on_failure: line .* export:.*not a valid identifier",
+        r"/scripts-.*: line .* export:.*not a valid identifier",
+        r"line \d+: export:.*not a valid identifier",
+        # GitLab runner internal scripts (broad exclusion)
+        r"/scripts-\d+-\d+/.*:",
+        r"bash: line \d+:",
     ]
 
     @classmethod
