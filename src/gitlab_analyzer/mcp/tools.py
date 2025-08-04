@@ -85,21 +85,96 @@ def register_tools(mcp: FastMCP) -> None:
             # Extract errors and warnings from the trace
             log_entries = LogParser.extract_log_entries(trace)
 
-            # Categorize entries
-            errors = [entry.dict() for entry in log_entries if entry.level == "error"]
-            warnings = [
-                entry.dict() for entry in log_entries if entry.level == "warning"
-            ]
+            # Categorize entries with detailed information
+            errors = []
+            warnings = []
+
+            for entry in log_entries:
+                entry_dict = entry.dict()
+
+                if entry.level == "error":
+                    # Add detailed error categorization
+                    error_details = LogParser.categorize_error(
+                        entry.message, entry.context or ""
+                    )
+
+                    # Use source line number if available (for test failures), otherwise use log line number
+                    line_number = entry_dict[
+                        "line_number"
+                    ]  # Default to log line number
+                    if "source_line" in error_details:
+                        line_number = error_details["source_line"]
+
+                    entry_dict.update(
+                        {
+                            "line_number": line_number,  # Override with source line if available
+                            "category": error_details["category"],
+                            "severity": error_details["severity"],
+                            "description": error_details["description"],
+                            "details": error_details.get(
+                                "details", "No specific details available"
+                            ),
+                            "solution": error_details["solution"],
+                            "impact": error_details["impact"],
+                        }
+                    )
+                    errors.append(entry_dict)
+
+                elif entry.level == "warning":
+                    # Add basic categorization for warnings
+                    entry_dict.update(
+                        {
+                            "category": "Warning",
+                            "severity": "low",
+                            "description": "Potential issue detected",
+                            "solution": "Review warning message and consider addressing",
+                            "impact": "May cause issues or indicate suboptimal configuration",
+                        }
+                    )
+                    warnings.append(entry_dict)
 
             # Get job URL (construct based on GitLab URL pattern)
             analyzer_instance = get_gitlab_analyzer()
             job_url = f"{analyzer_instance.gitlab_url}/-/jobs/{job_id}"
 
+            # Calculate error statistics by category and severity
+            error_categories = {}
+            severity_counts = {"high": 0, "medium": 0, "low": 0}
+            affected_files = set()
+
+            for error in errors:
+                category = error.get("category", "Unknown")
+                severity = error.get("severity", "medium")
+
+                error_categories[category] = error_categories.get(category, 0) + 1
+                severity_counts[severity] = severity_counts.get(severity, 0) + 1
+
+                # Extract file paths from error messages
+                message = error.get("message", "")
+                if "would reformat" in message:
+                    import re
+
+                    file_match = re.search(r"would reformat (.+)", message)
+                    if file_match:
+                        affected_files.add(file_match.group(1))
+
             result = {
                 "project_id": str(project_id),
                 "job_id": job_id,
                 "job_url": job_url,
-                "analysis": {"errors": errors, "warnings": warnings},
+                "analysis": {
+                    "errors": errors,
+                    "warnings": warnings,
+                    "error_summary": {
+                        "categories": error_categories,
+                        "severity_breakdown": severity_counts,
+                        "most_common_category": (
+                            max(error_categories.items(), key=lambda x: x[1])[0]
+                            if error_categories
+                            else None
+                        ),
+                    },
+                },
                 "summary": {
                     "total_errors": len(errors),
                     "total_warnings": len(warnings),
@@ -107,6 +182,11 @@ def register_tools(mcp: FastMCP) -> None:
                     "has_trace": bool(trace.strip()),
                     "trace_length": len(trace),
                     "analysis_timestamp": datetime.now().isoformat(),
+                    "critical_issues": severity_counts["high"],
+                    "needs_attention": severity_counts["high"]
+                    + severity_counts["medium"],
+                    "affected_files": sorted(affected_files) if affected_files else [],
+                    "formatting_files_count": len(affected_files),
                 },
             }
 
@@ -320,19 +400,93 @@ async def analyze_failed_pipeline_optimized(
 
         # Analyze each failed job
         analysis = {}
+        error_categories = {}
+        severity_counts = {"high": 0, "medium": 0, "low": 0}
+        affected_files = set()
+
         for job in failed_jobs:
             trace = await analyzer.get_job_trace(project_id, job.id)
             log_entries = LogParser.extract_log_entries(trace)
-            analysis[job.name] = [entry.dict() for entry in log_entries]
+
+            # Enhanced processing with detailed error categorization
+            job_errors = []
+            job_warnings = []
+
+            for entry in log_entries:
+                entry_dict = entry.dict()
+
+                if entry.level == "error":
+                    # Add detailed error categorization
+                    error_details = LogParser.categorize_error(
+                        entry.message, entry.context or ""
+                    )
+
+                    # Use source line number if available (for test failures), otherwise use log line number
+                    line_number = entry_dict[
+                        "line_number"
+                    ]  # Default to log line number
+                    if "source_line" in error_details:
+                        line_number = error_details["source_line"]
+
+                    entry_dict.update(
+                        {
+                            "line_number": line_number,  # Override with source line if available
+                            "category": error_details["category"],
+                            "severity": error_details["severity"],
+                            "description": error_details["description"],
+                            "details": error_details.get(
+                                "details", "No specific details available"
+                            ),
+                            "solution": error_details["solution"],
+                            "impact": error_details["impact"],
+                        }
+                    )
+                    job_errors.append(entry_dict)
+
+                    # Update global statistics
+                    category = error_details["category"]
+                    severity = error_details["severity"]
+                    error_categories[category] = error_categories.get(category, 0) + 1
+                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
+
+                    # Extract file paths from error messages
+                    message = entry.message
+                    if "would reformat" in message:
+                        import re
+
+                        file_match = re.search(r"would reformat (.+)", message)
+                        if file_match:
+                            affected_files.add(file_match.group(1))
+
+                elif entry.level == "warning":
+                    # Add basic categorization for warnings
+                    entry_dict.update(
+                        {
+                            "category": "Warning",
+                            "severity": "low",
+                            "description": "Potential issue detected",
+                            "solution": "Review warning message and consider addressing",
+                            "impact": "May cause issues or indicate suboptimal configuration",
+                        }
+                    )
+                    job_warnings.append(entry_dict)
+
+            analysis[job.name] = {
+                "errors": job_errors,
+                "warnings": job_warnings,
+                "job_info": {
+                    "stage": job.stage,
+                    "status": job.status,
+                    "duration": getattr(job, "duration", None),
+                },
+            }
 
         # Create summary (without total job count for efficiency)
         total_errors = sum(
-            len([entry for entry in entries if entry["level"] == "error"])
-            for entries in analysis.values()
+            len(job_analysis["errors"]) for job_analysis in analysis.values()
         )
         total_warnings = sum(
-            len([entry for entry in entries if entry["level"] == "warning"])
-            for entries in analysis.values()
+            len(job_analysis["warnings"]) for job_analysis in analysis.values()
         )
 
         summary = {
@@ -343,6 +497,19 @@ async def analyze_failed_pipeline_optimized(
             "total_warnings": total_warnings,
             "failed_stages": list({job.stage for job in failed_jobs}),
             "analysis_timestamp": datetime.now().isoformat(),
+            "affected_files": sorted(affected_files) if affected_files else [],
+            "formatting_files_count": len(affected_files),
+            "error_summary": {
+                "categories": error_categories,
+                "severity_breakdown": severity_counts,
+                "most_common_category": (
+                    max(error_categories.items(), key=lambda x: x[1])[0]
+                    if error_categories
+                    else None
+                ),
+                "critical_issues": severity_counts["high"],
+                "needs_attention": severity_counts["high"] + severity_counts["medium"],
+            },
         }
 
         result = {
