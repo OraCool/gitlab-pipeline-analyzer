@@ -7,7 +7,6 @@ Licensed under the MIT License - see LICENSE file for details
 
 import json
 import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -291,7 +290,18 @@ class TestMainFunction:
 
     @patch("gitlab_analyzer.mcp.server.create_server")
     @patch("gitlab_analyzer.mcp.server.load_env_file")
-    @patch("sys.argv", ["gitlab-analyzer", "--transport", "http", "--host", "localhost", "--port", "9000"])
+    @patch(
+        "sys.argv",
+        [
+            "gitlab-analyzer",
+            "--transport",
+            "http",
+            "--host",
+            "localhost",
+            "--port",
+            "9000",
+        ],
+    )
     def test_main_http_transport(self, mock_load_env, mock_create_server):
         """Test main function with HTTP transport"""
         # Setup mocks
@@ -305,15 +315,23 @@ class TestMainFunction:
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
         mock_mcp.run.assert_called_once_with(
-            transport="http",
-            host="localhost",
-            port=9000,
-            path="/mcp"
+            transport="http", host="localhost", port=9000, path="/mcp"
         )
 
     @patch("gitlab_analyzer.mcp.server.create_server")
     @patch("gitlab_analyzer.mcp.server.load_env_file")
-    @patch("sys.argv", ["gitlab-analyzer", "--transport", "sse", "--host", "0.0.0.0", "--port", "8080"])
+    @patch(
+        "sys.argv",
+        [
+            "gitlab-analyzer",
+            "--transport",
+            "sse",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8080",
+        ],
+    )
     def test_main_sse_transport(self, mock_load_env, mock_create_server):
         """Test main function with SSE transport"""
         # Setup mocks
@@ -326,20 +344,19 @@ class TestMainFunction:
         # Verify calls
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
-        mock_mcp.run.assert_called_once_with(
-            transport="sse",
-            host="0.0.0.0",
-            port=8080
-        )
+        mock_mcp.run.assert_called_once_with(transport="sse", host="0.0.0.0", port=8080)
 
     @patch("gitlab_analyzer.mcp.server.create_server")
     @patch("gitlab_analyzer.mcp.server.load_env_file")
-    @patch.dict(os.environ, {
-        "MCP_TRANSPORT": "http",
-        "MCP_HOST": "example.com",
-        "MCP_PORT": "3000",
-        "MCP_PATH": "/api/mcp"
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "MCP_TRANSPORT": "http",
+            "MCP_HOST": "example.com",
+            "MCP_PORT": "3000",
+            "MCP_PATH": "/api/mcp",
+        },
+    )
     @patch("sys.argv", ["gitlab-analyzer"])
     def test_main_with_environment_variables(self, mock_load_env, mock_create_server):
         """Test main function using environment variables for defaults"""
@@ -354,8 +371,5 @@ class TestMainFunction:
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
         mock_mcp.run.assert_called_once_with(
-            transport="http",
-            host="example.com",
-            port=3000,
-            path="/api/mcp"
+            transport="http", host="example.com", port=3000, path="/api/mcp"
         )
