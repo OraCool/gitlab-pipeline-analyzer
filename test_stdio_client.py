@@ -7,6 +7,7 @@ This script tests the GitLab Pipeline Analyzer MCP server using STDIO transport.
 
 import asyncio
 import os
+
 from fastmcp import Client
 
 
