@@ -3,13 +3,12 @@ name = "gitlab-pipeline-analyzer"
 version = "0.1.0"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
 authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
-license = { text = "MIT" }
+license = "MIT"
 readme = "README.md"
 keywords = ["gitlab", "ci/cd", "pipeline", "analysis", "mcp", "fastmcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -27,7 +26,7 @@ dependencies = [
 requires-python = ">=3.10"
 
 [project.scripts]
-gitlab-analyzer = "server:main"
+gitlab-analyzer = "gitlab_analyzer.mcp.server:main"
 gitlab-analyzer-http = "http_server:main"
 gitlab-analyzer-sse = "sse_server:main"
 
@@ -51,7 +50,7 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["gitlab_analyzer"]
+packages = { find = { where = ["src"] } }
 package-dir = { "" = "src" }
 
 # Ruff configuration
