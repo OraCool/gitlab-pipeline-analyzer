@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-08-04
+
+### Fixed
+- Added missing `main` function to `gitlab_analyzer.mcp.server` module to fix entry point execution
+- Fixed ImportError when running `gitlab-analyzer` command via uvx
+
+## [0.1.1] - Previous Release
+
 ### Added
 - Initial release of GitLab Pipeline Analyzer MCP Server
 - FastMCP server for analyzing GitLab CI/CD pipeline failures
