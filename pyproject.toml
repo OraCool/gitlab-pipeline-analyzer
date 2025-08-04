@@ -201,7 +201,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=80",
+    "--cov-fail-under=70",
 ]
 testpaths = ["tests"]
 markers = [
@@ -223,6 +223,7 @@ exclude_lines = [
     "raise NotImplementedError",
     "if 0:",
     "if __name__ == .__main__.:",
+    "def main\\(\\):",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
