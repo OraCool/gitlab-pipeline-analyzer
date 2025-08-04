@@ -482,9 +482,9 @@ async def analyze_failed_pipeline_optimized(
 
             # Post-process: deduplicate test failures, keeping detailed format over summary
             if job_errors:
-                test_failures: dict[str, dict] = (
-                    {}
-                )  # test_function -> error_entry (keeping the best one)
+                test_failures: dict[
+                    str, dict
+                ] = {}  # test_function -> error_entry (keeping the best one)
                 other_errors = []
 
                 for error in job_errors:
