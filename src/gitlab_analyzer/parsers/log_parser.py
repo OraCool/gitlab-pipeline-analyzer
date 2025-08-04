@@ -52,8 +52,6 @@ class LogParser:
         # Package/dependency errors that affect the job
         (r"(.*)could not find", "error"),
         (r"(.*)missing", "error"),
-        # Job termination errors
-        (r"(.*)Job failed: command terminated with exit code", "error"),
     ]
 
     WARNING_PATTERNS = [
@@ -146,6 +144,12 @@ class LogParser:
         # Output formatting and informational
         r"1 file would be reformatted\.$",  # This is just output, not the error
         r"^[0-9]+ files? would be reformatted\.$",
+        # Generic GitLab CI failure messages (not meaningful for analysis)
+        r"Job failed: command terminated with exit code",
+        r": Job failed: exit code",
+        r"ERROR: Job failed: exit code",
+        r"Cleaning up project directory and file based variables",
+        r"upload project directory and file based variables",
     ]
 
     @classmethod
