@@ -90,6 +90,75 @@ python example_client.py
 3. **MCP Server:**
    Ensure the MCP server script (`server.py`) is available in the same directory or specify its path using `--server-script`.
 
+### VS Code Claude Desktop Setup
+
+For VS Code with Claude Desktop, add this configuration to your `claude_desktop_config.json`:
+
+```json
+{
+    "servers": {
+        "gitlab-pipeline-analyzer": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+                "--from",
+                "gitlab_pipeline_analyzer==0.1.2",
+                "gitlab-analyzer",
+                "--transport",
+                "${input:mcp_transport}"
+            ],
+            "env": {
+                "GITLAB_URL": "${input:gitlab_url}",
+                "GITLAB_TOKEN": "${input:gitlab_token}"
+            }
+        },
+        "local-gitlab-analyzer": {
+            "type": "stdio",
+            "command": "uv",
+            "args": [
+                "run",
+                "gitlab-analyzer"
+            ],
+            "cwd": "/path/to/your/mcp/project",
+            "env": {
+                "GITLAB_URL": "${input:gitlab_url}",
+                "GITLAB_TOKEN": "${input:gitlab_token}"
+            }
+        },
+        "enterprise-gitlab": {
+            "command": "uvx",
+            "args": ["--from", "gitlab-pipeline-analyzer", "gitlab-analyzer"],
+            "env": {
+                "GITLAB_URL": "https://gitlab.enterprise-corp.com",
+                "GITLAB_TOKEN": "your-enterprise-token"
+            }
+        }
+    },
+    "inputs": [
+        {
+            "id": "mcp_transport",
+            "type": "promptString",
+            "description": "MCP Transport (stdio/http/sse)"
+        },
+        {
+            "id": "gitlab_url",
+            "type": "promptString",
+            "description": "GitLab Instance URL"
+        },
+        {
+            "id": "gitlab_token",
+            "type": "promptString",
+            "description": "GitLab Personal Access Token"
+        }
+    ]
+}
+```
+
+**Configuration Options:**
+- **Dynamic Setup**: Uses input prompts for flexible configuration
+- **Local Development**: Points to your local development environment
+- **Enterprise Setup**: Hardcoded values for specific company instances
+
 ### GitLab Token Permissions
 
 Your GitLab token needs the following scopes:

@@ -18,7 +18,7 @@ Get the trace log for a specific GitLab CI/CD job with ANSI codes removed. This 
 
 ### Returns
 - `project_id`: The project ID that was analyzed
-- `job_id`: The job ID that was analyzed  
+- `job_id`: The job ID that was analyzed
 - `cleaned_trace`: The trace log with ANSI codes removed
 - `cleaning_stats`: Statistics about the cleaning process
   - `original_length`: Number of characters in original trace
@@ -106,11 +106,11 @@ Based on pipeline 625483 testing:
 
 ### Job 2009734 (Test Job)
 - **Original**: 37,276 characters
-- **Cleaned**: 34,509 characters  
+- **Cleaned**: 34,509 characters
 - **Reduction**: 2,767 characters (7.4%)
 - **ANSI Sequences**: 348 removed (18 unique types)
 
-### Job 2009732 (Lint Job)  
+### Job 2009732 (Lint Job)
 - **Original**: 44,199 characters
 - **Cleaned**: 36,237 characters
 - **Reduction**: 7,962 characters (18.0%)
@@ -139,7 +139,7 @@ The tool is fully integrated into the MCP server and is available alongside exis
 ## Files Created
 
 - **Tool Implementation**: `src/gitlab_analyzer/mcp/tools.py` (new tool added)
-- **Test Scripts**: 
+- **Test Scripts**:
   - `test_cleaned_trace_tool.py` - Basic functionality test
   - `compare_trace_tools.py` - Comparison between raw and cleaned
   - `demo_cleaned_workflow.py` - Complete workflow demonstration

@@ -279,7 +279,7 @@ class LogParser:
         # First, clean the log text from ANSI escape sequences
         cleaned_log_text = cls._clean_ansi_sequences(log_text)
 
-        entries = []
+        entries: list[LogEntry] = []
         lines = cleaned_log_text.split("\n")
 
         # Track processed pytest detailed lines to avoid duplicates

@@ -342,7 +342,7 @@ def register_tools(mcp: FastMCP) -> None:
             ansi_matches = ansi_pattern.findall(raw_trace)
 
             # Count different types of ANSI sequences
-            ansi_types = {}
+            ansi_types: dict[str, int] = {}
             for match in ansi_matches:
                 ansi_types[match] = ansi_types.get(match, 0) + 1
 
