@@ -48,8 +48,12 @@ uv run pytest --cov=src --cov-report=term-missing
 #### Linting Issues
 ```bash
 # Check and auto-fix linting issues
-uv run ruff check src/ --fix
-uv run ruff format src/
+uv run ruff check . --fix
+uv run ruff format .
+
+# Verify format consistency (same as CI)
+uv run ruff check --output-format=github .
+uv run ruff format --check .
 ```
 
 #### Security Issues
@@ -93,7 +97,7 @@ Find and update version references in README.md:
 # Before
 "gitlab_pipeline_analyzer==0.1.2"
 
-# After  
+# After
 "gitlab_pipeline_analyzer==0.1.3"
 ```
 
@@ -105,7 +109,21 @@ grep -r "0.1.2" . --exclude-dir=.git --exclude-dir=.venv --exclude-dir=.tox
 
 ### 4. Commit and Push Changes
 
-#### 4.1 Review Changes
+#### 4.1 Pre-Commit Verification
+Run the exact same checks as CI to catch issues early:
+
+```bash
+# Run all CI checks locally
+uv run ruff check --output-format=github .
+uv run ruff format --check .
+uv run mypy src/
+uv run bandit -r src/
+uv run pytest tests/ -v --cov=src/ --cov-report=term-missing
+
+# If any checks fail, fix them before proceeding
+```
+
+#### 4.2 Review Changes
 ```bash
 # Check current status
 git status
@@ -114,7 +132,7 @@ git status
 git diff
 ```
 
-#### 4.2 Stage and Commit
+#### 4.3 Stage and Commit
 ```bash
 # Stage all changes
 git add .
@@ -128,7 +146,7 @@ git commit -m "Prepare for vX.Y.Z release
 - [Any other specific changes]"
 ```
 
-#### 4.3 Push Changes
+#### 4.4 Push Changes
 ```bash
 # Push to remote repository
 git push origin main
@@ -170,7 +188,7 @@ After pushing the tag, GitHub Actions will automatically trigger:
 #### 6.2 Workflow Jobs Include:
 - **Build**: Package creation and validation
 - **Test**: Run test suite across Python versions
-- **Security**: Security scans and vulnerability checks  
+- **Security**: Security scans and vulnerability checks
 - **Publish**: Automatic PyPI publishing (for production)
 
 ### 7. Post-Deployment Verification
@@ -201,7 +219,7 @@ uvx --from gitlab-pipeline-analyzer==X.Y.Z gitlab-analyzer --help
 ```bash
 # Run specific tox environment
 uv run tox -e lint    # Only linting
-uv run tox -e type    # Only type checking  
+uv run tox -e type    # Only type checking
 uv run tox -e py312   # Only tests
 
 # Clean tox cache
@@ -212,6 +230,16 @@ rm -rf .tox/
 ```bash
 # Update pre-commit hooks
 uv run pre-commit autoupdate
+
+# If there are version conflicts between pre-commit and project tools:
+# 1. Check tool versions
+uv run ruff --version
+uv run mypy --version
+
+# 2. Update .pre-commit-config.yaml to match project versions
+# 3. Clean and reinstall pre-commit hooks
+uv run pre-commit clean
+uv run pre-commit install --install-hooks
 
 # Skip specific hook if needed (not recommended)
 SKIP=mypy uv run pre-commit run --all-files
@@ -227,10 +255,70 @@ sed -i 's/0\.1\.2/0\.1\.3/g' filename
 ```
 
 #### 4. GitHub Actions Failures
+
+##### Common CI Errors and Fixes:
+
+**Ruff Formatting Error:**
+```
+Error: Would reformat: tests/test_mcp_tools_coverage.py
+1 file would be reformatted, 31 files already formatted
+```
+**Fix:**
+```bash
+# Common cause: Version mismatch between pre-commit ruff and project ruff
+# Check versions
+uv run ruff --version
+# Compare with .pre-commit-config.yaml ruff rev
+
+# Fix version mismatch in .pre-commit-config.yaml
+# Update rev to match project version (e.g., v0.12.7)
+
+# Clean and reinstall pre-commit
+uv run pre-commit clean
+uv run pre-commit install --install-hooks
+
+# Format all files to match CI expectations
+uv run ruff format .
+
+# Verify formatting matches CI
+uv run ruff format --check .
+uv run ruff check --output-format=github .
+```
+
+**Type Checking Failures:**
+```
+src/file.py:123: error: Need type annotation for "variable"
+```
+**Fix:**
+```bash
+# Run mypy locally to see all type errors
+uv run mypy src/
+
+# Add proper type annotations
+# Before: entries = []
+# After: entries: list[LogEntry] = []
+```
+
+**Test Coverage Failures:**
+```
+FAIL Required test coverage of 70% not reached. Total coverage: 68%
+```
+**Fix:**
+```bash
+# Check coverage details
+uv run pytest --cov=src --cov-report=term-missing
+
+# Options:
+# 1. Add more tests for uncovered code
+# 2. Lower coverage threshold in pytest.ini temporarily
+```
+
+**General Troubleshooting:**
 - Check the Actions tab for detailed error logs
 - Verify environment secrets are configured
 - Check PyPI trusted publishing setup
 - Ensure branch protection rules allow the release
+- Re-run failed jobs if they seem transient
 
 ### Emergency Rollback
 
@@ -252,6 +340,12 @@ Use this checklist to ensure all steps are completed:
 
 - [ ] All tox environments pass (`uv run tox`)
 - [ ] All pre-commit hooks pass (`uv run pre-commit run --all-files`)
+- [ ] **Pre-commit CI verification**: All CI checks pass locally:
+  - [ ] `uv run ruff check --output-format=github .`
+  - [ ] `uv run ruff format --check .`
+  - [ ] `uv run mypy src/`
+  - [ ] `uv run bandit -r src/`
+  - [ ] `uv run pytest tests/ -v --cov=src/ --cov-report=term-missing`
 - [ ] Version updated in `pyproject.toml`
 - [ ] Version updated in `README.md`
 - [ ] All other version references updated
@@ -286,7 +380,7 @@ on:
   push:
     branches: [main]
     paths: ['src/**', 'pyproject.toml']
-  
+
 jobs:
   auto-release:
     if: contains(github.event.head_commit.message, '[auto-release]')

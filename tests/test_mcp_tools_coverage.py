@@ -98,9 +98,9 @@ class TestMCPToolsIntegration:
         ]
 
         for expected_tool in expected_tools:
-            assert (
-                expected_tool in tool_names
-            ), f"Tool {expected_tool} not found in registered tools"
+            assert expected_tool in tool_names, (
+                f"Tool {expected_tool} not found in registered tools"
+            )
 
     @pytest.mark.asyncio
     async def test_mcp_server_with_tools_creation(self):
