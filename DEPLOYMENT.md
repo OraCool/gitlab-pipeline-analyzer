@@ -258,7 +258,7 @@ sed -i 's/0\.1\.2/0\.1\.3/g' filename
 
 ##### Common CI Errors and Fixes:
 
-**Ruff Formatting Error:**
+**Ruff Formatting Error (Persistent CI Issue):**
 ```
 Error: Would reformat: tests/test_mcp_tools_coverage.py
 1 file would be reformatted, 31 files already formatted
@@ -266,6 +266,8 @@ Error: Would reformat: tests/test_mcp_tools_coverage.py
 **Fix:**
 ```bash
 # Common cause: Version mismatch between pre-commit ruff and project ruff
+# or cached CI state with outdated file versions
+
 # Check versions
 uv run ruff --version
 # Compare with .pre-commit-config.yaml ruff rev
@@ -280,9 +282,13 @@ uv run pre-commit install --install-hooks
 # Format all files to match CI expectations
 uv run ruff format .
 
-# Verify formatting matches CI
+# Verify formatting matches CI locally
 uv run ruff format --check .
 uv run ruff check --output-format=github .
+
+# If the issue persists in CI despite passing locally:
+# Force a new commit to refresh CI cache
+touch .format-trigger && git add . && git commit -m "Force format refresh"
 ```
 
 **Type Checking Failures:**
