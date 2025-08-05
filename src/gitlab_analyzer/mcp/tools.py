@@ -90,7 +90,7 @@ def register_tools(mcp: FastMCP) -> None:
             warnings = []
 
             for entry in log_entries:
-                entry_dict = entry.dict()
+                entry_dict = entry.model_dump()
 
                 if entry.level == "error":
                     # Add detailed error categorization
@@ -220,7 +220,7 @@ def register_tools(mcp: FastMCP) -> None:
             return {
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "jobs": [job.dict() for job in jobs],
+                "jobs": [job.model_dump() for job in jobs],
                 "total_jobs": len(jobs),
                 "failed_jobs": len([job for job in jobs if job.status == "failed"]),
                 "passed_jobs": len([job for job in jobs if job.status == "success"]),
@@ -309,6 +309,77 @@ def register_tools(mcp: FastMCP) -> None:
             }
 
     @mcp.tool
+    async def get_cleaned_job_trace(
+        project_id: str | int, job_id: int
+    ) -> dict[str, Any]:
+        """
+        Get the trace log for a specific GitLab CI/CD job with ANSI codes removed.
+
+        This tool fetches the raw job trace and automatically cleans it by removing
+        ANSI escape sequences, making it more suitable for automated analysis and
+        human reading.
+
+        Args:
+            project_id: The GitLab project ID or path
+            job_id: The ID of the GitLab job
+
+        Returns:
+            The cleaned trace log (without ANSI codes) and cleaning statistics
+        """
+        analyzer = get_gitlab_analyzer()
+
+        try:
+            # Get the raw trace
+            raw_trace = await analyzer.get_job_trace(project_id, job_id)
+
+            # Clean ANSI codes using LogParser
+            cleaned_trace = LogParser._clean_ansi_sequences(raw_trace)
+
+            # Analyze ANSI sequences for statistics
+            import re
+
+            ansi_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+            ansi_matches = ansi_pattern.findall(raw_trace)
+
+            # Count different types of ANSI sequences
+            ansi_types = {}
+            for match in ansi_matches:
+                ansi_types[match] = ansi_types.get(match, 0) + 1
+
+            # Calculate reduction statistics
+            chars_removed = len(raw_trace) - len(cleaned_trace)
+            reduction_percentage = (
+                (chars_removed / len(raw_trace) * 100) if raw_trace else 0
+            )
+
+            return {
+                "project_id": str(project_id),
+                "job_id": job_id,
+                "cleaned_trace": cleaned_trace,
+                "cleaning_stats": {
+                    "original_length": len(raw_trace),
+                    "cleaned_length": len(cleaned_trace),
+                    "chars_removed": chars_removed,
+                    "reduction_percentage": round(reduction_percentage, 1),
+                    "ansi_sequences_found": len(ansi_matches),
+                    "unique_ansi_types": len(ansi_types),
+                    "most_common_ansi": (
+                        max(ansi_types.items(), key=lambda x: x[1])
+                        if ansi_types
+                        else None
+                    ),
+                },
+                "has_content": bool(cleaned_trace.strip()),
+                "ansi_sequences_detected": len(ansi_matches) > 0,
+            }
+        except (httpx.HTTPError, httpx.RequestError, ValueError) as e:
+            return {
+                "error": f"Failed to get cleaned trace for job {job_id}: {str(e)}",
+                "project_id": str(project_id),
+                "job_id": job_id,
+            }
+
+    @mcp.tool
     async def extract_log_errors(log_text: str) -> dict[str, Any]:
         """
         Extract errors and warnings from log text.
@@ -322,9 +393,11 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             log_entries = LogParser.extract_log_entries(log_text)
 
-            errors = [entry.dict() for entry in log_entries if entry.level == "error"]
+            errors = [
+                entry.model_dump() for entry in log_entries if entry.level == "error"
+            ]
             warnings = [
-                entry.dict() for entry in log_entries if entry.level == "warning"
+                entry.model_dump() for entry in log_entries if entry.level == "warning"
             ]
 
             return {
@@ -413,7 +486,7 @@ async def analyze_failed_pipeline_optimized(
             job_warnings = []
 
             for entry in log_entries:
-                entry_dict = entry.dict()
+                entry_dict = entry.model_dump()
 
                 if entry.level == "error":
                     # Add detailed error categorization
@@ -480,32 +553,75 @@ async def analyze_failed_pipeline_optimized(
                     )
                     job_warnings.append(entry_dict)
 
-            # Post-process: deduplicate test failures, keeping detailed format over summary
+            # Post-process: deduplicate errors more comprehensively
             if job_errors:
-                test_failures: dict[
-                    str, dict
-                ] = {}  # test_function -> error_entry (keeping the best one)
+                # Group errors by type and content for more effective deduplication
+                test_failures: dict[str, dict] = {}  # test_function -> best error entry
+                assertion_errors: dict[str, dict] = {}  # message -> error entry
+                formatting_errors: dict[str, dict] = {}  # file_path -> error entry
                 other_errors = []
 
                 for error in job_errors:
-                    if error.get("category") == "Test Failure" and error.get(
-                        "test_function"
-                    ):
+                    error_category = error.get("category", "Unknown")
+
+                    if error_category == "Test Failure" and error.get("test_function"):
+                        # Deduplicate test failures by test function
                         test_func = error["test_function"]
                         existing = test_failures.get(test_func)
 
-                        # Keep this error if:
-                        # 1. We don't have one for this test yet, OR
-                        # 2. This one has source_line and the existing doesn't
+                        # Prefer entries with source_line information
                         if not existing or (
                             "source_line" in error and "source_line" not in existing
                         ):
                             test_failures[test_func] = error
+
+                    elif (
+                        error_category == "General Error"
+                        and "AssertionError" in error.get("message", "")
+                    ):
+                        # Deduplicate assertion errors by message content
+                        assertion_msg = error.get("message", "")
+                        # Extract the core assertion message
+                        if "AssertionError:" in assertion_msg:
+                            core_msg = assertion_msg.split("AssertionError:")[
+                                -1
+                            ].strip()
+                            if core_msg not in assertion_errors or len(
+                                error.get("context", "")
+                            ) > len(assertion_errors[core_msg].get("context", "")):
+                                assertion_errors[core_msg] = error
+                        else:
+                            other_errors.append(error)
+
+                    elif error_category in [
+                        "Code Formatting",
+                        "Code Formatting Summary",
+                    ]:
+                        # Deduplicate formatting errors by file path
+                        message = error.get("message", "")
+                        if "would reformat" in message:
+                            import re
+
+                            file_match = re.search(r"would reformat (.+)", message)
+                            if file_match:
+                                file_path = file_match.group(1)
+                                if file_path not in formatting_errors:
+                                    formatting_errors[file_path] = error
+                            else:
+                                other_errors.append(error)
+                        else:
+                            other_errors.append(error)
+
                     else:
                         other_errors.append(error)
 
-                # Rebuild job_errors with deduplicated test failures
-                job_errors = other_errors + list(test_failures.values())
+                # Rebuild job_errors with deduplicated entries
+                job_errors = (
+                    other_errors
+                    + list(test_failures.values())
+                    + list(assertion_errors.values())
+                    + list(formatting_errors.values())
+                )
 
             analysis[job.name] = {
                 "errors": job_errors,
@@ -552,7 +668,7 @@ async def analyze_failed_pipeline_optimized(
             "pipeline_id": pipeline_id,
             "pipeline_status": pipeline["status"],
             "pipeline_url": pipeline["web_url"],
-            "failed_jobs": [job.dict() for job in failed_jobs],
+            "failed_jobs": [job.model_dump() for job in failed_jobs],
             "analysis": analysis,
             "summary": summary,
         }

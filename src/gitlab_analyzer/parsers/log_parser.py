@@ -25,21 +25,19 @@ class LogParser:
         (r"(.*)Lint check failed", "error"),
         (r"(.*)formatting.*issues", "error"),
         (r"(.*)files would be reformatted", "error"),
-        # Test failures
-        (r"(.*)FAILED (.+test.*)", "error"),  # Test failures
-        (r"(.*)AssertionError: (.+)", "error"),
-        (r"(.*)Test failed: (.+)", "error"),
-        (r"(.*)E\s+(.+test.*)", "error"),  # pytest errors (only test-related)
+        # Test failures - prioritize detailed format over summary
         # Pytest detailed format: test/test_failures.py:10: in test_intentional_failure
         (
             r"^(.+\.py):(\d+):\s+in\s+(\w+)",
             "error",
-        ),  # pytest detailed test failure format
+        ),  # pytest detailed test failure format (highest priority)
+        (r"(.*)FAILED (.+test.*)", "error"),  # Test failures (lower priority)
+        (r"(.*)Test failed: (.+)", "error"),
         # Build/compilation failures
         (r"(.*)compilation error", "error"),
         (r"(.*)build failed", "error"),
         (r"(.*)fatal error: (.+)", "error"),
-        # Python code errors in actual application code
+        # Python code errors in actual application code (not pytest details)
         (r"(.*)Traceback \(most recent call last\):", "error"),
         (r"(.*)SyntaxError: (.+)", "error"),
         (r"(.*)ImportError: (.+)", "error"),
@@ -74,7 +72,7 @@ class LogParser:
     EXCLUDE_PATTERNS = [
         # GitLab Runner infrastructure
         r"Running with gitlab-runner",
-        r"on GCP EPAM Ocean",
+        r"on GCP Ocean",
         r"system ID:",
         r"shared k8s runner",
         r"please use cache",
@@ -166,6 +164,116 @@ class LogParser:
     ]
 
     @classmethod
+    def _is_duplicate_test_error(cls, message: str, existing_entries: list) -> bool:
+        """Check if this error message represents a duplicate test failure"""
+        # Extract test function name from different message formats
+        test_function = None
+
+        # Format 1: "test/test_failures.py:10: in test_intentional_failure"
+        detailed_match = re.match(r"^(.+\.py):(\d+):\s+in\s+(\w+)", message)
+        if detailed_match:
+            test_function = detailed_match.group(3)
+
+        # Format 2: "FAILED test/test_failures.py::test_intentional_failure"
+        failed_match = re.search(r"FAILED\s+.+::(\w+)", message)
+        if failed_match:
+            test_function = failed_match.group(1)
+
+        # Format 3: AssertionError from specific test
+        if "AssertionError:" in message and not test_function:
+            # Look for test function in context if available
+            return False  # Let the deduplication handle this
+
+        if test_function:
+            # Check if we already have an error for this test function
+            for entry in existing_entries:
+                if (
+                    hasattr(entry, "message")
+                    and test_function in entry.message
+                    and (
+                        f"::{test_function}" in entry.message
+                        or f"in {test_function}" in entry.message
+                    )
+                ):
+                    return True
+
+        return False
+
+    @classmethod
+    def _is_in_pytest_failure_section(
+        cls, lines: list[str], current_line_num: int
+    ) -> bool:
+        """
+        Intelligently detect if we're currently inside a pytest FAILURES section
+        by looking for pytest section markers and structure, not fixed line counts.
+        """
+        # Look backwards from current line to find pytest section boundaries
+        failures_section_start = None
+        failures_section_end = None
+
+        # Search backwards for the start of a FAILURES section
+        for i in range(current_line_num - 1, -1, -1):
+            line = lines[i].strip()
+
+            # Found the start of FAILURES section
+            if re.match(r"=+\s*FAILURES\s*=+", line):
+                failures_section_start = i
+                break
+
+            # If we hit another pytest section, we're not in FAILURES
+            if re.match(r"=+\s*(SHORT TEST SUMMARY|ERRORS|PASSED|FAILED)\s*=+", line):
+                break
+
+            # If we hit a clear job section boundary, stop looking
+            if any(
+                marker in line
+                for marker in [
+                    "section_start:",
+                    "section_end:",
+                    "Job succeeded",
+                    "Job failed",
+                    "Running with gitlab-runner",
+                    "Preparing the",
+                ]
+            ):
+                break
+
+        # If no FAILURES section found, we're not in one
+        if failures_section_start is None:
+            return False
+
+        # Search forwards from FAILURES start to see if there's an end before our line
+        for i in range(
+            failures_section_start + 1, min(len(lines), current_line_num + 50)
+        ):
+            line = lines[i].strip()
+
+            # Found end of FAILURES section (start of another section or summary)
+            if re.match(r"=+\s*(SHORT TEST SUMMARY|ERRORS|PASSED|FAILED)\s*=+", line):
+                failures_section_end = i
+                break
+
+            # Job section boundary also ends pytest output
+            if any(
+                marker in line
+                for marker in [
+                    "section_start:",
+                    "section_end:",
+                    "Job succeeded",
+                    "Job failed",
+                ]
+            ):
+                failures_section_end = i
+                break
+
+        # We're in FAILURES section if:
+        # 1. We found a FAILURES start before our line
+        # 2. Either no end was found (still in section) OR the end is after our line
+        return failures_section_start is not None and (
+            failures_section_end is None or failures_section_end > current_line_num
+        )
+
+    @classmethod
     def extract_log_entries(cls, log_text: str) -> list[LogEntry]:
         """Extract error and warning entries from log text"""
         # First, clean the log text from ANSI escape sequences
@@ -173,6 +281,9 @@ class LogParser:
 
         entries = []
         lines = cleaned_log_text.split("\n")
+
+        # Track processed pytest detailed lines to avoid duplicates
+        processed_pytest_details = set()
 
         for line_num, log_line in enumerate(lines, 1):
             log_line = log_line.strip()
@@ -186,10 +297,42 @@ class LogParser:
             ):
                 continue
 
+            # Skip pytest error details (E   lines) and standalone exception messages
+            # if we're inside a FAILURES section - these will be captured as context
+            # BUT preserve meaningful entries like file:line:function and FAILED summaries
+            if (
+                line_num > 1
+                and (
+                    re.match(r"^E\s+", log_line)
+                    or (
+                        re.match(r"^(AssertionError|Exception|.*Error):\s", log_line)
+                        and not re.match(r"^(.+\.py):(\d+):\s+in\s+(\w+)", log_line)
+                        and "FAILED" not in log_line
+                    )
+                )
+                and cls._is_in_pytest_failure_section(lines, line_num)
+            ):
+                # Skip this line as it's part of test failure details
+                continue
+
             # Check for errors
             for pattern, level in cls.ERROR_PATTERNS:
                 match = re.search(pattern, log_line, re.IGNORECASE)
                 if match:
+                    # Check for duplicate test errors
+                    if cls._is_duplicate_test_error(log_line, entries):
+                        break  # Skip this duplicate
+
+                    # Special handling for pytest detailed format to avoid duplicates
+                    pytest_detail_match = re.match(
+                        r"^(.+\.py):(\d+):\s+in\s+(\w+)", log_line
+                    )
+                    if pytest_detail_match:
+                        test_key = f"{pytest_detail_match.group(1)}:{pytest_detail_match.group(3)}"
+                        if test_key in processed_pytest_details:
+                            break  # Skip duplicate
+                        processed_pytest_details.add(test_key)
+
                     entry = LogEntry(
                         level=level,
                         message=log_line,
