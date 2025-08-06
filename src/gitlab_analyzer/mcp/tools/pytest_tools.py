@@ -50,7 +50,7 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                         f"\nFull Error Details:\n{failure.full_error_text}"
                     )
 
-                error = {
+                error: dict[str, Any] = {
                     "level": "error",
                     "message": f"{failure.test_file}:{failure.exception_type}: {failure.exception_message}",
                     "line_number": source_line_number,  # Use actual source code line number
@@ -82,7 +82,7 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
 
                     if traceback_info:
                         # Add traceback to context (which already has full error text)
-                        current_context = error.get("context", "")
+                        current_context = str(error.get("context", ""))
                         error["context"] = (
                             current_context
                             + "\n\nTraceback Details:\n"
@@ -114,7 +114,7 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     "\nNote: This is from short summary - limited details available",
                 ]
 
-                error = {
+                summary_error: dict[str, Any] = {
                     "level": "error",
                     "message": f"{summary.test_file}:{summary.error_type}: {summary.error_message}",
                     "line_number": None,
@@ -126,7 +126,7 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     "exception_type": summary.error_type,
                     "exception_message": summary.error_message,
                 }
-                errors.append(error)
+                errors.append(summary_error)
 
         # Add statistics information if available
         additional_info = {}
