@@ -47,11 +47,13 @@ The server supports three transport protocols:
 Best for local tools and command-line scripts:
 
 ```bash
-# Default STDIO transport
-python server.py
+```bash
+gitlab-analyzer
+```
 
-# Or explicitly specify
-python server.py --transport stdio
+Or explicitly specify the transport:
+```bash
+gitlab-analyzer --transport stdio
 ```
 
 ### 2. HTTP Transport
@@ -59,14 +61,18 @@ python server.py --transport stdio
 Recommended for web deployments and remote access:
 
 ```bash
-# Start HTTP server
-python http_server.py
+```bash
+gitlab-analyzer-http
+```
 
-# Or using the main server script
-python server.py --transport http --host 127.0.0.1 --port 8000 --path /mcp
+Or using the main server with transport option:
+```bash
+gitlab-analyzer --transport http --host 127.0.0.1 --port 8000 --path /mcp
+```
 
-# Or using environment variables
-MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8080 python server.py
+Or with environment variables:
+```bash
+MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8080 gitlab-analyzer
 ```
 
 The HTTP server will be available at: `http://127.0.0.1:8000/mcp`
@@ -76,11 +82,13 @@ The HTTP server will be available at: `http://127.0.0.1:8000/mcp`
 For compatibility with existing SSE clients:
 
 ```bash
-# Start SSE server
-python sse_server.py
+```bash
+gitlab-analyzer-sse
+```
 
-# Or using the main server script
-python server.py --transport sse --host 127.0.0.1 --port 8000
+Or using the main server with transport option:
+```bash
+gitlab-analyzer --transport sse --host 127.0.0.1 --port 8000
 ```
 
 The SSE server will be available at: `http://127.0.0.1:8000`
@@ -201,7 +209,7 @@ export MCP_PORT="8000"
 export MCP_PATH="/mcp"
 
 # Start HTTP server
-uv run python server.py --transport http --host 0.0.0.0 --port 8000
+uv run python -m gitlab_analyzer.servers.stdio_server --transport http --host 0.0.0.0 --port 8000
 ```
 
 2. **Using Docker (Recommended for Production):**
@@ -291,12 +299,12 @@ docker run -p 8000:8000 \
 # Server 1 - Company GitLab
 export GITLAB_URL="https://gitlab.company.com"
 export GITLAB_TOKEN="company-token"
-uv run python server.py --transport http --port 8001
+uv run python -m gitlab_analyzer.servers.stdio_server --transport http --port 8001
 
 # Server 2 - Personal GitLab
 export GITLAB_URL="https://gitlab.com"
 export GITLAB_TOKEN="personal-token"
-uv run python server.py --transport http --port 8002
+uv run python -m gitlab_analyzer.servers.stdio_server --transport http --port 8002
 ```
 
 **Option 2: Use STDIO Transport for User-Specific Auth**
@@ -369,7 +377,7 @@ To support user-specific authorization, the server would need modifications to:
 # On remote server
 export GITLAB_URL="https://gitlab.company.com"
 export GITLAB_TOKEN="server-side-token"
-uv run python server.py --transport http --host 0.0.0.0 --port 8000
+uv run python -m gitlab_analyzer.servers.stdio_server --transport http --host 0.0.0.0 --port 8000
 ```
 
 **Example Client-Side for STDIO:**

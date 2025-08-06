@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gitlab_analyzer.mcp.server import create_server, load_env_file, main
+from gitlab_analyzer.mcp.servers.server import create_server, load_env_file, main
 from gitlab_analyzer.mcp.tools import get_gitlab_analyzer
 
 
@@ -23,7 +23,7 @@ class TestMCPServer:
         server = create_server()
 
         assert server is not None
-        assert server.name == "GitLab Pipeline Analyzer"
+        assert "GitLab Pipeline Analyzer v" in server.name
         assert "Analyze GitLab CI/CD pipelines" in server.instructions
 
     def test_server_has_tools(self):
@@ -58,7 +58,7 @@ class TestMCPServer:
             assert os.environ["GITLAB_TOKEN"] == "test-token"
             assert "INVALID_LINE_NO_EQUALS" not in os.environ
 
-    @patch("gitlab_analyzer.mcp.server.Path.exists")
+    @patch("gitlab_analyzer.mcp.servers.server.Path.exists")
     def test_load_env_file_not_exists(self, mock_exists):
         """Test handling when .env file doesn't exist"""
         mock_exists.return_value = False
@@ -112,7 +112,7 @@ class TestMCPTools:
         mock_gitlab_analyzer.get_job_trace.return_value = sample_job_trace
 
         with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer",
+            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
             server = create_server()
@@ -146,7 +146,7 @@ class TestMCPTools:
         mock_gitlab_analyzer.get_job_trace.return_value = sample_job_trace
 
         with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer",
+            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
             server = create_server()
@@ -177,9 +177,23 @@ class TestMCPTools:
         # Setup mock analyzer with empty trace
         mock_gitlab_analyzer.get_job_trace.return_value = ""
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer",
-            return_value=mock_gitlab_analyzer,
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_gitlab_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_gitlab_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_gitlab_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_gitlab_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -196,10 +210,12 @@ class TestMCPTools:
             # Extract the result from ToolResult
             result = json.loads(tool_result.content[0].text)
 
-            assert result is not None
-            assert isinstance(result, dict)
-            assert "error" in result
-            assert "No trace found for job 1001" in result["error"]
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "errors" in result
+        assert result["error_count"] == 0
+        assert result["errors"] == []
+        assert result["trace_length"] == 0
 
     @pytest.mark.asyncio
     async def test_get_pipeline_status(
@@ -211,7 +227,7 @@ class TestMCPTools:
         mock_gitlab_analyzer.get_pipeline.return_value = mock_pipeline
 
         with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer",
+            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
             server = create_server()
@@ -246,7 +262,7 @@ class TestMCPTools:
         mock_gitlab_analyzer.get_pipeline_jobs.return_value = sample_job_data
 
         with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer",
+            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
             server = create_server()
@@ -271,8 +287,8 @@ class TestMCPTools:
 class TestMainFunction:
     """Test the main entry point function"""
 
-    @patch("gitlab_analyzer.mcp.server.create_server")
-    @patch("gitlab_analyzer.mcp.server.load_env_file")
+    @patch("gitlab_analyzer.mcp.servers.server.create_server")
+    @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
     @patch("sys.argv", ["gitlab-analyzer"])
     def test_main_default_stdio(self, mock_load_env, mock_create_server):
         """Test main function with default stdio transport"""
@@ -288,8 +304,8 @@ class TestMainFunction:
         mock_create_server.assert_called_once()
         mock_mcp.run.assert_called_once_with(transport="stdio")
 
-    @patch("gitlab_analyzer.mcp.server.create_server")
-    @patch("gitlab_analyzer.mcp.server.load_env_file")
+    @patch("gitlab_analyzer.mcp.servers.server.create_server")
+    @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
     @patch(
         "sys.argv",
         [
@@ -318,8 +334,8 @@ class TestMainFunction:
             transport="http", host="localhost", port=9000, path="/mcp"
         )
 
-    @patch("gitlab_analyzer.mcp.server.create_server")
-    @patch("gitlab_analyzer.mcp.server.load_env_file")
+    @patch("gitlab_analyzer.mcp.servers.server.create_server")
+    @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
     @patch(
         "sys.argv",
         [
@@ -346,8 +362,8 @@ class TestMainFunction:
         mock_create_server.assert_called_once()
         mock_mcp.run.assert_called_once_with(transport="sse", host="0.0.0.0", port=8080)
 
-    @patch("gitlab_analyzer.mcp.server.create_server")
-    @patch("gitlab_analyzer.mcp.server.load_env_file")
+    @patch("gitlab_analyzer.mcp.servers.server.create_server")
+    @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
     @patch.dict(
         os.environ,
         {

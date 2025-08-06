@@ -28,9 +28,9 @@ class TestMCPToolsCoverage:
         """Test GitLab analyzer when environment variables are missing."""
         with patch.dict("os.environ", {}, clear=True):
             # Reset the global analyzer first
-            import gitlab_analyzer.mcp.tools as tools_module
+            import gitlab_analyzer.mcp.tools.utils as utils_module
 
-            tools_module._GITLAB_ANALYZER = None
+            utils_module._GITLAB_ANALYZER = None
 
             with pytest.raises(
                 ValueError, match="GITLAB_TOKEN environment variable is required"

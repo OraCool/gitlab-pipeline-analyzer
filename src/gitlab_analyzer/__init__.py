@@ -10,12 +10,10 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 from .api.client import GitLabAnalyzer
-from .mcp.server import create_server
-from .mcp.tools import get_gitlab_analyzer
+from .mcp.servers.server import create_server
+from .mcp.tools.utils import get_gitlab_analyzer
 from .models import JobInfo, LogEntry, PipelineAnalysis
 from .parsers.log_parser import LogParser
-
-__version__ = "0.1.0"
 
 __all__ = [
     "JobInfo",

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gitlab_analyzer.mcp.server import create_server
+from gitlab_analyzer.mcp.servers.server import create_server
 from gitlab_analyzer.parsers.log_parser import LogParser
 
 
@@ -16,7 +16,9 @@ class TestGetCleanedJobTrace:
     """Test cases for the get_cleaned_job_trace tool"""
 
     @pytest.mark.asyncio
-    async def test_get_cleaned_job_trace_success(self):
+    async def test_get_cleaned_job_trace_success(
+        self, mock_env_vars, clean_global_analyzer
+    ):
         """Test successful trace cleaning"""
         sample_raw_trace = (
             "\x1b[0KRunning with gitlab-runner 17.8.5 (c9164c8c)\x1b[0;m\n"
@@ -36,12 +38,28 @@ class TestGetCleanedJobTrace:
             "SUCCESS: Operation completed\n"
         )
 
-        # Mock the GitLabAnalyzer
-        with patch("gitlab_analyzer.mcp.tools.get_gitlab_analyzer") as mock_analyzer:
-            mock_instance = AsyncMock()
-            mock_instance.get_job_trace.return_value = sample_raw_trace
-            mock_analyzer.return_value = mock_instance
+        # Mock the GitLabAnalyzer before server creation
+        mock_instance = AsyncMock()
+        mock_instance.get_job_trace.return_value = sample_raw_trace
 
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+        ):
             # Create server and get tool
             server = create_server()
             tool = await server.get_tool("get_cleaned_job_trace")
@@ -55,32 +73,43 @@ class TestGetCleanedJobTrace:
             assert result["project_id"] == "123"
             assert result["job_id"] == 456
             assert result["cleaned_trace"] == expected_cleaned_trace
-            assert result["has_content"] is True
-            assert result["ansi_sequences_detected"] is True
-
-            # Verify cleaning statistics
-            stats = result["cleaning_stats"]
-            assert stats["original_length"] == len(sample_raw_trace)
-            assert stats["cleaned_length"] == len(expected_cleaned_trace)
-            assert stats["chars_removed"] > 0
-            assert stats["reduction_percentage"] > 0
-            assert stats["ansi_sequences_found"] > 0
-            assert stats["unique_ansi_types"] > 0
-            assert stats["most_common_ansi"] is not None
+            assert result["original_length"] == len(sample_raw_trace)
+            assert result["cleaned_length"] == len(expected_cleaned_trace)
+            assert result["bytes_removed"] > 0
+            assert result["ansi_sequences_found"] > 0
+            assert result["unique_ansi_types"] > 0
 
             # Verify the analyzer was called correctly
             mock_instance.get_job_trace.assert_called_once_with("123", 456)
 
     @pytest.mark.asyncio
-    async def test_get_cleaned_job_trace_no_ansi(self):
+    async def test_get_cleaned_job_trace_no_ansi(
+        self, mock_env_vars, clean_global_analyzer
+    ):
         """Test trace cleaning with no ANSI sequences"""
         plain_trace = "This is a plain text trace\nwith no ANSI codes\n"
 
-        with patch("gitlab_analyzer.mcp.tools.get_gitlab_analyzer") as mock_analyzer:
-            mock_instance = AsyncMock()
-            mock_instance.get_job_trace.return_value = plain_trace
-            mock_analyzer.return_value = mock_instance
+        mock_instance = AsyncMock()
+        mock_instance.get_job_trace.return_value = plain_trace
 
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+        ):
             server = create_server()
             tool = await server.get_tool("get_cleaned_job_trace")
 
@@ -90,28 +119,42 @@ class TestGetCleanedJobTrace:
             # Verify the result
             assert "error" not in result
             assert result["cleaned_trace"] == plain_trace
-            assert result["ansi_sequences_detected"] is False
+            assert result["ansi_sequences_found"] == 0
 
             # Verify cleaning statistics for no ANSI codes
-            stats = result["cleaning_stats"]
-            assert stats["original_length"] == len(plain_trace)
-            assert stats["cleaned_length"] == len(plain_trace)
-            assert stats["chars_removed"] == 0
-            assert stats["reduction_percentage"] == 0
-            assert stats["ansi_sequences_found"] == 0
-            assert stats["unique_ansi_types"] == 0
-            assert stats["most_common_ansi"] is None
+            assert result["original_length"] == len(plain_trace)
+            assert result["cleaned_length"] == len(plain_trace)
+            assert result["bytes_removed"] == 0
+            assert result["unique_ansi_types"] == 0
 
     @pytest.mark.asyncio
-    async def test_get_cleaned_job_trace_empty_trace(self):
+    async def test_get_cleaned_job_trace_empty_trace(
+        self, mock_env_vars, clean_global_analyzer
+    ):
         """Test trace cleaning with empty trace"""
         empty_trace = ""
 
-        with patch("gitlab_analyzer.mcp.tools.get_gitlab_analyzer") as mock_analyzer:
-            mock_instance = AsyncMock()
-            mock_instance.get_job_trace.return_value = empty_trace
-            mock_analyzer.return_value = mock_instance
+        mock_instance = AsyncMock()
+        mock_instance.get_job_trace.return_value = empty_trace
 
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+        ):
             server = create_server()
             tool = await server.get_tool("get_cleaned_job_trace")
 
@@ -121,23 +164,22 @@ class TestGetCleanedJobTrace:
             # Verify the result
             assert "error" not in result
             assert result["cleaned_trace"] == ""
-            assert result["has_content"] is False
-            assert result["ansi_sequences_detected"] is False
-
-            # Verify cleaning statistics for empty trace
-            stats = result["cleaning_stats"]
-            assert stats["original_length"] == 0
-            assert stats["cleaned_length"] == 0
-            assert stats["chars_removed"] == 0
-            assert stats["reduction_percentage"] == 0
-            assert stats["ansi_sequences_found"] == 0
+            assert result["original_length"] == 0
+            assert result["cleaned_length"] == 0
+            assert result["bytes_removed"] == 0
+            assert result["ansi_sequences_found"] == 0
+            assert result["unique_ansi_types"] == 0
 
     @pytest.mark.asyncio
-    async def test_get_cleaned_job_trace_network_error(self):
+    async def test_get_cleaned_job_trace_network_error(
+        self, mock_env_vars, clean_global_analyzer
+    ):
         """Test handling of network errors"""
         import httpx
 
-        with patch("gitlab_analyzer.mcp.tools.get_gitlab_analyzer") as mock_analyzer:
+        with patch(
+            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer"
+        ) as mock_analyzer:
             mock_instance = AsyncMock()
             mock_instance.get_job_trace.side_effect = httpx.HTTPError("Network error")
             mock_analyzer.return_value = mock_instance
@@ -150,7 +192,7 @@ class TestGetCleanedJobTrace:
 
             # Verify error handling
             assert "error" in result
-            assert "Failed to get cleaned trace for job 456" in result["error"]
+            assert "Failed to get cleaned job trace" in result["error"]
             assert result["project_id"] == "123"
             assert result["job_id"] == 456
 
@@ -192,7 +234,7 @@ class TestAnsiSequenceTypes:
         )
 
         # Clean the trace
-        cleaned = LogParser._clean_ansi_sequences(trace)
+        cleaned = LogParser.clean_ansi_sequences(trace)
         assert cleaned == "some text"
 
         # Count ANSI sequences manually
@@ -224,7 +266,7 @@ class TestAnsiSequenceTypes:
         ]
 
         for input_text, expected_output in test_cases:
-            result = LogParser._clean_ansi_sequences(input_text)
+            result = LogParser.clean_ansi_sequences(input_text)
             assert result == expected_output, f"Failed for input: {repr(input_text)}"
 
 
@@ -241,16 +283,34 @@ class TestToolIntegration:
         assert tool is not None
 
     @pytest.mark.asyncio
-    async def test_tool_alongside_other_tools(self):
+    async def test_tool_alongside_other_tools(
+        self, mock_env_vars, clean_global_analyzer
+    ):
         """Test that the new tool works alongside existing tools"""
         raw_trace = "\x1b[31mError\x1b[0m: Something failed"
 
         # Mock analyzer for both tools
-        with patch("gitlab_analyzer.mcp.tools.get_gitlab_analyzer") as mock_analyzer:
-            mock_instance = AsyncMock()
-            mock_instance.get_job_trace.return_value = raw_trace
-            mock_analyzer.return_value = mock_instance
+        mock_instance = AsyncMock()
+        mock_instance.get_job_trace.return_value = raw_trace
 
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_instance,
+            ),
+        ):
             server = create_server()
 
             # Test raw trace tool

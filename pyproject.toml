@@ -26,9 +26,9 @@ dependencies = [
 requires-python = ">=3.10"
 
 [project.scripts]
-gitlab-analyzer = "gitlab_analyzer.mcp.server:main"
-gitlab-analyzer-http = "http_server:main"
-gitlab-analyzer-sse = "sse_server:main"
+gitlab-analyzer = "gitlab_analyzer.mcp.servers.server:main"
+gitlab-analyzer-http = "gitlab_analyzer.mcp.servers.http_server:main"
+gitlab-analyzer-sse = "gitlab_analyzer.mcp.servers.sse_server:main"
 
 [project.optional-dependencies]
 dev = [

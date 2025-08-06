@@ -31,7 +31,7 @@ class TestLogParser:
         ]
 
         for input_text, expected in test_cases:
-            result = LogParser._clean_ansi_sequences(input_text)
+            result = LogParser.clean_ansi_sequences(input_text)
             assert result == expected, f"Failed for input: {repr(input_text)}"
 
     def test_log_parser_extract_empty_log(self):
@@ -229,7 +229,7 @@ class TestLogParserEdgeCases:
 \x1b[?25l\x1b[?25hCursor visibility
         """
 
-        result = LogParser._clean_ansi_sequences(complex_log)
+        result = LogParser.clean_ansi_sequences(complex_log)
 
         # Should clean all ANSI sequences
         assert "\x1b" not in result
@@ -240,7 +240,7 @@ class TestLogParserEdgeCases:
     def test_only_ansi_sequences(self):
         """Test log containing only ANSI sequences."""
         ansi_only = "\x1b[31m\x1b[1m\x1b[0m\x1b[2K\x1b[H"
-        result = LogParser._clean_ansi_sequences(ansi_only)
+        result = LogParser.clean_ansi_sequences(ansi_only)
 
         # Should result in empty or minimal cleaned content
         assert len(result.strip()) == 0

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
-from gitlab_analyzer.mcp.server import create_server
+from gitlab_analyzer.mcp.servers.server import create_server
 from gitlab_analyzer.models import JobInfo
 
 
@@ -164,6 +164,6 @@ def mcp_server():
 @pytest.fixture
 def clean_global_analyzer(monkeypatch):
     """Clean the global analyzer instance before tests"""
-    import gitlab_analyzer.mcp.tools
+    import gitlab_analyzer.mcp.tools.utils
 
-    monkeypatch.setattr(gitlab_analyzer.mcp.tools, "_GITLAB_ANALYZER", None)
+    monkeypatch.setattr(gitlab_analyzer.mcp.tools.utils, "_GITLAB_ANALYZER", None)

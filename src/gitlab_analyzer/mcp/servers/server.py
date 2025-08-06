@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
-from .tools import register_tools
+from gitlab_analyzer.mcp.tools import register_tools
 
 # Get version from pyproject.toml to avoid circular imports
 
@@ -19,7 +19,9 @@ from .tools import register_tools
 def get_version() -> str:
     """Get version from pyproject.toml"""
     try:
-        pyproject_path = Path(__file__).parent / ".." / ".." / ".." / "pyproject.toml"
+        pyproject_path = (
+            Path(__file__).parent / ".." / ".." / ".." / ".." / "pyproject.toml"
+        )
         if pyproject_path.exists():
             content = pyproject_path.read_text(encoding="utf-8")
             for line in content.split("\n"):
@@ -53,7 +55,7 @@ def create_server() -> FastMCP:
 
 def load_env_file() -> None:
     """Load environment variables from .env file if it exists"""
-    env_file = Path(__file__).parent / ".." / ".." / ".." / ".env"
+    env_file = Path(__file__).parent / ".." / ".." / ".." / ".." / ".env"
     if env_file.exists():
         with env_file.open(encoding="utf-8") as f:
             for line in f:

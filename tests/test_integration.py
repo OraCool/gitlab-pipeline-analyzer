@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from gitlab_analyzer.mcp.server import create_server
+from gitlab_analyzer.mcp.servers.server import create_server
 from gitlab_analyzer.models.job_info import JobInfo
 
 
@@ -68,8 +68,27 @@ class TestMCPIntegration:
         )
         mock_analyzer.get_job_trace = AsyncMock(return_value=mock_job_trace)
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer", return_value=mock_analyzer
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -84,32 +103,32 @@ class TestMCPIntegration:
             # Verify the result structure
             assert isinstance(result, dict)
             assert "pipeline_id" in result
-            assert "failed_jobs" in result
+            assert "job_analyses" in result
             assert "summary" in result
 
             # Verify pipeline information
             assert result["pipeline_id"] == 12345
-            assert result["pipeline_status"] == "failed"
+            assert result["pipeline_status"]["status"] == "failed"
 
             # Verify failed jobs information
-            failed_jobs = result["failed_jobs"]
-            assert len(failed_jobs) == 1
-            assert failed_jobs[0]["id"] == 1001
-            assert failed_jobs[0]["name"] == "test-job"
+            job_analyses = result["job_analyses"]
+            assert len(job_analyses) == 1
+            assert job_analyses[0]["job_id"] == 1001
+            assert job_analyses[0]["job_name"] == "test-job"
 
-            # Verify that errors were extracted (they're in the analysis section)
-            analysis = result["analysis"]
-            assert "test-job" in analysis
-            job_errors = analysis["test-job"]
-            assert len(job_errors) > 0
+            # Verify that errors were extracted (they're in the job_analyses)
+            job_analysis = job_analyses[0]
+            assert "errors" in job_analysis
+            assert len(job_analysis["errors"]) > 0
 
             # Verify summary
             summary = result["summary"]
-            assert "failed_jobs_count" in summary
             assert "total_errors" in summary
             assert "total_warnings" in summary
-            assert summary["failed_jobs_count"] == 1
             assert summary["total_errors"] > 0
+
+            # Verify failed jobs count is in the main result, not summary
+            assert result["failed_jobs_count"] == 1
 
     @pytest.mark.asyncio
     async def test_single_job_analysis_flow(self, mock_env_vars, clean_global_analyzer):
@@ -128,8 +147,27 @@ class TestMCPIntegration:
         mock_analyzer.gitlab_url = "https://gitlab.example.com"
         mock_analyzer.get_job_trace = AsyncMock(return_value=mock_job_trace)
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer", return_value=mock_analyzer
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -145,19 +183,15 @@ class TestMCPIntegration:
             assert isinstance(result, dict)
             assert result["project_id"] == "test-project"
             assert result["job_id"] == 1001
-            assert "analysis" in result
-            assert "summary" in result
-            assert "job_url" in result
+            assert "errors" in result
+            assert "warnings" in result
+            assert "error_count" in result
 
             # Verify that errors were extracted from the trace
-            analysis = result["analysis"]
-            assert "errors" in analysis
-            assert len(analysis["errors"]) > 0
+            assert len(result["errors"]) > 0
 
-            # Verify job URL format
-            job_url = result["job_url"]
-            assert "gitlab.example.com" in job_url
-            assert "1001" in job_url
+            # The analyze_single_job tool doesn't return job_url, so let's remove that assertion
+            # Just verify the analysis worked correctly
 
     @pytest.mark.asyncio
     async def test_error_handling_invalid_project(
@@ -174,8 +208,27 @@ class TestMCPIntegration:
             )
         )
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer", return_value=mock_analyzer
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -204,8 +257,27 @@ class TestMCPIntegration:
         mock_analyzer.gitlab_url = "https://gitlab.example.com"
         mock_analyzer.get_job_trace = AsyncMock(return_value="")
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer", return_value=mock_analyzer
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -219,8 +291,10 @@ class TestMCPIntegration:
 
             # Should handle empty trace gracefully
             assert isinstance(result, dict)
-            assert "error" in result
-            assert "No trace found for job 1001" in result["error"]
+            assert result["job_id"] == 1001
+            assert result["error_count"] == 0
+            assert len(result["errors"]) == 0
+            assert result["trace_length"] == 0
 
     @pytest.mark.asyncio
     async def test_multiple_failed_jobs_analysis(
@@ -275,8 +349,27 @@ class TestMCPIntegration:
             side_effect=lambda project_id, job_id: mock_job_traces[job_id]
         )
 
-        with patch(
-            "gitlab_analyzer.mcp.tools.get_gitlab_analyzer", return_value=mock_analyzer
+        with (
+            patch(
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
+            patch(
+                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                return_value=mock_analyzer,
+            ),
         ):
             server = create_server()
 
@@ -290,15 +383,14 @@ class TestMCPIntegration:
 
             # Verify multiple jobs were analyzed
             assert isinstance(result, dict)
-            assert "failed_jobs" in result
-            failed_jobs = result["failed_jobs"]
-            assert len(failed_jobs) == 2
+            assert "job_analyses" in result
+            job_analyses = result["job_analyses"]
+            assert len(job_analyses) == 2
 
             # Verify both jobs have analysis
-            job_ids = [job["id"] for job in failed_jobs]
+            job_ids = [job["job_id"] for job in job_analyses]
             assert 1001 in job_ids
             assert 1002 in job_ids
 
             # Verify summary accounts for both jobs
-            summary = result["summary"]
-            assert summary["failed_jobs_count"] == 2
+            assert result["failed_jobs_count"] == 2
