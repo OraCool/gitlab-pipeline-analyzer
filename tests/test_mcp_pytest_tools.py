@@ -265,7 +265,7 @@ class TestPytestTools:
 
             # Verify traceback is included in context
             error = result["errors"][0]
-            assert "Traceback:" in error["context"]
+            assert "Traceback Details:" in error["context"]
             assert "test_traceback.py" in error["context"]
             assert "line 10" in error["context"]
             assert "helper.py" in error["context"]

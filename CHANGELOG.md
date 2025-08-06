@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-08-06
+
+### Enhanced
+- **Dramatically improved pytest error context extraction**
+  - Added full error text from pytest failures with complete traceback details
+  - Enhanced context includes: test names, file paths, function names, exception details
+  - Added structured traceback information with code lines and error messages
+  - Improved error messages now include the actual failing code and assertion details
+  - Better context for AI analysis with comprehensive failure information
+
+### Fixed
+- Enhanced pytest parser to extract and include full error context in MCP responses
+- Fixed missing context information in failed pipeline analysis results
+- Improved error extraction to include both summary and detailed failure information
+
 ## [0.2.0] - 2025-08-06
 
 ### Added

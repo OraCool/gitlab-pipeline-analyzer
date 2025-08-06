@@ -35,15 +35,29 @@ class TestMCPIntegration:
         }
 
         mock_job_trace = """
-        $ npm ci
-        npm ERR! code ENOENT
-        npm ERR! syscall open
-        npm ERR! path /builds/project/package.json
-        npm ERR! errno -2
-        npm ERR! enoent ENOENT: no such file or directory, open '/builds/project/package.json'
-        npm ERR! enoent This is related to npm not being able to find a file.
-        $ npm test
-        npm ERR! Missing script: "test"
+        $ python -m pytest tests/ -v
+        ============================== test session starts ==============================
+        platform linux -- Python 3.11.0, pytest-7.4.3, pluggy-1.4.0
+        cachedir: .pytest_cache
+        rootdir: /builds/project/
+        collected 3 items
+
+        tests/test_example.py::test_passing PASSED                          [ 33%]
+        tests/test_example.py::test_failing FAILED                          [ 66%]
+        tests/test_example.py::test_error PASSED                            [100%]
+
+        =================================== FAILURES ===================================
+        __________________________ test_failing __________________________
+
+            def test_failing():
+        >       assert False, "This test is designed to fail"
+        E       AssertionError: This test is designed to fail
+        E       assert False
+
+        tests/test_example.py:10: AssertionError
+        ========================= short test summary info =========================
+        FAILED tests/test_example.py::test_failing - AssertionError: This test is designed to fail
+        ==================== 1 failed, 2 passed in 0.12s ====================
         ERROR: Job failed: exit code 1
         """
 
@@ -55,7 +69,7 @@ class TestMCPIntegration:
             return_value=[
                 JobInfo(
                     id=1001,
-                    name="test-job",
+                    name="python-tests",
                     status="failed",
                     stage="test",
                     created_at="2025-01-01T10:05:00.000Z",
@@ -114,7 +128,7 @@ class TestMCPIntegration:
             job_analyses = result["job_analyses"]
             assert len(job_analyses) == 1
             assert job_analyses[0]["job_id"] == 1001
-            assert job_analyses[0]["job_name"] == "test-job"
+            assert job_analyses[0]["job_name"] == "python-tests"
 
             # Verify that errors were extracted (they're in the job_analyses)
             job_analysis = job_analyses[0]
@@ -134,11 +148,28 @@ class TestMCPIntegration:
     async def test_single_job_analysis_flow(self, mock_env_vars, clean_global_analyzer):
         """Test the complete flow of analyzing a single job"""
         mock_job_trace = """
-        $ python -m pytest tests/
-        FAILED tests/test_example.py::test_function - AssertionError: expected 5, got 3
+        $ python -m pytest tests/ -v
+        ============================== test session starts ==============================
+        platform linux -- Python 3.11.0, pytest-7.4.3, pluggy-1.4.0
+        cachedir: .pytest_cache
+        rootdir: /builds/project/
+        collected 1 items
+
+        tests/test_example.py::test_function FAILED                          [100%]
+
+        =================================== FAILURES ===================================
+        __________________________ test_function __________________________
+
+            def test_function():
+        >       assert add(1, 2) == 5, "expected 5, got 3"
+        E       AssertionError: expected 5, got 3
         E       assert 3 == 5
         E        +  where 3 = add(1, 2)
-        E        -  where 5 = add(2, 3)
+
+        tests/test_example.py:15: AssertionError
+        ========================= short test summary info =========================
+        FAILED tests/test_example.py::test_function - AssertionError: expected 5, got 3
+        ==================== 1 failed, 0 passed in 0.05s ====================
         ERROR: Test failed with exit code 1
         """
 

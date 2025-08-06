@@ -27,12 +27,35 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
         # Use detailed failures if available (more comprehensive)
         if pytest_analysis.detailed_failures:
             for failure in pytest_analysis.detailed_failures:
+                # Extract the actual source code line number from traceback
+                source_line_number = None
+                if failure.traceback:
+                    # Find the first traceback entry that has a line number
+                    for tb in failure.traceback:
+                        if tb.line_number:
+                            source_line_number = tb.line_number
+                            break
+
+                # Build comprehensive context with full error text and traceback
+                context_parts = [
+                    f"Test: {failure.test_name}",
+                    f"File: {failure.test_file}",
+                    f"Function: {failure.test_function}",
+                    f"Exception: {failure.exception_type}: {failure.exception_message}",
+                ]
+
+                # Add full error text if available
+                if failure.full_error_text:
+                    context_parts.append(
+                        f"\nFull Error Details:\n{failure.full_error_text}"
+                    )
+
                 error = {
                     "level": "error",
                     "message": f"{failure.test_file}:{failure.exception_type}: {failure.exception_message}",
-                    "line_number": None,  # pytest doesn't have line numbers in the traditional sense
+                    "line_number": source_line_number,  # Use actual source code line number
                     "timestamp": None,
-                    "context": f"Test: {failure.test_name}\nFile: {failure.test_file}\nFunction: {failure.test_function}\nException: {failure.exception_type}: {failure.exception_message}",
+                    "context": "\n".join(context_parts),
                     "test_name": failure.test_name,
                     "test_file": failure.test_file,
                     "test_function": failure.test_function,
@@ -40,9 +63,10 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     "exception_message": failure.exception_message,
                     "platform_info": failure.platform_info,
                     "python_version": failure.python_version,
+                    "full_error_text": failure.full_error_text,  # Add full error text as separate field
                 }
                 if failure.traceback:
-                    # Add traceback info to context
+                    # Add detailed traceback info to context
                     traceback_info = []
                     for tb in failure.traceback:
                         if tb.line_number:
@@ -51,23 +75,51 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                             )
                             if tb.code_line:
                                 traceback_info.append(f"    {tb.code_line}")
+                            if tb.error_type and tb.error_message:
+                                traceback_info.append(
+                                    f"    {tb.error_type}: {tb.error_message}"
+                                )
+
                     if traceback_info:
-                        context = error["context"]
-                        if isinstance(context, str):
-                            error["context"] = (
-                                context + "\nTraceback:\n" + "\n".join(traceback_info)
-                            )
+                        # Add traceback to context (which already has full error text)
+                        current_context = error.get("context", "")
+                        error["context"] = (
+                            current_context
+                            + "\n\nTraceback Details:\n"
+                            + "\n".join(traceback_info)
+                        )
+                        # Also add traceback as separate field for structured access
+                        error["traceback"] = [
+                            {
+                                "file_path": tb.file_path,
+                                "line_number": tb.line_number,
+                                "function_name": tb.function_name,
+                                "code_line": tb.code_line,
+                                "error_type": tb.error_type,
+                                "error_message": tb.error_message,
+                            }
+                            for tb in failure.traceback
+                        ]
                 errors.append(error)
 
         # If no detailed failures, fall back to short summary
         elif pytest_analysis.short_summary:
             for summary in pytest_analysis.short_summary:
+                # Build comprehensive context for short summary
+                context_parts = [
+                    f"Test: {summary.test_name}",
+                    f"File: {summary.test_file}",
+                    f"Function: {summary.test_function}",
+                    f"Exception: {summary.error_type}: {summary.error_message}",
+                    "\nNote: This is from short summary - limited details available",
+                ]
+
                 error = {
                     "level": "error",
                     "message": f"{summary.test_file}:{summary.error_type}: {summary.error_message}",
                     "line_number": None,
                     "timestamp": None,
-                    "context": f"Test: {summary.test_name}\nFile: {summary.test_file}\nFunction: {summary.test_function}\nException: {summary.error_type}: {summary.error_message}",
+                    "context": "\n".join(context_parts),
                     "test_name": summary.test_name,
                     "test_file": summary.test_file,
                     "test_function": summary.test_function,

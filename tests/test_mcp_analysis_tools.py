@@ -228,6 +228,10 @@ class TestAnalysisTools:
             # Mock log parser
             with (
                 patch(
+                    "gitlab_analyzer.mcp.tools.analysis_tools._is_pytest_log",
+                    return_value=False,
+                ),
+                patch(
                     "gitlab_analyzer.mcp.tools.analysis_tools.LogParser.extract_log_entries"
                 ) as mock_extract,
                 patch(

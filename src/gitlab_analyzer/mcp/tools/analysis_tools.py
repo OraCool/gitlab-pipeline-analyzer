@@ -13,7 +13,8 @@ from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
 
-from .utils import get_gitlab_analyzer
+from .pytest_tools import _extract_pytest_errors
+from .utils import _is_pytest_log, get_gitlab_analyzer
 
 
 def register_analysis_tools(mcp: FastMCP) -> None:
@@ -56,43 +57,63 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                     # Get job trace
                     trace = await analyzer.get_job_trace(project_id, job_id)
 
-                    # Extract errors/warnings from trace
-                    entries = LogParser.extract_log_entries(trace)
+                    # Auto-detect pytest logs and use specialized parser
+                    if _is_pytest_log(trace):
+                        pytest_result = _extract_pytest_errors(trace)
 
-                    errors = [
-                        {
-                            "level": entry.level,
-                            "message": entry.message,
-                            "line_number": entry.line_number,
-                            "timestamp": entry.timestamp,
-                            "context": entry.context,
+                        errors = pytest_result.get("errors", [])
+                        warnings = pytest_result.get("warnings", [])
+
+                        job_analysis = {
+                            "job_id": job_id,
+                            "job_name": job_name,
+                            "job_status": job.status,
+                            "errors": errors,
+                            "warnings": warnings,
+                            "error_count": len(errors),
+                            "warning_count": len(warnings),
+                            "total_entries": pytest_result.get("total_entries", 0),
+                            "parser_type": "pytest",
                         }
-                        for entry in entries
-                        if entry.level == "error"
-                    ]
+                    else:
+                        # Use generic log parser for non-pytest logs
+                        entries = LogParser.extract_log_entries(trace)
 
-                    warnings = [
-                        {
-                            "level": entry.level,
-                            "message": entry.message,
-                            "line_number": entry.line_number,
-                            "timestamp": entry.timestamp,
-                            "context": entry.context,
+                        errors = [
+                            {
+                                "level": entry.level,
+                                "message": entry.message,
+                                "line_number": entry.line_number,
+                                "timestamp": entry.timestamp,
+                                "context": entry.context,
+                            }
+                            for entry in entries
+                            if entry.level == "error"
+                        ]
+
+                        warnings = [
+                            {
+                                "level": entry.level,
+                                "message": entry.message,
+                                "line_number": entry.line_number,
+                                "timestamp": entry.timestamp,
+                                "context": entry.context,
+                            }
+                            for entry in entries
+                            if entry.level == "warning"
+                        ]
+
+                        job_analysis = {
+                            "job_id": job_id,
+                            "job_name": job_name,
+                            "job_status": job.status,
+                            "errors": errors,
+                            "warnings": warnings,
+                            "error_count": len(errors),
+                            "warning_count": len(warnings),
+                            "total_entries": len(entries),
+                            "parser_type": "generic",
                         }
-                        for entry in entries
-                        if entry.level == "warning"
-                    ]
-
-                    job_analysis = {
-                        "job_id": job_id,
-                        "job_name": job_name,
-                        "job_status": job.status,
-                        "errors": errors,
-                        "warnings": warnings,
-                        "error_count": len(errors),
-                        "warning_count": len(warnings),
-                        "total_entries": len(entries),
-                    }
 
                 except Exception as job_error:
                     job_analysis = {
@@ -178,47 +199,68 @@ def register_analysis_tools(mcp: FastMCP) -> None:
             # Get job trace
             trace = await analyzer.get_job_trace(project_id, job_id)
 
-            # Extract errors/warnings from trace
-            entries = LogParser.extract_log_entries(trace)
+            # Auto-detect pytest logs and use specialized parser
+            if _is_pytest_log(trace):
+                pytest_result = _extract_pytest_errors(trace)
 
-            errors = [
-                {
-                    "level": entry.level,
-                    "message": entry.message,
-                    "line_number": entry.line_number,
-                    "timestamp": entry.timestamp,
-                    "context": entry.context,
-                    "categorization": LogParser.categorize_error(
-                        entry.message, entry.context or ""
-                    ),
+                errors = pytest_result.get("errors", [])
+                warnings = pytest_result.get("warnings", [])
+
+                return {
+                    "project_id": str(project_id),
+                    "job_id": job_id,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "error_count": len(errors),
+                    "warning_count": len(warnings),
+                    "total_entries": pytest_result.get("total_entries", 0),
+                    "trace_length": len(trace),
+                    "parser_type": "pytest",
+                    "analysis_timestamp": datetime.now().isoformat(),
                 }
-                for entry in entries
-                if entry.level == "error"
-            ]
+            else:
+                # Use generic log parser for non-pytest logs
+                entries = LogParser.extract_log_entries(trace)
 
-            warnings = [
-                {
-                    "level": entry.level,
-                    "message": entry.message,
-                    "line_number": entry.line_number,
-                    "timestamp": entry.timestamp,
-                    "context": entry.context,
+                errors = [
+                    {
+                        "level": entry.level,
+                        "message": entry.message,
+                        "line_number": entry.line_number,
+                        "timestamp": entry.timestamp,
+                        "context": entry.context,
+                        "categorization": LogParser.categorize_error(
+                            entry.message, entry.context or ""
+                        ),
+                    }
+                    for entry in entries
+                    if entry.level == "error"
+                ]
+
+                warnings = [
+                    {
+                        "level": entry.level,
+                        "message": entry.message,
+                        "line_number": entry.line_number,
+                        "timestamp": entry.timestamp,
+                        "context": entry.context,
+                    }
+                    for entry in entries
+                    if entry.level == "warning"
+                ]
+
+                return {
+                    "project_id": str(project_id),
+                    "job_id": job_id,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "error_count": len(errors),
+                    "warning_count": len(warnings),
+                    "total_entries": len(entries),
+                    "trace_length": len(trace),
+                    "parser_type": "generic",
+                    "analysis_timestamp": datetime.now().isoformat(),
                 }
-                for entry in entries
-                if entry.level == "warning"
-            ]
-
-            return {
-                "project_id": str(project_id),
-                "job_id": job_id,
-                "errors": errors,
-                "warnings": warnings,
-                "error_count": len(errors),
-                "warning_count": len(warnings),
-                "total_entries": len(entries),
-                "trace_length": len(trace),
-                "analysis_timestamp": datetime.now().isoformat(),
-            }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
@@ -253,46 +295,69 @@ async def analyze_failed_pipeline_optimized(
 
             try:
                 trace = await analyzer.get_job_trace(project_id, job_id)
-                entries = LogParser.extract_log_entries(trace)
 
-                errors = [
-                    {
-                        "level": entry.level,
-                        "message": entry.message,
-                        "line_number": entry.line_number,
-                        "timestamp": entry.timestamp,
-                        "context": entry.context,
-                        "categorization": LogParser.categorize_error(
-                            entry.message, entry.context or ""
-                        ),
+                # Auto-detect pytest logs and use specialized parser
+                if _is_pytest_log(trace):
+                    pytest_result = _extract_pytest_errors(trace)
+
+                    errors = pytest_result.get("errors", [])
+                    warnings = pytest_result.get("warnings", [])
+
+                    return {
+                        "job_id": job_id,
+                        "job_name": job_name,
+                        "job_status": job.status,
+                        "errors": errors,
+                        "warnings": warnings,
+                        "error_count": len(errors),
+                        "warning_count": len(warnings),
+                        "total_entries": pytest_result.get("total_entries", 0),
+                        "trace_length": len(trace),
+                        "parser_type": "pytest",
                     }
-                    for entry in entries
-                    if entry.level == "error"
-                ]
+                else:
+                    # Use generic log parser for non-pytest logs
+                    entries = LogParser.extract_log_entries(trace)
 
-                warnings = [
-                    {
-                        "level": entry.level,
-                        "message": entry.message,
-                        "line_number": entry.line_number,
-                        "timestamp": entry.timestamp,
-                        "context": entry.context,
+                    errors = [
+                        {
+                            "level": entry.level,
+                            "message": entry.message,
+                            "line_number": entry.line_number,
+                            "timestamp": entry.timestamp,
+                            "context": entry.context,
+                            "categorization": LogParser.categorize_error(
+                                entry.message, entry.context or ""
+                            ),
+                        }
+                        for entry in entries
+                        if entry.level == "error"
+                    ]
+
+                    warnings = [
+                        {
+                            "level": entry.level,
+                            "message": entry.message,
+                            "line_number": entry.line_number,
+                            "timestamp": entry.timestamp,
+                            "context": entry.context,
+                        }
+                        for entry in entries
+                        if entry.level == "warning"
+                    ]
+
+                    return {
+                        "job_id": job_id,
+                        "job_name": job_name,
+                        "job_status": job.status,
+                        "errors": errors,
+                        "warnings": warnings,
+                        "error_count": len(errors),
+                        "warning_count": len(warnings),
+                        "total_entries": len(entries),
+                        "trace_length": len(trace),
+                        "parser_type": "generic",
                     }
-                    for entry in entries
-                    if entry.level == "warning"
-                ]
-
-                return {
-                    "job_id": job_id,
-                    "job_name": job_name,
-                    "job_status": job.status,
-                    "errors": errors,
-                    "warnings": warnings,
-                    "error_count": len(errors),
-                    "warning_count": len(warnings),
-                    "total_entries": len(entries),
-                    "trace_length": len(trace),
-                }
 
             except Exception as job_error:
                 return {

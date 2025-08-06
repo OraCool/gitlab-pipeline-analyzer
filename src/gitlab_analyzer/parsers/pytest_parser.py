@@ -101,14 +101,35 @@ class PytestLogParser(BaseParser):
         test_parameters = test_match.group(2) if test_match.group(2) else None
 
         # Extract test file and function name
-        # First try to find the file path from the content (test/test_failures.py:10: in test_function)
+        # First try to find the file path from the content
+        # Pattern 1: file.py:line: in function
         file_line_match = re.search(
             r"([^/\s]+/[^:\s]+\.py):(\d+):\s+in\s+(\w+)", content
         )
 
+        # Pattern 2: file.py:line: ExceptionType (simple format)
+        if not file_line_match:
+            file_line_match = re.search(
+                r"([^/\s]+/[^:\s]+\.py):(\d+):\s+(\w+(?:Exception|Error))", content
+            )
+
         if file_line_match:
             test_file = file_line_match.group(1)
-            test_function = file_line_match.group(3)
+            # For the simple format (pattern 2), the third group is exception type, not function
+            # So we need to extract the function name from the header or traceback
+            if len(file_line_match.groups()) >= 3 and not file_line_match.group(
+                3
+            ).endswith(("Error", "Exception")):
+                test_function = file_line_match.group(3)
+            else:
+                # Extract function name from test_name or look for 'def function():' in content
+                if "::" in test_name:
+                    test_function = test_name.split("::")[-1]
+                else:
+                    # Look for function definition in content
+                    def_match = re.search(r"def\s+(\w+)\s*\(", content)
+                    test_function = def_match.group(1) if def_match else test_name
+
             # Reconstruct full test name with file path if it's not already included
             if "::" not in test_name:
                 test_name = f"{test_file}::{test_function}"
@@ -214,11 +235,15 @@ class PytestLogParser(BaseParser):
         """Parse traceback entries from failure content"""
         traceback_entries: list[PytestTraceback] = []
 
-        # Look for traceback entries in both formats:
+        # Look for traceback entries in multiple formats:
         # 1. Standard Python format: File "path", line N, in function
         # 2. Pytest format: path:line: in function
+        # 3. Simple pytest format: path:line: ExceptionType
         traceback_pattern_standard = r'File "([^"]+)", line (\d+), in (\w+)'
         traceback_pattern_pytest = r"([^/\s]+/[^:\s]+\.py):(\d+):\s+in\s+(\w+)"
+        traceback_pattern_simple = (
+            r"([^/\s]+/[^:\s]+\.py):(\d+):\s+(\w+(?:Exception|Error))"
+        )
         code_pattern = r"^\s{4,}(.+)$"  # Code lines are indented
 
         lines = content.split("\n")
@@ -229,41 +254,66 @@ class PytestLogParser(BaseParser):
 
             # Try standard Python traceback format first
             traceback_match = re.search(traceback_pattern_standard, line)
+            function_name = None
+
             if not traceback_match:
-                # Try pytest format
+                # Try pytest format with 'in function'
                 traceback_match = re.search(traceback_pattern_pytest, line)
+
+            if not traceback_match:
+                # Try simple pytest format: file.py:line: ExceptionType
+                traceback_match = re.search(traceback_pattern_simple, line)
+                if traceback_match:
+                    # For simple format, try to extract function name from context
+                    # Look backwards for a 'def function_name():' line
+                    for j in range(i - 1, max(0, i - 10), -1):
+                        if j < len(lines):
+                            def_match = re.search(r"def\s+(\w+)\s*\(", lines[j])
+                            if def_match:
+                                function_name = def_match.group(1)
+                                break
 
             if traceback_match:
                 file_path = traceback_match.group(1)
                 line_number = int(traceback_match.group(2))
-                function_name = traceback_match.group(3)
 
-                # Get the code line (usually the next line)
+                # Function name handling based on format
+                if function_name is None:
+                    if len(traceback_match.groups()) >= 3:
+                        function_name = traceback_match.group(3)
+                    else:
+                        function_name = "unknown"
+
+                # Get the code line (usually the next line or look for '>   ' prefix)
                 code_line = None
-                if i + 1 < len(lines):
+
+                # Look for code lines with '>' prefix in surrounding lines
+                for j in range(max(0, i - 3), min(len(lines), i + 3)):
+                    if j < len(lines) and lines[j].strip().startswith(">"):
+                        code_line = (
+                            lines[j].strip()[1:].strip()
+                        )  # Remove '>' and whitespace
+                        break
+
+                # Fallback: look for indented code lines
+                if not code_line and i + 1 < len(lines):
                     next_line = lines[i + 1]
                     code_match = re.match(code_pattern, next_line)
                     if code_match:
                         code_line = code_match.group(1).strip()
 
-                # For pytest format, also try to get code from current line after the ':'
-                if not code_line and ":" in line:
-                    # Look for code after the location info
-                    parts = line.split(":", 3)  # Split on first 3 colons
-                    if len(parts) > 3:
-                        potential_code = parts[3].strip()
-                        if potential_code and not potential_code.startswith("in "):
-                            code_line = potential_code
-
                 # Look for error info in nearby lines
                 error_type = None
                 error_message = None
                 for j in range(max(0, i - 2), min(len(lines), i + 5)):
-                    error_match = re.search(r"(\w+(?:Exception|Error)): (.+)", lines[j])
-                    if error_match:
-                        error_type = error_match.group(1)
-                        error_message = error_match.group(2)
-                        break
+                    if j < len(lines):
+                        error_match = re.search(
+                            r"(\w+(?:Exception|Error)): (.+)", lines[j]
+                        )
+                        if error_match:
+                            error_type = error_match.group(1)
+                            error_message = error_match.group(2)
+                            break
 
                 traceback_entries.append(
                     PytestTraceback(
