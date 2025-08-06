@@ -25,16 +25,33 @@ def register_analysis_tools(mcp: FastMCP) -> None:
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
         """
-        Analyze a failed GitLab CI/CD pipeline and extract errors/warnings from all
-        failed jobs. Uses optimized API calls to fetch only failed jobs.
+        🔍 DIAGNOSE: Complete pipeline failure analysis - your go-to tool for understanding why CI/CD pipelines fail.
+
+        WHEN TO USE:
+        - Pipeline shows "failed" status and you need to understand all failure points
+        - User asks "what went wrong with pipeline X?"
+        - Need comprehensive error overview across all failed jobs
+
+        WHAT YOU GET:
+        - Pipeline status and metadata
+        - List of all failed jobs with extracted errors/warnings
+        - Categorized error types (build, test, lint, etc.)
+        - Summary statistics for quick assessment
+
+        AI ANALYSIS TIPS:
+        - Look at error_count and warning_count for severity assessment
+        - Check parser_type field to understand data quality (pytest > generic)
+        - Use job failure_reason for initial categorization
+        - Cross-reference errors across jobs to find root causes
 
         Args:
             project_id: The GitLab project ID or path
             pipeline_id: The ID of the GitLab pipeline to analyze
 
         Returns:
-            Complete analysis including pipeline info, failed jobs, and extracted
-            errors/warnings
+            Complete analysis including pipeline info, failed jobs, and extracted errors/warnings
+
+        WORKFLOW: Start here for pipeline investigations → drill down with analyze_single_job for details
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -183,8 +200,24 @@ def register_analysis_tools(mcp: FastMCP) -> None:
     @mcp.tool
     async def analyze_single_job(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
-        Analyze a single GitLab CI/CD job and extract errors/warnings from its
-        trace.
+        🎯 FOCUS: Deep dive into single job failure with extracted errors and warnings.
+
+        WHEN TO USE:
+        - analyze_failed_pipeline identified a specific problematic job
+        - Need focused analysis of one particular job failure
+        - Want to drill down from pipeline overview to specific job details
+
+        WHAT YOU GET:
+        - Job metadata (name, status, stage, duration)
+        - Extracted errors and warnings with context
+        - Parser type indication (pytest/generic)
+        - Structured error categorization
+
+        AI ANALYSIS TIPS:
+        - Check parser_type: "pytest" gives richer context than "generic"
+        - Look at stage field to understand pipeline phase (test, build, deploy)
+        - Use failure_reason for quick categorization
+        - Count errors vs warnings for severity assessment
 
         Args:
             project_id: The GitLab project ID or path
@@ -192,6 +225,8 @@ def register_analysis_tools(mcp: FastMCP) -> None:
 
         Returns:
             Analysis of the single job including extracted errors/warnings
+
+        WORKFLOW: Use after analyze_failed_pipeline → provides focused job-specific insights
         """
         try:
             analyzer = get_gitlab_analyzer()

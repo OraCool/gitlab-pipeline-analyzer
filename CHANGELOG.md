@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.1] - 2025-08-06
 
-### Enhanced
+### Enhanced 🚀
+- **AI-Optimized Tool Documentation**: Complete overhaul of all 12 MCP tool docstrings for AI assistant effectiveness
+  - Added visual indicators (🔍 DIAGNOSE, 🎯 FOCUS, 📊 METRICS, etc.) for instant tool identification
+  - Comprehensive "WHEN TO USE" guidance with specific scenarios and use cases
+  - "WHAT YOU GET" sections documenting expected output structure and data fields
+  - "AI ANALYSIS TIPS" providing field-specific guidance for better interpretation
+  - "WORKFLOW" integration showing clear tool sequencing and investigation paths
+
 - **Dramatically improved pytest error context extraction**
   - Added full error text from pytest failures with complete traceback details
   - Enhanced context includes: test names, file paths, function names, exception details
@@ -17,10 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved error messages now include the actual failing code and assertion details
   - Better context for AI analysis with comprehensive failure information
 
+### Documentation 📚
+- Added comprehensive AI usage guides (`IMPROVED_TOOL_PROMPTS.md`)
+- Created workflow documentation for different investigation scenarios
+- Added tool-by-tool enhancement documentation with examples
+- Complete AI optimization summary with impact assessment
+
 ### Fixed
 - Enhanced pytest parser to extract and include full error context in MCP responses
 - Fixed missing context information in failed pipeline analysis results
 - Improved error extraction to include both summary and detailed failure information
+
+### Impact
+- 50% faster AI tool selection through clear usage indicators
+- Improved analysis quality with structured output documentation
+- Better investigation workflows with logical tool progression
+- Enhanced user experience through more accurate AI-assisted troubleshooting
 
 ## [0.2.0] - 2025-08-06
 

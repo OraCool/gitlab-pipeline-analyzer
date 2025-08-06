@@ -170,16 +170,33 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         project_id: str | int, job_id: int
     ) -> dict[str, Any]:
         """
-        Extract detailed test failures from a pytest job's trace with full
-        tracebacks and call stacks.
+        🔍 DEEP DETAIL: Extract comprehensive test failure information with full tracebacks.
+
+        WHEN TO USE:
+        - Need maximum detail about pytest failures including full call stacks
+        - Debugging complex test failures requiring traceback analysis
+        - Want complete exception details and file/line information
+
+        WHAT YOU GET:
+        - Detailed failure objects with complete traceback chains
+        - Exception types, messages, and platform information
+        - File paths, line numbers, and code context
+        - Test parameters and function details
+
+        AI ANALYSIS TIPS:
+        - Focus on "exception_type" and "exception_message" for error classification
+        - Use "traceback" array for call stack analysis
+        - Check "test_file" and line numbers for precise error location
+        - Look at "platform_info" for environment-specific issues
 
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest failures
 
         Returns:
-            Detailed analysis of pytest failures including full tracebacks,
-            exception details, and file/line information
+            Detailed analysis of pytest failures including full tracebacks, exception details, and file/line information
+
+        WORKFLOW: Use when analyze_pytest_job_complete needs more detail → provides maximum context
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -232,16 +249,33 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         project_id: str | int, job_id: int
     ) -> dict[str, Any]:
         """
-        Extract short test summary info from a pytest job's trace, providing
-        concise failure information.
+        📝 QUICK OVERVIEW: Get concise test failure summary for rapid assessment.
+
+        WHEN TO USE:
+        - Need quick overview of test failures without full detail
+        - Want to see failing test names and basic error messages
+        - Performing initial triage of test failures
+
+        WHAT YOU GET:
+        - List of failed tests with names and brief error messages
+        - Test file locations and function names
+        - Exception types without full tracebacks
+        - Concise failure count and summary
+
+        AI ANALYSIS TIPS:
+        - Use for quick failure pattern identification
+        - Look for common error types across multiple tests
+        - Check test file patterns to identify problem modules
+        - Combine with extract_pytest_detailed_failures for deeper analysis
 
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest failures
 
         Returns:
-            Short summary of pytest failures with test names and brief error
-            messages
+            Short summary of pytest failures with test names and brief error messages
+
+        WORKFLOW: Use for quick assessment → extract_pytest_detailed_failures for deep dive
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -280,16 +314,33 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         project_id: str | int, job_id: int
     ) -> dict[str, Any]:
         """
-        Extract pytest test statistics including total tests, passed, failed,
-        skipped counts and execution duration.
+        📊 METRICS: Get test execution statistics and performance data.
+
+        WHEN TO USE:
+        - Need test suite performance metrics (pass rate, duration)
+        - Want to understand test coverage and execution efficiency
+        - Analyzing test suite health and trends
+
+        WHAT YOU GET:
+        - Test counts (total, passed, failed, skipped, errors)
+        - Execution duration and timing information
+        - Pass rate and failure rate calculations
+        - Performance metrics for test suite analysis
+
+        AI ANALYSIS TIPS:
+        - Calculate pass rate: passed/(total-skipped) for quality assessment
+        - Check duration for performance issues or timeouts
+        - High skipped count may indicate configuration problems
+        - Compare failed vs errors for different issue types
 
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest results
 
         Returns:
-            Complete pytest run statistics including test counts and timing
-            information
+            Complete pytest run statistics including test counts and timing information
+
+        WORKFLOW: Use for high-level test health assessment → complement other pytest tools
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -331,16 +382,32 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         project_id: str | int, job_id: int
     ) -> dict[str, Any]:
         """
-        Complete pytest job analysis that combines detailed failures, short
-        summary, and statistics in one comprehensive report.
+        🧪 PYTEST DEEP DIVE: Complete pytest analysis combining detailed failures, summary, and statistics.
+
+        WHEN TO USE:
+        - Job name contains "test", "pytest", or shows test-related failures
+        - Need comprehensive test failure analysis in one call
+        - User asks "what tests failed and why?"
+
+        WHAT YOU GET:
+        - Detailed failures: Full tracebacks, exception details, file/line info
+        - Short summary: Concise failure list with test names and brief errors
+        - Statistics: Test counts (total, passed, failed, skipped) and timing
+
+        AI ANALYSIS TIPS:
+        - Start with statistics for quick overview (pass rate, failure count)
+        - Use detailed_failures for root cause analysis
+        - Look for patterns in failure types and modules
+        - Check test_file and line_number for precise error location
 
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest results
 
         Returns:
-            Complete pytest analysis with all three types of information:
-            detailed failures, short summary, and statistics
+            Complete pytest analysis with detailed failures, summary, and statistics
+
+        WORKFLOW: Use after analyze_failed_pipeline identifies test jobs → provides full test context
         """
         try:
             analyzer = get_gitlab_analyzer()

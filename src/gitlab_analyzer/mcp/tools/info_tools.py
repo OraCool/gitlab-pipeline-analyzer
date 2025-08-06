@@ -24,7 +24,23 @@ def register_info_tools(mcp: FastMCP) -> None:
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
         """
-        Get all jobs for a specific GitLab pipeline.
+        📋 INVENTORY: Get complete job list for pipeline with status and metadata.
+
+        WHEN TO USE:
+        - Need overview of all jobs in a pipeline (passed, failed, skipped)
+        - Want to understand pipeline structure and job organization
+        - Looking for specific job names or stages before detailed analysis
+
+        WHAT YOU GET:
+        - Complete list of all jobs with names, status, and stage information
+        - Job counts and pipeline structure overview
+        - Basic metadata for each job (ID, duration, etc.)
+
+        AI ANALYSIS TIPS:
+        - Filter by "status" field to find failed jobs quickly
+        - Check "stage" field to understand pipeline phases
+        - Use job "name" patterns to identify test vs build vs deploy jobs
+        - Look at job counts for pipeline complexity assessment
 
         Args:
             project_id: The GitLab project ID or path
@@ -32,6 +48,8 @@ def register_info_tools(mcp: FastMCP) -> None:
 
         Returns:
             List of all jobs in the pipeline with their status and details
+
+        WORKFLOW: Use for job discovery → leads to analyze_single_job for specific failures
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -57,7 +75,23 @@ def register_info_tools(mcp: FastMCP) -> None:
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
         """
-        Get only the failed jobs for a specific GitLab CI/CD pipeline.
+        🚨 FILTER: Get only failed jobs for focused failure analysis.
+
+        WHEN TO USE:
+        - Pipeline has many jobs but you only want to see failures
+        - Need quick list of problematic jobs without full pipeline analysis
+        - Want to count and categorize failed jobs
+
+        WHAT YOU GET:
+        - Filtered list containing only failed jobs
+        - Failed job count for quick assessment
+        - Job details for each failure (name, stage, etc.)
+
+        AI ANALYSIS TIPS:
+        - Use for quick failure count and job identification
+        - Check job names for patterns (test failures vs build failures)
+        - Look at stages to understand where in pipeline failures occur
+        - Combine with analyze_single_job for detailed failure analysis
 
         Args:
             project_id: The GitLab project ID or path
@@ -65,6 +99,8 @@ def register_info_tools(mcp: FastMCP) -> None:
 
         Returns:
             List of failed jobs with their details
+
+        WORKFLOW: Alternative to get_pipeline_jobs when only failures matter → analyze_single_job
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -90,7 +126,22 @@ def register_info_tools(mcp: FastMCP) -> None:
     @mcp.tool
     async def get_job_trace(project_id: str | int, job_id: int) -> dict[str, Any]:
         """
-        Get the trace log for a specific GitLab CI/CD job.
+        📝 RAW ACCESS: Get unprocessed job trace with ANSI formatting intact.
+
+        WHEN TO USE:
+        - Need to see original job output exactly as it appeared
+        - Debugging ANSI formatting or color issues
+        - Want complete raw log before any processing
+
+        WHAT YOU GET:
+        - Complete raw job trace including ANSI codes
+        - Trace length information
+        - Unmodified output as seen in GitLab UI
+
+        AI ANALYSIS TIPS:
+        - Use get_cleaned_job_trace instead for better readability
+        - This tool preserves original formatting but may be harder to parse
+        - Good for debugging if cleaned version seems missing information
 
         Args:
             project_id: The GitLab project ID or path
@@ -98,6 +149,8 @@ def register_info_tools(mcp: FastMCP) -> None:
 
         Returns:
             The complete trace log for the job
+
+        WORKFLOW: Rarely used → prefer get_cleaned_job_trace for most analysis
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -123,11 +176,24 @@ def register_info_tools(mcp: FastMCP) -> None:
         project_id: str | int, job_id: int
     ) -> dict[str, Any]:
         """
-        Get the trace log for a specific GitLab CI/CD job with ANSI codes removed.
+        📋 RAW LOGS: Get clean, readable job traces without ANSI formatting for detailed analysis.
 
-        This tool fetches the raw job trace and automatically cleans it by removing
-        ANSI escape sequences, making it more suitable for automated analysis and
-        human reading.
+        WHEN TO USE:
+        - Need to see complete job execution log
+        - Other tools don't provide enough context
+        - Looking for specific error patterns or debugging complex issues
+        - Want to perform custom log analysis
+
+        WHAT YOU GET:
+        - Complete job trace with ANSI codes removed
+        - Character counts and cleaning statistics
+        - Human-readable format suitable for AI analysis
+
+        AI ANALYSIS TIPS:
+        - Use when specific error patterns aren't caught by specialized parsers
+        - Look for error keywords: "ERROR", "FAILED", "Exception", "Traceback"
+        - Search for setup/teardown issues that happen outside main execution
+        - Check for environment or dependency problems
 
         Args:
             project_id: The GitLab project ID or path
@@ -135,6 +201,8 @@ def register_info_tools(mcp: FastMCP) -> None:
 
         Returns:
             The cleaned trace log (without ANSI codes) and cleaning statistics
+
+        WORKFLOW: Use when analyze_single_job needs more detail → provides complete execution context
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -180,7 +248,24 @@ def register_info_tools(mcp: FastMCP) -> None:
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
         """
-        Get the current status and basic information of a GitLab pipeline.
+        📊 OVERVIEW: Get pipeline status and basic information for quick assessment.
+
+        WHEN TO USE:
+        - Need quick pipeline health check
+        - Want to verify pipeline state before detailed analysis
+        - User asks "what's the status of pipeline X?"
+
+        WHAT YOU GET:
+        - Pipeline status (success, failed, running, etc.)
+        - Basic metadata (ID, ref, commit SHA, created/updated times)
+        - Duration and execution details
+        - Web URL for browser access
+
+        AI ANALYSIS TIPS:
+        - Check "status" field first: "failed" = needs investigation
+        - Use "duration" to assess if timeouts might be involved
+        - Compare "created_at" vs "updated_at" for execution time
+        - Use "web_url" to provide users with direct access link
 
         Args:
             project_id: The GitLab project ID or path
@@ -188,6 +273,8 @@ def register_info_tools(mcp: FastMCP) -> None:
 
         Returns:
             Pipeline status and basic information
+
+        WORKFLOW: Start here for pipeline investigations → leads to analyze_failed_pipeline if needed
         """
         try:
             analyzer = get_gitlab_analyzer()

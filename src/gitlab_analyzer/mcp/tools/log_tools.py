@@ -22,13 +22,32 @@ def register_log_tools(mcp: FastMCP) -> None:
     @mcp.tool
     async def extract_log_errors(log_text: str) -> dict[str, Any]:
         """
-        Extract errors and warnings from log text.
+        🔧 PARSE LOGS: Extract errors and warnings from raw log text using advanced pattern matching.
+
+        WHEN TO USE:
+        - Have raw log content that needs error extraction
+        - Want to apply consistent error parsing to any log format
+        - Need to categorize and structure unstructured log data
+
+        WHAT YOU GET:
+        - Structured list of errors and warnings with context
+        - Error categorization (build, test, syntax, import, etc.)
+        - Line numbers and surrounding context for each issue
+        - Summary statistics (error count, warning count)
+
+        AI ANALYSIS TIPS:
+        - Focus on "error" level entries for critical issues
+        - Check "category" field for error type classification
+        - Use "context" for understanding error environment
+        - Look at "line_number" for precise error location
 
         Args:
             log_text: The log text to analyze
 
         Returns:
-            Extracted errors and warnings with context
+            Extracted errors and warnings with context and categorization
+
+        WORKFLOW: Use with get_cleaned_job_trace output → provides structured error analysis
         """
         try:
             # Auto-detect pytest logs and use specialized parser
