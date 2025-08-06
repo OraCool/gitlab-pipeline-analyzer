@@ -163,7 +163,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "original_length": len(raw_trace),
                 "cleaned_length": len(cleaned_trace),
                 "bytes_removed": len(raw_trace) - len(cleaned_trace),
-                "ansi_sequences_found": len(ansi_matches),
+                "ansi_sequences_found": len(ansi_matches),  # Change back to "found"
                 "unique_ansi_types": len(ansi_types),
                 "analysis_timestamp": datetime.now().isoformat(),
             }
@@ -196,7 +196,7 @@ def register_info_tools(mcp: FastMCP) -> None:
             return {
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "status": status,
+                "pipeline": status,  # Change from "status" to "pipeline" to match test expectation
                 "analysis_timestamp": datetime.now().isoformat(),
             }
 

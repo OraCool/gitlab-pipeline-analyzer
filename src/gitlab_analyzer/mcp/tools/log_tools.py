@@ -47,7 +47,8 @@ def register_log_tools(mcp: FastMCP) -> None:
                     "context": entry.context,
                 }
                 for entry in entries
-                if entry.level == "error"
+                if entry.level
+                in ["error", "critical"]  # Include both error and critical levels
             ]
 
             warnings = [

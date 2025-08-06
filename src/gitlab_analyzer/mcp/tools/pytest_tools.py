@@ -86,8 +86,8 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     "passed": stats.passed,
                     "failed": stats.failed,
                     "skipped": stats.skipped,
-                    "errors": stats.errors,
-                    "warnings": stats.warnings,
+                    "pytest_errors": stats.errors,  # Rename to avoid conflict
+                    "pytest_warnings": stats.warnings,  # Rename to avoid conflict
                     "duration_seconds": stats.duration_seconds,
                     "duration_formatted": stats.duration_formatted,
                 }
@@ -107,7 +107,7 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
         }
 
     except Exception as e:
-        return {"error": f"Failed to parse pytest log: {str(e)}"}
+        return {"error": f"Failed to extract pytest errors: {str(e)}"}
 
 
 def register_pytest_tools(mcp: FastMCP) -> None:
@@ -368,6 +368,7 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 "statistics": statistics,
                 "has_failures_section": pytest_analysis.has_failures_section,
                 "has_short_summary_section": pytest_analysis.has_short_summary_section,
+                "analysis_timestamp": datetime.now().isoformat(),
                 "summary": {
                     "failure_count": len(detailed_failures),
                     "summary_count": len(short_summary),

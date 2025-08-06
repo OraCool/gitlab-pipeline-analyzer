@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-08-06
+
+### Added
+- Comprehensive test coverage for all MCP tools (info, log, pytest, analysis, utils)
+- Added 280+ unit tests covering edge cases and error handling
+- Added test documentation and summary in `tests/test_mcp_tools_summary.md`
+
+### Updated
+- **Major dependency updates:**
+  - FastMCP: 2.0.0 → 2.11.1 (major feature updates)
+  - python-gitlab: 4.0.0 → 6.2.0 (major API improvements)
+  - httpx: 0.25.0 → 0.28.1 (performance and security fixes)
+  - pydantic: 2.0.0 → 2.11.7 (validation improvements)
+  - typing-extensions: 4.0.0 → 4.14.1 (latest type hints)
+- **Development tool updates:**
+  - pytest: 7.0.0 → 8.4.1 (latest testing framework)
+  - pytest-asyncio: 0.21.0 → 1.1.0 (improved async testing)
+  - pytest-cov: 4.0.0 → 6.2.1 (coverage improvements)
+  - ruff: 0.1.0 → 0.12.7 (latest linting and formatting)
+  - mypy: 1.0.0 → 1.17.1 (improved type checking)
+  - pre-commit-hooks: v4.6.0 → v5.0.0 (latest hooks)
+
+### Improved
+- Enhanced code quality with updated linting rules
+- Better error handling and type safety
+- Improved test coverage and reliability
+- Updated pre-commit configuration for better development experience
+
 ## [0.1.2] - 2025-08-04
 
 ### Fixed

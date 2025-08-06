@@ -1,6 +1,6 @@
 [project]
 name = "gitlab-pipeline-analyzer"
-version = "0.1.3"
+version = "0.2.0"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
 authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
 license = "MIT"
@@ -17,11 +17,11 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "fastmcp>=2.0.0",
-    "python-gitlab>=4.0.0",
-    "httpx>=0.25.0",
-    "pydantic>=2.0.0",
-    "typing-extensions>=4.0.0",
+    "fastmcp>=2.11.1",
+    "python-gitlab>=6.2.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.11.7",
+    "typing-extensions>=4.14.1",
 ]
 requires-python = ">=3.10"
 
@@ -32,17 +32,17 @@ gitlab-analyzer-sse = "gitlab_analyzer.mcp.servers.sse_server:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "tox>=4.0.0",
-    "bandit[toml]>=1.7.0",
-    "pre-commit>=3.0.0",
-    "build>=0.10.0",
-    "twine>=4.0.0",
-    "types-requests>=2.0.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.7",
+    "mypy>=1.17.1",
+    "tox>=4.28.4",
+    "bandit[toml]>=1.8.6",
+    "pre-commit>=4.2.0",
+    "build>=1.3.0",
+    "twine>=6.1.0",
+    "types-requests>=2.32.4.20250611",
 ]
 
 [build-system]
@@ -231,14 +231,14 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "bandit[toml]>=1.8.6",
-    "build>=1.2.2.post1",
+    "build>=1.3.0",
     "mypy>=1.17.1",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.7",
-    "tox>=4.28.3",
+    "tox>=4.28.4",
     "twine>=6.1.0",
     "types-requests>=2.32.4.20250611",
 ]
