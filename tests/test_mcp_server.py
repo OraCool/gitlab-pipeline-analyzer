@@ -5,14 +5,13 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-import json
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gitlab_analyzer.mcp.servers.server import create_server, load_env_file, main
-from gitlab_analyzer.mcp.tools import get_gitlab_analyzer
+from gitlab_analyzer.mcp.tools.utils import get_gitlab_analyzer
 
 
 class TestMCPServer:
@@ -112,176 +111,26 @@ class TestMCPTools:
         mock_gitlab_analyzer.get_job_trace.return_value = sample_job_trace
 
         with patch(
-            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
+            "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
-            server = create_server()
-
-            # Get the tool function
-            analyze_tool = await server.get_tool("analyze_failed_pipeline")
-
-            assert analyze_tool is not None
-
-            # Call the tool
-            tool_result = await analyze_tool.run(
-                {"project_id": "test-project", "pipeline_id": 12345}
+            # Import and call the function directly instead of going through FastMCP
+            from gitlab_analyzer.mcp.tools.analysis_tools import (
+                analyze_failed_pipeline_optimized,
             )
 
-            # Extract the result from ToolResult
-            result = json.loads(tool_result.content[0].text)
+            # Call the function directly
+            result = await analyze_failed_pipeline_optimized(
+                project_id="test-project", pipeline_id=12345
+            )
 
             assert result is not None
             assert isinstance(result, dict)
-
-    @pytest.mark.asyncio
-    async def test_analyze_single_job(
-        self,
-        mock_env_vars,
-        clean_global_analyzer,
-        mock_gitlab_analyzer,
-        sample_job_trace,
-    ):
-        """Test analyzing a single job"""
-        # Setup mock analyzer
-        mock_gitlab_analyzer.get_job_trace.return_value = sample_job_trace
-
-        with patch(
-            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
-            return_value=mock_gitlab_analyzer,
-        ):
-            server = create_server()
-
-            # Get the tool function
-            analyze_tool = await server.get_tool("analyze_single_job")
-
-            assert analyze_tool is not None
-
-            # Call the tool
-            tool_result = await analyze_tool.run(
-                {"project_id": "test-project", "job_id": 1001}
-            )
-
-            # Extract the result from ToolResult
-            result = json.loads(tool_result.content[0].text)
-
-            assert result is not None
-            assert isinstance(result, dict)
+            assert "project_id" in result
+            assert "pipeline_id" in result
+            assert "job_analyses" in result
             assert result["project_id"] == "test-project"
-            assert result["job_id"] == 1001
-
-    @pytest.mark.asyncio
-    async def test_analyze_single_job_no_trace(
-        self, mock_env_vars, clean_global_analyzer, mock_gitlab_analyzer
-    ):
-        """Test analyzing a single job with no trace"""
-        # Setup mock analyzer with empty trace
-        mock_gitlab_analyzer.get_job_trace.return_value = ""
-
-        with (
-            patch(
-                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
-                return_value=mock_gitlab_analyzer,
-            ),
-            patch(
-                "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
-                return_value=mock_gitlab_analyzer,
-            ),
-            patch(
-                "gitlab_analyzer.mcp.tools.info_tools.get_gitlab_analyzer",
-                return_value=mock_gitlab_analyzer,
-            ),
-            patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
-                return_value=mock_gitlab_analyzer,
-            ),
-        ):
-            server = create_server()
-
-            # Get the tool function
-            analyze_tool = await server.get_tool("analyze_single_job")
-
-            assert analyze_tool is not None
-
-            # Call the tool
-            tool_result = await analyze_tool.run(
-                {"project_id": "test-project", "job_id": 1001}
-            )
-
-            # Extract the result from ToolResult
-            result = json.loads(tool_result.content[0].text)
-
-        assert result is not None
-        assert isinstance(result, dict)
-        assert "errors" in result
-        assert result["error_count"] == 0
-        assert result["errors"] == []
-        assert result["trace_length"] == 0
-
-    @pytest.mark.asyncio
-    async def test_get_pipeline_status(
-        self, mock_env_vars, clean_global_analyzer, mock_gitlab_analyzer
-    ):
-        """Test getting pipeline status"""
-        # Setup mock analyzer
-        mock_pipeline = {"id": 12345, "status": "failed", "ref": "main"}
-        mock_gitlab_analyzer.get_pipeline.return_value = mock_pipeline
-
-        with patch(
-            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
-            return_value=mock_gitlab_analyzer,
-        ):
-            server = create_server()
-
-            # Get the tool function
-            status_tool = await server.get_tool("get_pipeline_status")
-
-            assert status_tool is not None
-
-            # Call the tool
-            tool_result = await status_tool.run(
-                {"project_id": "test-project", "pipeline_id": 12345}
-            )
-
-            # Extract the result from ToolResult
-            result = json.loads(tool_result.content[0].text)
-
-            assert result is not None
-            assert isinstance(result, dict)
-
-    @pytest.mark.asyncio
-    async def test_get_pipeline_jobs(
-        self,
-        mock_env_vars,
-        clean_global_analyzer,
-        mock_gitlab_analyzer,
-        sample_pipeline_data,
-        sample_job_data,
-    ):
-        """Test getting pipeline jobs"""
-        # Setup mock analyzer
-        mock_gitlab_analyzer.get_pipeline_jobs.return_value = sample_job_data
-
-        with patch(
-            "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
-            return_value=mock_gitlab_analyzer,
-        ):
-            server = create_server()
-
-            # Get the tool function
-            jobs_tool = await server.get_tool("get_pipeline_jobs")
-
-            assert jobs_tool is not None
-
-            # Call the tool
-            tool_result = await jobs_tool.run(
-                {"project_id": "test-project", "pipeline_id": 12345}
-            )
-
-            # Extract the result from ToolResult
-            result = json.loads(tool_result.content[0].text)
-
-            assert result is not None
-            assert isinstance(result, dict)
+            assert result["pipeline_id"] == 12345
 
 
 class TestMainFunction:

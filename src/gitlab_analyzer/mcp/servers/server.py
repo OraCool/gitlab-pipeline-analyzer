@@ -30,7 +30,7 @@ def get_version() -> str:
     except Exception:  # nosec B110
         # Fallback if pyproject.toml cannot be read
         pass
-    return "0.1.3"  # fallback version
+    return "0.2.2"  # fallback version
 
 
 def create_server() -> FastMCP:

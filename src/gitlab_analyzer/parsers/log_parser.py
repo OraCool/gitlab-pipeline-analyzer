@@ -32,6 +32,12 @@ class LogParser(BaseParser):
             r"^(.+\.py):(\d+):\s+in\s+(\w+)",
             "error",
         ),  # pytest detailed test failure format (highest priority)
+        # Pytest assertion errors with more detail
+        (r"(.*)AssertionError: (.+)", "error"),
+        (r"(.*)assert (.+)", "error"),
+        # Exception patterns that may come after pytest details
+        (r"(.*)>.*assert (.+)", "error"),  # pytest assertion with > marker
+        (r"(.*)E\s+(.+Error: .+)", "error"),  # pytest error format with E prefix
         (r"(.*)FAILED (.+test.*)", "error"),  # Test failures (lower priority)
         (r"(.*)Test failed: (.+)", "error"),
         # Build/compilation failures
@@ -48,8 +54,8 @@ class LogParser(BaseParser):
         (r"(.*)ValueError: (.+)", "error"),
         (r"(.*)KeyError: (.+)", "error"),
         (r"(.*)AttributeError: (.+)", "error"),
-        # Specific linter errors (but exclude infrastructure)
-        (r"(?!.*Running pip)(?!.*Event retrieved)(.*)ERROR: (.+)", "error"),
+        # Specific linter errors - simplified pattern (removed negative lookaheads for performance)
+        (r"ERROR: (.+)", "error"),
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),
         (r"(.*)security issue", "error"),
@@ -360,28 +366,60 @@ class LogParser(BaseParser):
 
     @classmethod
     def _get_context(
-        cls, lines: list[str], current_line: int, context_size: int = 2
+        cls,
+        lines: list[str],
+        current_line: int,
+        context_size: int = 5,  # Increased from 2 to 5 for better context
     ) -> str:
         """Get surrounding context for a log entry, filtered of infrastructure noise"""
         start = max(0, current_line - context_size - 1)
         end = min(len(lines), current_line + context_size)
         context_lines = lines[start:end]
 
-        # Filter out infrastructure noise from context
+        # For pytest detailed failures, we want to preserve more context
+        is_pytest_failure = any(
+            "test" in line.lower()
+            and any(
+                keyword in line.lower()
+                for keyword in ["fail", "error", "assert", "traceback"]
+            )
+            for line in context_lines[:3]  # Check first few lines
+        )
+
+        # Filter out infrastructure noise from context, but be more permissive for pytest
         filtered_lines = []
         for line in context_lines:
             line = line.strip()
             if not line:
                 continue
 
-            # Skip infrastructure messages in context
-            if any(
-                re.search(pattern, line, re.IGNORECASE)
-                for pattern in cls.EXCLUDE_PATTERNS
-            ):
-                continue
+            # Skip infrastructure messages in context, but preserve pytest test details
+            should_skip = False
+            if (
+                not is_pytest_failure
+            ):  # Only apply strict filtering for non-pytest content
+                if any(
+                    re.search(pattern, line, re.IGNORECASE)
+                    for pattern in cls.EXCLUDE_PATTERNS
+                ):
+                    should_skip = True
+            else:
+                # For pytest failures, only exclude the most obvious infrastructure noise
+                infrastructure_patterns = [
+                    r"Running with gitlab-runner",
+                    r"Preparing the.*executor",
+                    r"Using Kubernetes",
+                    r"section_start:",
+                    r"section_end:",
+                ]
+                if any(
+                    re.search(pattern, line, re.IGNORECASE)
+                    for pattern in infrastructure_patterns
+                ):
+                    should_skip = True
 
-            filtered_lines.append(line)
+            if not should_skip:
+                filtered_lines.append(line)
 
         return "\n".join(filtered_lines)
 

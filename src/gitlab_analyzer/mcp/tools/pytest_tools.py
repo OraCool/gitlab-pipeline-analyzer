@@ -44,10 +44,10 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     f"Exception: {failure.exception_type}: {failure.exception_message}",
                 ]
 
-                # Add full error text if available
+                # Add full error text if available - this contains the complete pytest output
                 if failure.full_error_text:
                     context_parts.append(
-                        f"\nFull Error Details:\n{failure.full_error_text}"
+                        f"\n--- Complete Test Failure Details ---\n{failure.full_error_text}"
                     )
 
                 error: dict[str, Any] = {
@@ -64,6 +64,9 @@ def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
                     "platform_info": failure.platform_info,
                     "python_version": failure.python_version,
                     "full_error_text": failure.full_error_text,  # Add full error text as separate field
+                    "has_traceback": bool(
+                        failure.traceback
+                    ),  # Indicate if detailed traceback is available
                 }
                 if failure.traceback:
                     # Add detailed traceback info to context
