@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-08-17
+
+### Fixed 🐛
+- **GitHub Actions CI/CD Pipeline**: Prepared for automated publishing with comprehensive checks
+  - All tests passing (207 tests, 84.82% coverage)
+  - Code quality checks passing (ruff, mypy, bandit)
+  - Pre-commit hooks verified
+  - Package building and integrity checks successful
+  - Ready for automated PyPI publishing via GitHub Actions
+
+### Infrastructure 🔧
+- Enhanced CI/CD pipeline with proper test coverage requirements
+- Improved security scanning with Bandit and Trivy
+- Optimized build process with uv package manager
+- Configured trusted publishing for PyPI deployment
+
+## [0.2.2] - 2025-08-06
+
 ## [0.2.1] - 2025-08-06
 
 ### Enhanced 🚀
