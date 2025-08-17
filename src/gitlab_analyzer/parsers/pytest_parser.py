@@ -214,12 +214,17 @@ class PytestLogParser(BaseParser):
         # Valid test headers should either:
         # 1. Start with "test_" (function name)
         # 2. Contain "::" indicating a test path (e.g., "path/test_file.py::test_function")
-        # 3. Be a simple test function name
+        # 3. Be a pytest class-based test (e.g., "TestClassName.test_method")
+        # 4. Be a simple test function name
 
         if header.startswith("test_"):
             return True
 
         if "::" in header and "test_" in header:
+            return True
+
+        # Check for pytest class-based tests: TestClassName.test_method
+        if re.match(r"^Test[A-Z][a-zA-Z0-9_]*\.test_[a-zA-Z0-9_]*$", header):
             return True
 
         # Additional check: if it contains common non-test words, reject it
@@ -228,7 +233,8 @@ class PytestLogParser(BaseParser):
             return False
 
         # If it looks like a simple identifier and doesn't contain spaces, it might be a test
-        return re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", header) is not None
+        # Updated pattern to allow dots for class.method syntax
+        return re.match(r"^[a-zA-Z_][a-zA-Z0-9_.]*$", header) is not None
 
     @classmethod
     def _parse_traceback(cls, content: str) -> list[PytestTraceback]:
