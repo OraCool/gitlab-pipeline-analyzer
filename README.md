@@ -46,12 +46,13 @@ The server supports three transport protocols:
 
 Best for local tools and command-line scripts:
 
-```bash
+````bash
 ```bash
 gitlab-analyzer
-```
+````
 
 Or explicitly specify the transport:
+
 ```bash
 gitlab-analyzer --transport stdio
 ```
@@ -60,17 +61,19 @@ gitlab-analyzer --transport stdio
 
 Recommended for web deployments and remote access:
 
-```bash
+````bash
 ```bash
 gitlab-analyzer-http
-```
+````
 
 Or using the main server with transport option:
+
 ```bash
 gitlab-analyzer --transport http --host 127.0.0.1 --port 8000 --path /mcp
 ```
 
 Or with environment variables:
+
 ```bash
 MCP_TRANSPORT=http MCP_HOST=0.0.0.0 MCP_PORT=8080 gitlab-analyzer
 ```
@@ -81,12 +84,13 @@ The HTTP server will be available at: `http://127.0.0.1:8000/mcp`
 
 For compatibility with existing SSE clients:
 
-```bash
+````bash
 ```bash
 gitlab-analyzer-sse
-```
+````
 
 Or using the main server with transport option:
+
 ```bash
 gitlab-analyzer --transport sse --host 127.0.0.1 --port 8000
 ```
@@ -118,61 +122,58 @@ Add the following to your VS Code Claude Desktop `claude_desktop_config.json` fi
 
 ```json
 {
-    "servers": {
-        "gitlab-pipeline-analyzer": {
-            "type": "stdio",
-            "command": "uvx",
-            "args": [
-                "--from",
-                "gitlab_pipeline_analyzer==0.1.3",
-                "gitlab-analyzer",
-                "--transport",
-                "${input:mcp_transport}"
-            ],
-            "env": {
-                "GITLAB_URL": "${input:gitlab_url}",
-                "GITLAB_TOKEN": "${input:gitlab_token}"
-            }
-        },
-        "local-gitlab-analyzer": {
-            "type": "stdio",
-            "command": "uv",
-            "args": [
-                "run",
-                "gitlab-analyzer"
-            ],
-            "cwd": "/path/to/your/mcp/project",
-            "env": {
-                "GITLAB_URL": "${input:gitlab_url}",
-                "GITLAB_TOKEN": "${input:gitlab_token}"
-            }
-        },
-        "acme-gitlab-analyzer": {
-            "command": "uvx",
-            "args": ["--from", "gitlab-pipeline-analyzer", "gitlab-analyzer"],
-            "env": {
-                "GITLAB_URL": "https://gitlab.acme-corp.com",
-                "GITLAB_TOKEN": "your-token-here"
-            }
-        }
+  "servers": {
+    "gitlab-pipeline-analyzer": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "gitlab_pipeline_analyzer==0.2.5",
+        "gitlab-analyzer",
+        "--transport",
+        "${input:mcp_transport}"
+      ],
+      "env": {
+        "GITLAB_URL": "${input:gitlab_url}",
+        "GITLAB_TOKEN": "${input:gitlab_token}"
+      }
     },
-    "inputs": [
-        {
-            "id": "mcp_transport",
-            "type": "promptString",
-            "description": "MCP Transport (stdio/http/sse)"
-        },
-        {
-            "id": "gitlab_url",
-            "type": "promptString",
-            "description": "GitLab Instance URL"
-        },
-        {
-            "id": "gitlab_token",
-            "type": "promptString",
-            "description": "GitLab Personal Access Token"
-        }
-    ]
+    "local-gitlab-analyzer": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "gitlab-analyzer"],
+      "cwd": "/path/to/your/mcp/project",
+      "env": {
+        "GITLAB_URL": "${input:gitlab_url}",
+        "GITLAB_TOKEN": "${input:gitlab_token}"
+      }
+    },
+    "acme-gitlab-analyzer": {
+      "command": "uvx",
+      "args": ["--from", "gitlab-pipeline-analyzer", "gitlab-analyzer"],
+      "env": {
+        "GITLAB_URL": "https://gitlab.acme-corp.com",
+        "GITLAB_TOKEN": "your-token-here"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "mcp_transport",
+      "type": "promptString",
+      "description": "MCP Transport (stdio/http/sse)"
+    },
+    {
+      "id": "gitlab_url",
+      "type": "promptString",
+      "description": "GitLab Instance URL"
+    },
+    {
+      "id": "gitlab_token",
+      "type": "promptString",
+      "description": "GitLab Personal Access Token"
+    }
+  ]
 }
 ```
 
@@ -195,6 +196,7 @@ For production deployments or team usage, you can deploy the MCP server on a rem
 #### Server Deployment
 
 1. **Deploy on Remote Server:**
+
 ```bash
 # On your remote server (e.g., cloud instance)
 git clone <your-mcp-repo>
@@ -213,6 +215,7 @@ uv run python -m gitlab_analyzer.servers.stdio_server --transport http --host 0.
 ```
 
 2. **Using Docker (Recommended for Production):**
+
 ```dockerfile
 # Dockerfile
 FROM python:3.12-slim
@@ -243,43 +246,42 @@ docker run -p 8000:8000 \
 #### Client Configuration for Remote Server
 
 **VS Code Claude Desktop Configuration:**
+
 ```json
 {
-    "servers": {
-        "remote-gitlab-analyzer": {
-            "type": "http",
-            "url": "https://your-mcp-server.com:8000/mcp"
-        },
-        "local-stdio-analyzer": {
-            "type": "stdio",
-            "command": "uv",
-            "args": [
-                "run",
-                "gitlab-analyzer"
-            ],
-            "cwd": "/path/to/your/mcp/project",
-            "env": {
-                "GITLAB_URL": "${input:gitlab_url}",
-                "GITLAB_TOKEN": "${input:gitlab_token}"
-            }
-        }
+  "servers": {
+    "remote-gitlab-analyzer": {
+      "type": "http",
+      "url": "https://your-mcp-server.com:8000/mcp"
     },
-    "inputs": [
-        {
-            "id": "gitlab_url",
-            "type": "promptString",
-            "description": "GitLab Instance URL (for local STDIO servers only)"
-        },
-        {
-            "id": "gitlab_token",
-            "type": "promptString",
-            "description": "GitLab Personal Access Token (for local STDIO servers only)"
-        }
-    ]
+    "local-stdio-analyzer": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "gitlab-analyzer"],
+      "cwd": "/path/to/your/mcp/project",
+      "env": {
+        "GITLAB_URL": "${input:gitlab_url}",
+        "GITLAB_TOKEN": "${input:gitlab_token}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "gitlab_url",
+      "type": "promptString",
+      "description": "GitLab Instance URL (for local STDIO servers only)"
+    },
+    {
+      "id": "gitlab_token",
+      "type": "promptString",
+      "description": "GitLab Personal Access Token (for local STDIO servers only)"
+    }
+  ]
 }
 ```
 
 **Important Notes:**
+
 - **Remote HTTP servers**: Environment variables are configured on the server side during deployment
 - **Local STDIO servers**: Environment variables are passed from the client via the `env` block
 - **Your server reads `GITLAB_URL` and `GITLAB_TOKEN` from its environment at startup**
@@ -288,6 +290,7 @@ docker run -p 8000:8000 \
 #### Current Limitations:
 
 **Single GitLab Instance per Server:**
+
 - Each HTTP server deployment can only connect to **one GitLab instance** with **one token**
 - **No user-specific authorization** - all clients share the same GitLab credentials
 - **No multi-tenant support** - cannot serve multiple GitLab instances from one server
@@ -295,6 +298,7 @@ docker run -p 8000:8000 \
 #### Workarounds for Multi-GitLab Support:
 
 **Option 1: Multiple Server Deployments**
+
 ```bash
 # Server 1 - Company GitLab
 export GITLAB_URL="https://gitlab.company.com"
@@ -308,33 +312,35 @@ uv run python -m gitlab_analyzer.servers.stdio_server --transport http --port 80
 ```
 
 **Option 2: Use STDIO Transport for User-Specific Auth**
+
 ```json
 {
-    "servers": {
-        "company-gitlab": {
-            "type": "stdio",
-            "command": "uv",
-            "args": ["run", "gitlab-analyzer"],
-            "env": {
-                "GITLAB_URL": "https://gitlab.company.com",
-                "GITLAB_TOKEN": "company-token"
-            }
-        },
-        "personal-gitlab": {
-            "type": "stdio",
-            "command": "uv",
-            "args": ["run", "gitlab-analyzer"],
-            "env": {
-                "GITLAB_URL": "https://gitlab.com",
-                "GITLAB_TOKEN": "personal-token"
-            }
-        }
+  "servers": {
+    "company-gitlab": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "gitlab-analyzer"],
+      "env": {
+        "GITLAB_URL": "https://gitlab.company.com",
+        "GITLAB_TOKEN": "company-token"
+      }
+    },
+    "personal-gitlab": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "gitlab-analyzer"],
+      "env": {
+        "GITLAB_URL": "https://gitlab.com",
+        "GITLAB_TOKEN": "personal-token"
+      }
     }
+  }
 }
 ```
 
 **Option 3: Future Enhancement - Multi-Tenant Server**
 To support user-specific authorization, the server would need modifications to:
+
 - Accept GitLab URL and token as **tool parameters** instead of environment variables
 - Implement **per-request authentication** instead of singleton GitLab client
 - Add **credential management** and **security validation**
@@ -342,18 +348,22 @@ To support user-specific authorization, the server would need modifications to:
 #### Recommended Approach by Use Case:
 
 **Single Team/Company:**
+
 - ✅ **HTTP server** with company GitLab credentials
 - Simple deployment, shared access
 
 **Multiple GitLab Instances:**
+
 - ✅ **STDIO transport** for user-specific credentials
 - ✅ **Multiple HTTP servers** (one per GitLab instance)
 - Each approach has trade-offs in complexity vs. performance
 
 **Personal Use:**
+
 - ✅ **STDIO transport** for maximum flexibility
 - Environment variables can be changed per session
-```
+
+````
 
 **Key Differences:**
 - **HTTP servers** (`type: "http"`) don't use `env` - they get environment variables from their deployment
@@ -378,20 +388,22 @@ To support user-specific authorization, the server would need modifications to:
 export GITLAB_URL="https://gitlab.company.com"
 export GITLAB_TOKEN="server-side-token"
 uv run python -m gitlab_analyzer.servers.stdio_server --transport http --host 0.0.0.0 --port 8000
-```
+````
 
 **Example Client-Side for STDIO:**
+
 ```json
 {
-    "type": "stdio",
-    "env": {
-        "GITLAB_URL": "https://gitlab.personal.com",
-        "GITLAB_TOKEN": "client-specific-token"
-    }
+  "type": "stdio",
+  "env": {
+    "GITLAB_URL": "https://gitlab.personal.com",
+    "GITLAB_TOKEN": "client-specific-token"
+  }
 }
 ```
 
 **Python Client for Remote Server:**
+
 ```python
 from fastmcp.client import Client
 
@@ -410,6 +422,7 @@ async with Client("https://your-mcp-server.com:8000/mcp") as client:
 #### Security Considerations for Remote Deployment
 
 1. **HTTPS/TLS:**
+
 ```bash
 # Use reverse proxy (nginx/traefik) with SSL
 # Example nginx config:
@@ -429,6 +442,7 @@ server {
 ```
 
 2. **Authentication (if needed):**
+
 ```bash
 # Add API key validation in your deployment
 export MCP_API_KEY="your-secret-api-key"
@@ -439,6 +453,7 @@ curl -H "Authorization: Bearer your-secret-api-key" \
 ```
 
 3. **Firewall Configuration:**
+
 ```bash
 # Only allow specific IPs/networks
 ufw allow from 192.168.1.0/24 to any port 8000
@@ -511,6 +526,7 @@ uv run mypy src/
 This project includes comprehensive CI/CD workflows:
 
 ### CI Workflow (`.github/workflows/ci.yml`)
+
 - **Triggers**: Push to `main`/`develop`, Pull requests
 - **Features**:
   - Tests across Python 3.10, 3.11, 3.12
@@ -522,6 +538,7 @@ This project includes comprehensive CI/CD workflows:
   - Build validation
 
 ### Release Workflow (`.github/workflows/release.yml`)
+
 - **Triggers**: GitHub releases, Manual dispatch
 - **Features**:
   - Automated PyPI publishing with trusted publishing
@@ -530,6 +547,7 @@ This project includes comprehensive CI/CD workflows:
   - Secure publishing without API tokens
 
 ### Security Workflow (`.github/workflows/security.yml`)
+
 - **Triggers**: Push, Pull requests, Weekly schedule
 - **Features**:
   - Bandit security scanning
@@ -540,6 +558,7 @@ This project includes comprehensive CI/CD workflows:
 ### Setting up PyPI Publishing
 
 1. **Configure PyPI Trusted Publishing**:
+
    - Go to [PyPI](https://pypi.org/manage/account/publishing/) or [TestPyPI](https://test.pypi.org/manage/account/publishing/)
    - Add a new trusted publisher with:
      - PyPI project name: `gitlab-pipeline-analyzer`
@@ -549,6 +568,7 @@ This project includes comprehensive CI/CD workflows:
      - Environment name: `pypi` (or `testpypi`)
 
 2. **Create GitHub Environment**:
+
    - Go to repository Settings → Environments
    - Create environments named `pypi` and `testpypi`
    - Configure protection rules as needed
@@ -570,6 +590,7 @@ uv run pre-commit run --all-files
 ```
 
 Hooks include:
+
 - Trailing whitespace removal
 - End-of-file fixing
 - YAML/TOML validation

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2025-08-18
+
+### Added 🚀
+
+- **New Tool**: `get_pipeline_info` - Comprehensive pipeline information retrieval with MCP metadata
+- **MCP Metadata Support**: All tools now return consistent MCP metadata including:
+  - Server name and version tracking
+  - Analysis timestamps
+  - Original branch extraction from pipeline refs
+- **Enhanced Tool Documentation**: Improved descriptions with usage patterns and AI analysis tips
+
+### Enhanced ✨
+
+- **Standardized Tool Responses**: All 16+ tools now provide consistent metadata structure
+- **Better Error Handling**: Improved error context and categorization across tools
+- **Code Quality**: Fixed all Ruff and MyPy issues for production readiness
+
+### Fixed 🐛
+
+- **Type Safety**: Resolved type annotation issues in pagination tools
+- **Code Style**: Fixed C401 violations (generator to set comprehension)
+- **Response Consistency**: Standardized error and success response formats
+
+### Technical Improvements 🔧
+
+- **Test Coverage**: Maintained 71.73% test coverage with all 207 tests passing
+- **Security**: No security vulnerabilities found in Bandit analysis
+- **Build Process**: Validated distribution packages for PyPI publishing
+
+### Developer Experience 👨‍💻
+
+- **Prepublish Validation**: Complete quality assurance pipeline implemented
+- **Documentation**: Updated README with version 0.2.5 references
+- **Version Tracking**: Enhanced version detection utility with fallback mechanisms
+
 ## [0.2.4] - 2025-08-18
 
 ### Fixed 🐛

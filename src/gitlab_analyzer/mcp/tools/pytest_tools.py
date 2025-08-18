@@ -12,6 +12,7 @@ import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.version import get_version
 
 from .utils import get_gitlab_analyzer
 
@@ -238,6 +239,11 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 ],
                 "failure_count": len(pytest_analysis.detailed_failures),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_detailed_failures",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -245,6 +251,12 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to extract pytest detailed failures: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_detailed_failures",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -303,6 +315,11 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 ],
                 "summary_count": len(pytest_analysis.short_summary),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_short_summary",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -310,6 +327,12 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to extract pytest short summary: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_short_summary",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -371,6 +394,11 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                     ),
                 },
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_statistics",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -378,6 +406,12 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to extract pytest statistics: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_pytest_statistics",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -505,6 +539,11 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                         ]
                     ),
                 },
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "analyze_pytest_job_complete",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -512,4 +551,10 @@ def register_pytest_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to analyze pytest job: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "analyze_pytest_job_complete",
+                    "error": True,
+                },
             }

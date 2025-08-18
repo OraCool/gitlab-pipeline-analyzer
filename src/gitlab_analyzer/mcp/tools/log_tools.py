@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.version import get_version
 
 from .pytest_tools import _extract_pytest_errors
 from .utils import _is_pytest_log
@@ -89,7 +90,20 @@ def register_log_tools(mcp: FastMCP) -> None:
                 "error_count": len(errors),
                 "warning_count": len(warnings),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_log_errors",
+                },
             }
 
         except Exception as e:
-            return {"error": f"Failed to extract log errors: {str(e)}"}
+            return {
+                "error": f"Failed to extract log errors: {str(e)}",
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "extract_log_errors",
+                    "error": True,
+                },
+            }

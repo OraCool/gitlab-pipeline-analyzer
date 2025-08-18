@@ -12,6 +12,7 @@ import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.base_parser import BaseParser
+from gitlab_analyzer.version import get_version
 
 from .utils import get_gitlab_analyzer
 
@@ -61,6 +62,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "jobs": jobs,
                 "job_count": len(jobs),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_jobs",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -68,6 +74,12 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get pipeline jobs: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_jobs",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -114,6 +126,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "failed_jobs": failed_jobs,
                 "failed_job_count": len(failed_jobs),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_failed_jobs",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -121,6 +138,12 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get failed jobs: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_failed_jobs",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -162,6 +185,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "trace": trace,
                 "trace_length": len(trace),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_job_trace",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -169,6 +197,12 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get job trace: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_job_trace",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -234,6 +268,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "ansi_sequences_found": len(ansi_matches),  # Change back to "found"
                 "unique_ansi_types": len(ansi_types),
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_cleaned_job_trace",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -241,6 +280,12 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get cleaned job trace: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_cleaned_job_trace",
+                    "error": True,
+                },
             }
 
     @mcp.tool
@@ -285,6 +330,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "pipeline_id": pipeline_id,
                 "pipeline": status,  # Change from "status" to "pipeline" to match test expectation
                 "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_status",
+                },
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -292,4 +342,78 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get pipeline status: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_status",
+                    "error": True,
+                },
+            }
+
+    @mcp.tool
+    async def get_pipeline_info(
+        project_id: str | int, pipeline_id: int
+    ) -> dict[str, Any]:
+        """
+        📊 INFO: Get comprehensive pipeline information and metadata.
+
+        WHEN TO USE:
+        - Need detailed pipeline information including all metadata
+        - Want comprehensive pipeline overview before analysis
+        - User asks for "pipeline info" or "pipeline details"
+
+        WHAT YOU GET:
+        - Complete pipeline information and metadata
+        - Pipeline status, timing, and execution details
+        - Git reference information (branch, commit, etc.)
+        - Web URLs and direct access links
+        - Original branch information extracted from pipeline ref
+
+        AI ANALYSIS TIPS:
+        - Check "status" field for pipeline state assessment
+        - Use "duration" and timing fields for performance analysis
+        - Check "ref" and "sha" for git context
+        - Use "web_url" to provide users with direct access
+        - Use "original_branch" for branch-specific operations
+
+        Args:
+            project_id: The GitLab project ID or path
+            pipeline_id: The ID of the GitLab pipeline
+
+        Returns:
+            Comprehensive pipeline information and metadata
+
+        WORKFLOW: Use for detailed pipeline information → leads to job-specific analysis if needed
+        """
+        try:
+            analyzer = get_gitlab_analyzer()
+            pipeline_info = await analyzer.get_pipeline(project_id, pipeline_id)
+
+            # Extract original branch from pipeline ref
+            original_branch = pipeline_info.get("ref", "main")
+
+            return {
+                "project_id": str(project_id),
+                "pipeline_id": pipeline_id,
+                "pipeline_info": pipeline_info,
+                "original_branch": original_branch,
+                "analysis_timestamp": datetime.now().isoformat(),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_info",
+                },
+            }
+
+        except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
+            return {
+                "error": f"Failed to get pipeline info: {str(e)}",
+                "project_id": str(project_id),
+                "pipeline_id": pipeline_id,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_pipeline_info",
+                    "error": True,
+                },
             }
