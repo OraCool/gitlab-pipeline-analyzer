@@ -11,24 +11,9 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.version import get_version
+
 from .tools import register_tools
-
-# Get version from pyproject.toml to avoid circular imports
-
-
-def get_version() -> str:
-    """Get version from pyproject.toml"""
-    try:
-        pyproject_path = Path(__file__).parent / ".." / ".." / ".." / "pyproject.toml"
-        if pyproject_path.exists():
-            content = pyproject_path.read_text(encoding="utf-8")
-            for line in content.split("\n"):
-                if line.startswith("version = "):
-                    return line.split('"')[1]
-    except Exception:  # nosec B110
-        # Fallback if pyproject.toml cannot be read
-        pass
-    return "0.1.3"  # fallback version
 
 
 def create_server() -> FastMCP:

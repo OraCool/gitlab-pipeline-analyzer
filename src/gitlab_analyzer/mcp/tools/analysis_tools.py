@@ -6,33 +6,16 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.version import get_version
 
 from .pytest_tools import _extract_pytest_errors
 from .utils import _is_pytest_log, get_gitlab_analyzer
-
-
-def get_mcp_version() -> str:
-    """Get version from pyproject.toml"""
-    try:
-        pyproject_path = (
-            Path(__file__).parent / ".." / ".." / ".." / ".." / "pyproject.toml"
-        )
-        if pyproject_path.exists():
-            content = pyproject_path.read_text(encoding="utf-8")
-            for line in content.split("\n"):
-                if line.startswith("version = "):
-                    return line.split('"')[1]
-    except Exception:  # nosec B110
-        # Fallback if pyproject.toml cannot be read
-        pass
-    return "0.2.2"  # fallback version
 
 
 def register_analysis_tools(mcp: FastMCP) -> None:
@@ -133,7 +116,7 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                     "analysis_timestamp": datetime.now().isoformat(),
                     "mcp_info": {
                         "name": "GitLab Pipeline Analyzer",
-                        "version": get_mcp_version(),
+                        "version": get_version(),
                         "tool_used": "analyze_single_job",
                         "parser_type": "pytest",
                     },
@@ -182,7 +165,7 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                     "analysis_timestamp": datetime.now().isoformat(),
                     "mcp_info": {
                         "name": "GitLab Pipeline Analyzer",
-                        "version": get_mcp_version(),
+                        "version": get_version(),
                         "tool_used": "analyze_single_job",
                         "parser_type": "generic",
                     },
@@ -195,7 +178,7 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                 "job_id": job_id,
                 "mcp_info": {
                     "name": "GitLab Pipeline Analyzer",
-                    "version": get_mcp_version(),
+                    "version": get_version(),
                     "tool_used": "analyze_single_job",
                     "error": True,
                 },
@@ -432,7 +415,7 @@ async def analyze_failed_pipeline_optimized(
             "processing_mode": "optimized_concurrent",
             "mcp_info": {
                 "name": "GitLab Pipeline Analyzer",
-                "version": get_mcp_version(),
+                "version": get_version(),
                 "tools_used": [
                     "analyze_failed_pipeline",
                     "get_job_trace",
@@ -451,7 +434,7 @@ async def analyze_failed_pipeline_optimized(
             "pipeline_id": pipeline_id,
             "mcp_info": {
                 "name": "GitLab Pipeline Analyzer",
-                "version": get_mcp_version(),
+                "version": get_version(),
                 "tool_used": "analyze_failed_pipeline",
                 "error": True,
             },
