@@ -523,7 +523,7 @@ wheels = [
 
 [[package]]
 name = "gitlab-pipeline-analyzer"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
