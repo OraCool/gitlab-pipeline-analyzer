@@ -1021,6 +1021,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                         "file_path": file_path,
                         "error_count": 0,
                         "error_types": set(),
+                        "job_id": error.get("job_id"),  # Add job_id from first error
+                        "job_name": error.get(
+                            "job_name"
+                        ),  # Add job_name from first error
                     }
                     # Add jobs_affected for pipeline mode
                     if pipeline_id is not None:
@@ -1086,6 +1090,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                             "file_path": f["file_path"],
                             "error_count": f["error_count"],
                             "error_types": f["error_types"],
+                            "job_id": f.get("job_id"),
+                            "job_name": f.get("job_name"),
                             **(
                                 {"jobs_affected": f["jobs_affected"]}
                                 if "jobs_affected" in f
@@ -1103,6 +1109,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                             "file_path": f["file_path"],
                             "error_count": f["error_count"],
                             "error_types": f["error_types"],
+                            "job_id": f.get("job_id"),
+                            "job_name": f.get("job_name"),
                             **(
                                 {"jobs_affected": f["jobs_affected"]}
                                 if "jobs_affected" in f
@@ -1120,6 +1128,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                             "file_path": f["file_path"],
                             "error_count": f["error_count"],
                             "error_types": f["error_types"],
+                            "job_id": f.get("job_id"),
+                            "job_name": f.get("job_name"),
                             **(
                                 {"jobs_affected": f["jobs_affected"]}
                                 if "jobs_affected" in f
