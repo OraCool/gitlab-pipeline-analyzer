@@ -128,7 +128,7 @@ Add the following to your VS Code Claude Desktop `claude_desktop_config.json` fi
       "command": "uvx",
       "args": [
         "--from",
-        "gitlab_pipeline_analyzer==0.2.5",
+        "gitlab_pipeline_analyzer==0.2.6",
         "gitlab-analyzer",
         "--transport",
         "${input:mcp_transport}"

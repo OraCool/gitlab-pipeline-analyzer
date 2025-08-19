@@ -51,7 +51,8 @@ def _process_file_groups(
         file_group["truncated"] = file_group["error_count"] > max_errors_per_file
 
         # Convert sets to lists for JSON serialization
-        file_group["jobs_affected"] = list(file_group["jobs_affected"])
+        if "jobs_affected" in file_group:
+            file_group["jobs_affected"] = list(file_group["jobs_affected"])
         file_group["parser_types"] = list(file_group["parser_types"])
         file_group["error_types"] = list(file_group["error_types"])
 
@@ -628,12 +629,13 @@ def register_pagination_tools(mcp: FastMCP) -> None:
     @mcp.tool
     async def group_errors_by_file(
         project_id: str | int,
-        pipeline_id: int,
+        pipeline_id: int | None = None,
+        job_id: int | None = None,
         max_files: int = 10,
         max_errors_per_file: int = 5,
     ) -> dict[str, Any]:
         """
-        📁 GROUP: Group pipeline errors by file path for systematic fixing approach.
+        📁 GROUP: Group errors by file path for systematic fixing approach.
 
         WHEN TO USE:
         - Pipeline has errors across multiple files
@@ -649,7 +651,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
         Args:
             project_id: The GitLab project ID or path
-            pipeline_id: The ID of the GitLab pipeline to analyze
+            pipeline_id: The ID of the GitLab pipeline to analyze (required if job_id not provided)
+            job_id: The ID of a specific job to analyze (optional, overrides pipeline_id)
             max_files: Maximum number of files to return (default: 10)
             max_errors_per_file: Maximum errors per file (default: 5)
 
@@ -659,58 +662,99 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         try:
             analyzer = get_gitlab_analyzer()
 
-            # Get pipeline status and failed jobs
-            import asyncio
+            # Initialize variables that will be assigned in conditional blocks
+            processing_mode: str
+            scope_info: dict[str, Any]
+            all_errors: list[dict[str, Any]]
 
-            pipeline_status, failed_jobs = await asyncio.gather(
-                analyzer.get_pipeline(project_id, pipeline_id),
-                analyzer.get_failed_pipeline_jobs(project_id, pipeline_id),
-            )
+            if job_id is not None:
+                # Single job mode
+                trace = await analyzer.get_job_trace(project_id, job_id)
 
-            # Collect all errors from all jobs
-            async def collect_job_errors(job: Any) -> list[dict[str, Any]]:
-                try:
-                    trace = await analyzer.get_job_trace(project_id, job.id)
+                # Extract errors from the job trace
+                if _is_pytest_log(trace):
+                    pytest_result = _extract_pytest_errors(trace)
+                    all_errors = pytest_result.get("errors", [])
+                    parser_type = "pytest"
+                else:
+                    entries = LogParser.extract_log_entries(trace)
+                    all_errors = [
+                        _extract_error_context_from_generic_entry(entry)
+                        for entry in entries
+                        if entry.level == "error"
+                    ]
+                    parser_type = "generic"
 
-                    if _is_pytest_log(trace):
-                        pytest_result = _extract_pytest_errors(trace)
-                        errors = pytest_result.get("errors", [])
-                        parser_type = "pytest"
-                    else:
-                        entries = LogParser.extract_log_entries(trace)
-                        errors = [
-                            _extract_error_context_from_generic_entry(entry)
-                            for entry in entries
-                            if entry.level == "error"
-                        ]
-                        parser_type = "generic"
+                # Add job context to each error
+                for error in all_errors:
+                    error["job_id"] = job_id
+                    error["parser_type"] = parser_type
 
-                    # Add job context to each error
-                    for error in errors:
-                        error["job_id"] = job.id
-                        error["job_name"] = job.name
-                        error["parser_type"] = parser_type
+                processing_mode = "grouped_by_file_for_job"
+                scope_info = {"job_id": job_id}
 
-                    return errors
+            elif pipeline_id is not None:
+                # Pipeline mode
+                import asyncio
 
-                except Exception:
-                    return []
+                pipeline_status, failed_jobs = await asyncio.gather(
+                    analyzer.get_pipeline(project_id, pipeline_id),
+                    analyzer.get_failed_pipeline_jobs(project_id, pipeline_id),
+                )
 
-            # Process jobs with concurrency limit
-            semaphore = asyncio.Semaphore(5)
+                # Collect all errors from all jobs
+                async def collect_job_errors(job: Any) -> list[dict[str, Any]]:
+                    try:
+                        trace = await analyzer.get_job_trace(project_id, job.id)
 
-            async def collect_with_semaphore(job: Any) -> list[dict[str, Any]]:
-                async with semaphore:
-                    return await collect_job_errors(job)
+                        if _is_pytest_log(trace):
+                            pytest_result = _extract_pytest_errors(trace)
+                            errors = pytest_result.get("errors", [])
+                            parser_type = "pytest"
+                        else:
+                            entries = LogParser.extract_log_entries(trace)
+                            errors = [
+                                _extract_error_context_from_generic_entry(entry)
+                                for entry in entries
+                                if entry.level == "error"
+                            ]
+                            parser_type = "generic"
 
-            job_error_lists = await asyncio.gather(
-                *[collect_with_semaphore(job) for job in failed_jobs]
-            )
+                        # Add job context to each error
+                        for error in errors:
+                            error["job_id"] = job.id
+                            error["job_name"] = job.name
+                            error["parser_type"] = parser_type
 
-            # Flatten all errors
-            all_errors = []
-            for error_list in job_error_lists:
-                all_errors.extend(error_list)
+                        return errors
+
+                    except Exception:
+                        return []
+
+                # Process jobs with concurrency limit
+                semaphore = asyncio.Semaphore(5)
+
+                async def collect_with_semaphore(job: Any) -> list[dict[str, Any]]:
+                    async with semaphore:
+                        return await collect_job_errors(job)
+
+                job_error_lists = await asyncio.gather(
+                    *[collect_with_semaphore(job) for job in failed_jobs]
+                )
+
+                # Flatten all errors
+                all_errors = []
+                for error_list in job_error_lists:
+                    all_errors.extend(error_list)
+
+                processing_mode = "grouped_by_file_for_pipeline"
+                scope_info = {
+                    "pipeline_id": pipeline_id,
+                    "pipeline_status": pipeline_status,
+                }
+
+            else:
+                raise ValueError("Either pipeline_id or job_id must be provided")
 
             # Group errors by file path
             file_groups: dict[str, dict[str, Any]] = {}
@@ -738,19 +782,24 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                         "file_path": file_path,
                         "errors": [],
                         "error_count": 0,
-                        "jobs_affected": set(),
                         "parser_types": set(),
                         "error_types": set(),
                     }
+                    # Only add jobs_affected for pipeline mode
+                    if pipeline_id is not None:
+                        file_groups[file_path]["jobs_affected"] = set()
 
                 file_groups[file_path]["errors"].append(error)
                 file_groups[file_path]["error_count"] += 1
-                file_groups[file_path]["jobs_affected"].add(
-                    error.get("job_name", "unknown")
-                )
                 file_groups[file_path]["parser_types"].add(
                     error.get("parser_type", "unknown")
                 )
+
+                # Add job info for pipeline mode
+                if pipeline_id is not None:
+                    file_groups[file_path]["jobs_affected"].add(
+                        error.get("job_name", "unknown")
+                    )
 
                 # Extract error type
                 if "exception_type" in error:
@@ -774,10 +823,9 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             # Categorize files by fixability
             categorization = _categorize_files_by_type(sorted_files)
 
-            return {
+            # Build response
+            response = {
                 "project_id": str(project_id),
-                "pipeline_id": pipeline_id,
-                "pipeline_status": pipeline_status,
                 "file_groups": sorted_files,
                 "summary": {
                     "total_files_with_errors": total_files_with_errors,
@@ -792,7 +840,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                     "total_files_available": total_files_with_errors,
                 },
                 "analysis_timestamp": datetime.now().isoformat(),
-                "processing_mode": "grouped_by_file",
+                "processing_mode": processing_mode,
                 "mcp_info": {
                     "name": "GitLab Pipeline Analyzer",
                     "version": get_version(),
@@ -800,17 +848,336 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 },
             }
 
+            # Add scope-specific information
+            response.update(scope_info)
+
+            return response
+
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
-            return {
+            error_response: dict[str, Any] = {
                 "error": f"Failed to group errors by file: {str(e)}",
                 "project_id": str(project_id),
-                "pipeline_id": pipeline_id,
                 "mcp_info": {
                     "name": "GitLab Pipeline Analyzer",
                     "version": get_version(),
                     "tool_used": "group_errors_by_file",
                 },
             }
+
+            if job_id is not None:
+                error_response["job_id"] = job_id
+            if pipeline_id is not None:
+                error_response["pipeline_id"] = pipeline_id
+
+            return error_response
+
+    @mcp.tool
+    async def get_files_with_errors(
+        project_id: str | int,
+        pipeline_id: int | None = None,
+        job_id: int | None = None,
+        max_files: int = 20,
+    ) -> dict[str, Any]:
+        """
+        📋 FILE LIST: Get list of files that have errors without the error details.
+
+        WHEN TO USE:
+        - Need quick overview of which files have errors
+        - Want to see file error counts without full error details
+        - Planning which files to process for fixing
+        - Getting file list for iteration or selection
+
+        WHAT YOU GET:
+        - List of files with error counts
+        - File type categorization (test, source, unknown)
+        - Summary statistics
+        - No actual error details (lightweight response)
+
+        Args:
+            project_id: The GitLab project ID or path
+            pipeline_id: The ID of the GitLab pipeline to analyze (required if job_id not provided)
+            job_id: The ID of a specific job to analyze (optional, overrides pipeline_id)
+            max_files: Maximum number of files to return (default: 20)
+
+        Returns:
+            List of files with error counts but no error details
+        """
+        try:
+            analyzer = get_gitlab_analyzer()
+
+            # Initialize variables that will be assigned in conditional blocks
+            processing_mode: str
+            scope_info: dict[str, Any]
+            all_errors: list[dict[str, Any]]
+
+            if job_id is not None:
+                # Single job mode
+                trace = await analyzer.get_job_trace(project_id, job_id)
+
+                # Extract errors from the job trace
+                if _is_pytest_log(trace):
+                    pytest_result = _extract_pytest_errors(trace)
+                    all_errors = pytest_result.get("errors", [])
+                    parser_type = "pytest"
+                else:
+                    entries = LogParser.extract_log_entries(trace)
+                    all_errors = [
+                        _extract_error_context_from_generic_entry(entry)
+                        for entry in entries
+                        if entry.level == "error"
+                    ]
+                    parser_type = "generic"
+
+                processing_mode = "files_list_for_job"
+                scope_info = {"job_id": job_id}
+
+            elif pipeline_id is not None:
+                # Pipeline mode
+                import asyncio
+
+                pipeline_status, failed_jobs = await asyncio.gather(
+                    analyzer.get_pipeline(project_id, pipeline_id),
+                    analyzer.get_failed_pipeline_jobs(project_id, pipeline_id),
+                )
+
+                # Collect all errors from all jobs
+                async def collect_job_errors(job: Any) -> list[dict[str, Any]]:
+                    try:
+                        trace = await analyzer.get_job_trace(project_id, job.id)
+
+                        if _is_pytest_log(trace):
+                            pytest_result = _extract_pytest_errors(trace)
+                            errors = pytest_result.get("errors", [])
+                            parser_type = "pytest"
+                        else:
+                            entries = LogParser.extract_log_entries(trace)
+                            errors = [
+                                _extract_error_context_from_generic_entry(entry)
+                                for entry in entries
+                                if entry.level == "error"
+                            ]
+                            parser_type = "generic"
+
+                        # Add job context to each error
+                        for error in errors:
+                            error["job_id"] = job.id
+                            error["job_name"] = job.name
+                            error["parser_type"] = parser_type
+
+                        return errors
+
+                    except Exception:
+                        return []
+
+                # Process jobs with concurrency limit
+                semaphore = asyncio.Semaphore(5)
+
+                async def collect_with_semaphore(job: Any) -> list[dict[str, Any]]:
+                    async with semaphore:
+                        return await collect_job_errors(job)
+
+                job_error_lists = await asyncio.gather(
+                    *[collect_with_semaphore(job) for job in failed_jobs]
+                )
+
+                # Flatten all errors
+                all_errors = []
+                for error_list in job_error_lists:
+                    all_errors.extend(error_list)
+
+                parser_type = "mixed"  # Could be from multiple parsers
+                processing_mode = "files_list_for_pipeline"
+                scope_info = {
+                    "pipeline_id": pipeline_id,
+                    "pipeline_status": pipeline_status,
+                }
+
+            else:
+                raise ValueError("Either pipeline_id or job_id must be provided")
+
+            # Group errors by file path (without storing actual errors)
+            file_counts: dict[str, dict[str, Any]] = {}
+            for error in all_errors:
+                # Extract file path from different sources
+                file_path = None
+
+                # For pytest errors, use test_file
+                if (
+                    "test_file" in error
+                    and error["test_file"]
+                    and error["test_file"] != "unknown"
+                ):
+                    file_path = error["test_file"]
+                # For generic errors, try to extract from message
+                elif "message" in error:
+                    file_path = _extract_file_path_from_message(error["message"])
+
+                # Fallback to "unknown" if no file path found
+                if not file_path:
+                    file_path = "unknown"
+
+                if file_path not in file_counts:
+                    file_counts[file_path] = {
+                        "file_path": file_path,
+                        "error_count": 0,
+                        "error_types": set(),
+                    }
+                    # Add jobs_affected for pipeline mode
+                    if pipeline_id is not None:
+                        file_counts[file_path]["jobs_affected"] = set()
+
+                file_counts[file_path]["error_count"] += 1
+
+                # Add job info for pipeline mode
+                if pipeline_id is not None:
+                    file_counts[file_path]["jobs_affected"].add(
+                        error.get("job_name", "unknown")
+                    )
+
+                # Extract error type for categorization
+                if "exception_type" in error:
+                    file_counts[file_path]["error_types"].add(error["exception_type"])
+                elif (
+                    "categorization" in error and "category" in error["categorization"]
+                ):
+                    file_counts[file_path]["error_types"].add(
+                        error["categorization"]["category"]
+                    )
+
+            # Sort files by error count (descending) and limit
+            sorted_files = sorted(
+                file_counts.values(), key=lambda x: x["error_count"], reverse=True
+            )[:max_files]
+
+            # Convert sets to lists for JSON serialization
+            for file_info in sorted_files:
+                file_info["error_types"] = list(file_info["error_types"])
+                if "jobs_affected" in file_info:
+                    file_info["jobs_affected"] = list(file_info["jobs_affected"])
+
+            # Calculate summary statistics
+            total_files_with_errors = len(file_counts)
+            total_errors = sum(info["error_count"] for info in file_counts.values())
+
+            # Categorize files by type
+            test_files = [
+                f
+                for f in sorted_files
+                if any(
+                    indicator in f["file_path"].lower()
+                    for indicator in ["test_", "tests/", "_test.", "/test/", "conftest"]
+                )
+            ]
+
+            source_files = [
+                f
+                for f in sorted_files
+                if f not in test_files and f["file_path"] != "unknown"
+            ]
+
+            unknown_files = [f for f in sorted_files if f["file_path"] == "unknown"]
+
+            categorization = {
+                "test_files": {
+                    "count": len(test_files),
+                    "total_errors": sum(f["error_count"] for f in test_files),
+                    "files": [
+                        {
+                            "file_path": f["file_path"],
+                            "error_count": f["error_count"],
+                            "error_types": f["error_types"],
+                            **(
+                                {"jobs_affected": f["jobs_affected"]}
+                                if "jobs_affected" in f
+                                else {}
+                            ),
+                        }
+                        for f in test_files
+                    ],
+                },
+                "source_files": {
+                    "count": len(source_files),
+                    "total_errors": sum(f["error_count"] for f in source_files),
+                    "files": [
+                        {
+                            "file_path": f["file_path"],
+                            "error_count": f["error_count"],
+                            "error_types": f["error_types"],
+                            **(
+                                {"jobs_affected": f["jobs_affected"]}
+                                if "jobs_affected" in f
+                                else {}
+                            ),
+                        }
+                        for f in source_files
+                    ],
+                },
+                "unknown_files": {
+                    "count": len(unknown_files),
+                    "total_errors": sum(f["error_count"] for f in unknown_files),
+                    "files": [
+                        {
+                            "file_path": f["file_path"],
+                            "error_count": f["error_count"],
+                            "error_types": f["error_types"],
+                            **(
+                                {"jobs_affected": f["jobs_affected"]}
+                                if "jobs_affected" in f
+                                else {}
+                            ),
+                        }
+                        for f in unknown_files
+                    ],
+                },
+            }
+
+            # Build response
+            response = {
+                "project_id": str(project_id),
+                "files_with_errors": sorted_files,
+                "summary": {
+                    "total_files_with_errors": total_files_with_errors,
+                    "files_returned": len(sorted_files),
+                    "total_errors": total_errors,
+                    "files_truncated": total_files_with_errors > max_files,
+                },
+                "categorization": categorization,
+                "processing_limits": {
+                    "max_files": max_files,
+                    "total_files_available": total_files_with_errors,
+                },
+                "parser_type": parser_type,
+                "analysis_timestamp": datetime.now().isoformat(),
+                "processing_mode": processing_mode,
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_files_with_errors",
+                },
+            }
+
+            # Add scope-specific information
+            response.update(scope_info)
+
+            return response
+
+        except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
+            error_response: dict[str, Any] = {
+                "error": f"Failed to get files with errors: {str(e)}",
+                "project_id": str(project_id),
+                "mcp_info": {
+                    "name": "GitLab Pipeline Analyzer",
+                    "version": get_version(),
+                    "tool_used": "get_files_with_errors",
+                },
+            }
+
+            if job_id is not None:
+                error_response["job_id"] = job_id
+            if pipeline_id is not None:
+                error_response["pipeline_id"] = pipeline_id
+
+            return error_response
 
     @mcp.tool
     async def get_file_errors(

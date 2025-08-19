@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2025-08-19
+
+### Added 🚀
+
+- **New Pagination Tools**: Enhanced file grouping and error batching capabilities
+  - `group_errors_by_file` - Groups pipeline/job errors by file path with configurable limits
+  - `get_files_with_errors` - Lightweight file listing without error details
+  - `get_file_errors` - File-specific error extraction with pagination support
+- **Dual-Mode API Support**: All pagination tools support both pipeline_id and job_id parameters
+- **Type Safety Improvements**: Fixed all mypy type errors and enhanced error response handling
+- **Comprehensive Unit Testing**: Added 40+ unit tests for pagination helper functions
+
+### Enhanced ✨
+
+- **Error Handling**: Improved error response structures with proper type annotations
+- **Code Quality**: Fixed all linting issues and type annotations
+- **Test Coverage**: Achieved 72% test coverage with comprehensive helper function testing
+
 ## [0.2.5] - 2025-08-18
 
 ### Added 🚀
