@@ -355,33 +355,38 @@ def register_info_tools(mcp: FastMCP) -> None:
         project_id: str | int, pipeline_id: int
     ) -> dict[str, Any]:
         """
-        📊 INFO: Get comprehensive pipeline information and metadata.
+        📊 INFO: Get comprehensive pipeline information and metadata with MR source branch resolution.
 
         WHEN TO USE:
         - Need detailed pipeline information including all metadata
         - Want comprehensive pipeline overview before analysis
         - User asks for "pipeline info" or "pipeline details"
+        - Need to resolve actual source branch for merge request pipelines
 
         WHAT YOU GET:
         - Complete pipeline information and metadata
         - Pipeline status, timing, and execution details
         - Git reference information (branch, commit, etc.)
         - Web URLs and direct access links
-        - Original branch information extracted from pipeline ref
+        - Resolved branch information (actual source branch for MR pipelines)
+        - Pipeline type detection (regular branch vs merge request)
+        - Merge request details if applicable
 
         AI ANALYSIS TIPS:
         - Check "status" field for pipeline state assessment
         - Use "duration" and timing fields for performance analysis
         - Check "ref" and "sha" for git context
         - Use "web_url" to provide users with direct access
-        - Use "original_branch" for branch-specific operations
+        - Use "target_branch" for branch-specific operations (this is the resolved branch)
+        - Check "pipeline_type" to understand if it's an MR pipeline
+        - For MR pipelines, use "source_branch" and "target_branch_name" from merge_request_info
 
         Args:
             project_id: The GitLab project ID or path
             pipeline_id: The ID of the GitLab pipeline
 
         Returns:
-            Comprehensive pipeline information and metadata
+            Comprehensive pipeline information and metadata with resolved branch information
 
         WORKFLOW: Use for detailed pipeline information → leads to job-specific analysis if needed
         """
@@ -389,14 +394,49 @@ def register_info_tools(mcp: FastMCP) -> None:
             analyzer = get_gitlab_analyzer()
             pipeline_info = await analyzer.get_pipeline(project_id, pipeline_id)
 
-            # Extract original branch from pipeline ref
-            original_branch = pipeline_info.get("ref", "main")
+            # Extract original ref from pipeline
+            original_ref = pipeline_info.get("ref", "main")
+
+            # Initialize default values
+            pipeline_type = "branch"
+            target_branch = original_ref
+            merge_request_info = None
+            can_auto_fix = True
+
+            # Check if this is a merge request pipeline
+            if original_ref.startswith("refs/merge-requests/"):
+                pipeline_type = (
+                    "merge_request"  # Set this first, regardless of parsing success
+                )
+                try:
+                    # Extract MR IID from ref: refs/merge-requests/123/head -> 123
+                    mr_iid = int(original_ref.split("/")[2])
+
+                    # Get merge request information
+                    merge_request_info = await analyzer.get_merge_request(
+                        project_id, mr_iid
+                    )
+
+                    # Use source branch as target for commits
+                    target_branch = merge_request_info["source_branch"]
+
+                except (ValueError, IndexError, KeyError) as mr_error:
+                    # If we can't parse MR info, mark as non-auto-fixable
+                    can_auto_fix = False
+                    target_branch = original_ref
+                    merge_request_info = {
+                        "error": f"Failed to parse MR info: {str(mr_error)}"
+                    }
 
             return {
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
                 "pipeline_info": pipeline_info,
-                "original_branch": original_branch,
+                "original_branch": original_ref,  # Keep original for reference
+                "target_branch": target_branch,  # Use this for commits
+                "pipeline_type": pipeline_type,  # "branch" or "merge_request"
+                "merge_request_info": merge_request_info,  # MR details if applicable
+                "can_auto_fix": can_auto_fix,  # Whether auto-fix should proceed
                 "analysis_timestamp": datetime.now().isoformat(),
                 "mcp_info": {
                     "name": "GitLab Pipeline Analyzer",
@@ -410,6 +450,11 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get pipeline info: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
+                "original_branch": "unknown",
+                "target_branch": "unknown",
+                "pipeline_type": "unknown",
+                "merge_request_info": None,
+                "can_auto_fix": False,
                 "mcp_info": {
                     "name": "GitLab Pipeline Analyzer",
                     "version": get_version(),

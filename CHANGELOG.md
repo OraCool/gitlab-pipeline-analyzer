@@ -7,7 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.6] - 2025-08-19
+## [0.2.8] - 2025-08-20
+
+### Added 🚀
+
+- **Merge Request Branch Resolution**: Enhanced `get_pipeline_info` tool with automatic MR source branch extraction
+  - Detects merge request pipelines via `refs/merge-requests/N/head` format
+  - Extracts actual source branch from GitLab merge request API
+  - Returns `target_branch` field for proper Git operations (instead of virtual MR refs)
+  - Provides `pipeline_type` indicator: `"branch"` or `"merge_request"`
+- **New GitLab API Method**: Added `get_merge_request()` to client for fetching MR details by IID
+- **Enhanced Workflow Support**: Solves webhook MR pipeline issues where commits fail on virtual refs
+
+### Enhanced ✨
+
+- **Improved Error Handling**: Graceful fallback when MR information is unavailable
+- **Backward Compatibility**: Regular branch pipelines continue to work unchanged
+- **Auto-Fix Intelligence**: New `can_auto_fix` flag indicates when workflows should proceed
+- **Complete MR Context**: Returns full merge request details including source/target branches
+
+### Fixed 🐛
+
+- **MR Pipeline Commits**: Workflows can now commit to actual source branches instead of virtual MR refs
+- **Test Coverage**: Fixed test error handling for HTTP errors and invalid MR references
+- **Type Safety**: Improved error response structure with all required fields
+
+### Technical Improvements 🔧
+
+- **API Enhancement**: Extended GitLab client with merge request retrieval capability
+- **Logic Robustness**: Improved MR IID parsing with proper exception handling
+- **Test Suite**: Added comprehensive tests for MR pipeline scenarios and edge cases
+
+## [0.2.7] - 2025-08-19
 
 ### Added 🚀
 

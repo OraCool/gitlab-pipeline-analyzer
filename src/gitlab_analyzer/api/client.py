@@ -103,3 +103,14 @@ class GitLabAnalyzer:
                 return ""
             response.raise_for_status()
             return response.text
+
+    async def get_merge_request(
+        self, project_id: str | int, merge_request_iid: int
+    ) -> dict[str, Any]:
+        """Get merge request information by IID"""
+        url = f"{self.api_url}/projects/{project_id}/merge_requests/{merge_request_iid}"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
