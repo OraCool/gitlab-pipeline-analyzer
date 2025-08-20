@@ -5,6 +5,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -36,7 +37,6 @@ DEFAULT_EXCLUDE_PATHS = [
 
 def _extract_file_path_from_message(message: str) -> str | None:
     """Extract file path from error message - testable helper function"""
-    import re
 
     # Pattern: "path/to/file.py:line_number"
     file_match = re.search(r"([^\s:]+\.py):\d+", message)
@@ -49,6 +49,28 @@ def _extract_file_path_from_message(message: str) -> str | None:
         return file_match.group(1)
 
     return None
+
+
+def _should_exclude_file_path(file_path: str, exclude_patterns: list[str]) -> bool:
+    """Check if a file path should be excluded based on patterns - testable helper function"""
+    if not exclude_patterns or not file_path or file_path == "unknown":
+        return False
+
+    return any(pattern in file_path for pattern in exclude_patterns)
+
+
+def _combine_exclude_file_patterns(user_patterns: list[str] | None) -> list[str]:
+    """Combine default file exclude patterns with user-provided patterns - testable helper function"""
+    if user_patterns is None:
+        return list(DEFAULT_EXCLUDE_PATHS)  # Return copy of defaults
+
+    # Combine defaults with user patterns, avoiding duplicates
+    combined = list(DEFAULT_EXCLUDE_PATHS)
+    for pattern in user_patterns:
+        if pattern not in combined:
+            combined.append(pattern)
+
+    return combined
 
 
 def _process_file_groups(
@@ -784,6 +806,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         max_errors_per_file: int = 5,
         include_traceback: bool = True,
         exclude_paths: list[str] | None = None,
+        exclude_file_patterns: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         📁 GROUP: Group errors by file path for systematic fixing approach.
@@ -810,6 +833,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             exclude_paths: List of path patterns to exclude from traceback.
                           If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
                           Use [] to disable all filtering and get complete traceback.
+            exclude_file_patterns: List of file path patterns to exclude from results.
+                                  These patterns will be combined with default exclude patterns
+                                  (DEFAULT_EXCLUDE_PATHS) to filter out system files and dependencies.
+                                  Common additional patterns: [".mypy_cache", ".tox", "node_modules"]
 
         Returns:
             Errors grouped by file with file-level statistics and priority ordering (optionally filtered)
@@ -817,6 +844,9 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         # Use default exclude paths if None provided, empty list means no filtering
         if exclude_paths is None:
             exclude_paths = DEFAULT_EXCLUDE_PATHS
+
+        # Set up file path filtering
+        exclude_file_patterns = _combine_exclude_file_patterns(exclude_file_patterns)
 
         try:
             analyzer = get_gitlab_analyzer()
@@ -942,6 +972,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 if not file_path:
                     file_path = "unknown"
 
+                # Skip files that match exclude patterns
+                if _should_exclude_file_path(file_path, exclude_file_patterns):
+                    continue
+
                 if file_path not in file_groups:
                     file_groups[file_path] = {
                         "file_path": file_path,
@@ -1007,6 +1041,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "filtering_options": {
                     "include_traceback": include_traceback,
                     "exclude_paths": exclude_paths,
+                    "exclude_file_patterns": exclude_file_patterns,
+                    "file_patterns_applied": len(exclude_file_patterns) > 0,
                 },
                 "analysis_timestamp": datetime.now().isoformat(),
                 "processing_mode": processing_mode,
@@ -1046,6 +1082,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         pipeline_id: int | None = None,
         job_id: int | None = None,
         max_files: int = 20,
+        exclude_file_patterns: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         📋 FILE LIST: Get list of files that have errors without the error details.
@@ -1067,6 +1104,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             pipeline_id: The ID of the GitLab pipeline to analyze (required if job_id not provided)
             job_id: The ID of a specific job to analyze (optional, overrides pipeline_id)
             max_files: Maximum number of files to return (default: 20)
+            exclude_file_patterns: List of file path patterns to exclude from results.
+                                  These patterns will be combined with default exclude patterns
+                                  (DEFAULT_EXCLUDE_PATHS) to filter out system files and dependencies.
+                                  Common additional patterns: [".mypy_cache", ".tox", "node_modules"]
 
         Returns:
             List of files with error counts but no error details
@@ -1078,6 +1119,11 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             processing_mode: str
             scope_info: dict[str, Any]
             all_errors: list[dict[str, Any]]
+
+            # Set up file path filtering
+            exclude_file_patterns = _combine_exclude_file_patterns(
+                exclude_file_patterns
+            )
 
             if job_id is not None:
                 # Single job mode
@@ -1184,6 +1230,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 # Fallback to "unknown" if no file path found
                 if not file_path:
                     file_path = "unknown"
+
+                # Skip files that match exclude patterns
+                if _should_exclude_file_path(file_path, exclude_file_patterns):
+                    continue
 
                 if file_path not in file_counts:
                     file_counts[file_path] = {
@@ -1324,6 +1374,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "processing_limits": {
                     "max_files": max_files,
                     "total_files_available": total_files_with_errors,
+                },
+                "filtering_options": {
+                    "exclude_file_patterns": exclude_file_patterns,
+                    "patterns_applied": len(exclude_file_patterns) > 0,
                 },
                 "parser_type": parser_type,
                 "analysis_timestamp": datetime.now().isoformat(),

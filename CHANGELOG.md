@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-08-21
+
+### Added 🚀
+
+- **File Path Filtering**: Enhanced pagination tools with comprehensive file path filtering capabilities
+  - New `exclude_file_patterns` parameter for `get_files_with_errors` and `group_errors_by_file` tools
+  - Smart pattern combination: user patterns extend default exclusions rather than replacing them
+  - Helper functions `_should_exclude_file_path()` and `_combine_exclude_file_patterns()` for robust filtering logic
+  - Automatic filtering of system files, cache directories, and CI/CD artifacts
+
+### Enhanced ✨
+
+- **Improved File Analysis**: Filter out irrelevant system and dependency files from error analysis
+- **Cleaner Results**: Focus on application code errors by excluding noise from .venv, site-packages, **pycache**, etc.
+- **Better User Experience**: Faster analysis with reduced processing of irrelevant files
+- **Flexible Configuration**: Users can add custom patterns while preserving sensible defaults
+
+### Technical Improvements 🔧
+
+- **Pattern Combination Logic**: Smart merging of default and user-provided exclude patterns without duplicates
+- **Helper Function Extraction**: Modular, testable functions for file path filtering logic
+- **Enhanced Response Metadata**: Added filtering information to response objects for transparency
+- **Backward Compatibility**: New parameters are optional with safe defaults
+
 ## [0.3.0] - 2025-08-20
 
 ### Added 🚀
