@@ -15,7 +15,23 @@ from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.version import get_version
 
 from .pytest_tools import _extract_pytest_errors
-from .utils import _is_pytest_log, get_gitlab_analyzer
+from .utils import _is_pytest_log, _should_use_pytest_parser, get_gitlab_analyzer
+
+# Default paths to filter out from traceback for cleaner error reports
+# These paths typically contain system libraries, dependencies, and CI infrastructure
+# that are not relevant for debugging application code
+DEFAULT_EXCLUDE_PATHS = [
+    ".venv",  # Virtual environment packages
+    "site-packages",  # Python package installations
+    ".local",  # User-local Python installations
+    "/builds/",  # CI/CD build directories
+    "/root/.local",  # Root user local packages
+    "/usr/lib/python",  # System Python libraries
+    "/opt/python",  # Optional Python installations
+    "/__pycache__/",  # Python bytecode cache
+    ".cache",  # Various cache directories
+    "/tmp/",  # Temporary files  # nosec B108 - This is used for path filtering, not file creation
+]
 
 
 def _extract_file_path_from_message(message: str) -> str | None:
@@ -182,6 +198,116 @@ def _create_file_statistics_summary(file_errors: list[dict]) -> dict[str, Any]:
             if error.get("line_number")
         ],
     }
+
+
+def _filter_traceback_by_paths(
+    traceback_entries: list[dict], exclude_paths: list[str]
+) -> list[dict]:
+    """Filter traceback entries by excluding specified path patterns - testable helper function"""
+    if not exclude_paths:
+        return traceback_entries
+
+    filtered_traceback = []
+    for entry in traceback_entries:
+        file_path = entry.get("file_path", "")
+
+        # Check if this file path should be excluded
+        should_exclude = False
+        for exclude_pattern in exclude_paths:
+            if exclude_pattern in file_path:
+                should_exclude = True
+                break
+
+        if not should_exclude:
+            filtered_traceback.append(entry)
+
+    return filtered_traceback
+
+
+def _clean_error_response(
+    error: dict[str, Any],
+    include_traceback: bool = True,
+    exclude_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Clean error response based on traceback and path filtering preferences - testable helper function"""
+    if exclude_paths is None:
+        exclude_paths = []
+
+    cleaned_error = error.copy()
+
+    # Handle traceback inclusion/exclusion
+    if not include_traceback:
+        # Remove traceback-related fields completely
+        cleaned_error.pop("traceback", None)
+        cleaned_error.pop("full_error_text", None)
+        cleaned_error["has_traceback"] = False
+
+        # Clean context to remove traceback information
+        if "context" in cleaned_error:
+            context_lines = cleaned_error["context"].split("\n")
+            cleaned_context_lines = []
+
+            skip_traceback = False
+            for line in context_lines:
+                # Skip lines that are part of traceback details
+                if (
+                    "--- Complete Test Failure Details ---" in line
+                    or "Traceback Details:" in line
+                ):
+                    skip_traceback = True
+                    continue
+                elif skip_traceback and (
+                    line.startswith("  File ") or line.startswith("    ")
+                ):
+                    continue
+                else:
+                    skip_traceback = False
+                    cleaned_context_lines.append(line)
+
+            cleaned_error["context"] = "\n".join(cleaned_context_lines).strip()
+
+    elif exclude_paths:
+        # Filter traceback by paths if traceback is included
+        if "traceback" in cleaned_error:
+            cleaned_error["traceback"] = _filter_traceback_by_paths(
+                cleaned_error["traceback"], exclude_paths
+            )
+
+        # Filter full_error_text to remove excluded paths
+        if "full_error_text" in cleaned_error:
+            full_error_lines = cleaned_error["full_error_text"].split("\n")
+            filtered_lines = []
+
+            for line in full_error_lines:
+                should_exclude = False
+                for exclude_pattern in exclude_paths:
+                    if exclude_pattern in line:
+                        should_exclude = True
+                        break
+
+                if not should_exclude:
+                    filtered_lines.append(line)
+
+            cleaned_error["full_error_text"] = "\n".join(filtered_lines)
+
+        # Filter context to remove excluded paths
+        if "context" in cleaned_error:
+            context_lines = cleaned_error["context"].split("\n")
+            filtered_context_lines = []
+
+            for line in context_lines:
+                should_exclude = False
+                for exclude_pattern in exclude_paths:
+                    if exclude_pattern in line:
+                        should_exclude = True
+                        break
+
+                if not should_exclude:
+                    filtered_context_lines.append(line)
+
+            cleaned_error["context"] = "\n".join(filtered_context_lines)
+
+    return cleaned_error
 
 
 def _create_error_response_base(
@@ -560,7 +686,12 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
     @mcp.tool
     async def get_error_batch(
-        project_id: str | int, job_id: int, start_index: int = 0, batch_size: int = 3
+        project_id: str | int,
+        job_id: int,
+        start_index: int = 0,
+        batch_size: int = 3,
+        include_traceback: bool = True,
+        exclude_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         📦 BATCH: Get a specific batch of errors from a job to handle large error lists.
@@ -571,7 +702,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         - Need to paginate through large error lists
 
         WHAT YOU GET:
-        - Specific batch of errors with full details
+        - Specific batch of errors with full details (optionally filtered)
         - Batch metadata (start, size, total)
         - Complete error context for the requested range
 
@@ -580,10 +711,18 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             job_id: The ID of the specific job to analyze
             start_index: Starting index for the batch (0-based)
             batch_size: Number of errors to return in this batch
+            include_traceback: Whether to include traceback information (default: True)
+            exclude_paths: List of path patterns to exclude from traceback.
+                          If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
+                          Use [] to disable all filtering and get complete traceback.
 
         Returns:
-            Batch of errors with pagination information
+            Batch of errors with pagination information (optionally filtered)
         """
+        # Use default exclude paths if None provided, empty list means no filtering
+        if exclude_paths is None:
+            exclude_paths = DEFAULT_EXCLUDE_PATHS
+
         try:
             analyzer = get_gitlab_analyzer()
             trace = await analyzer.get_job_trace(project_id, job_id)
@@ -594,9 +733,15 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             else:
                 all_errors, _ = _extract_errors_from_trace(trace)
 
+            # Apply traceback and path filtering to each error
+            cleaned_errors = [
+                _clean_error_response(error, include_traceback, exclude_paths)
+                for error in all_errors
+            ]
+
             # Extract the requested batch
-            end_index = min(start_index + batch_size, len(all_errors))
-            batch_errors = all_errors[start_index:end_index]
+            end_index = min(start_index + batch_size, len(cleaned_errors))
+            batch_errors = cleaned_errors[start_index:end_index]
 
             return {
                 "project_id": str(project_id),
@@ -605,6 +750,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "batch_info": _create_batch_info(
                     start_index, batch_size, batch_errors, all_errors
                 ),
+                "filtering_options": {
+                    "include_traceback": include_traceback,
+                    "exclude_paths": exclude_paths,
+                },
                 "parser_type": "pytest" if _is_pytest_log(trace) else "generic",
                 "analysis_timestamp": datetime.now().isoformat(),
                 "mcp_info": {
@@ -633,6 +782,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         job_id: int | None = None,
         max_files: int = 10,
         max_errors_per_file: int = 5,
+        include_traceback: bool = True,
+        exclude_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         📁 GROUP: Group errors by file path for systematic fixing approach.
@@ -644,7 +795,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         - Want to avoid processing same file multiple times
 
         WHAT YOU GET:
-        - Errors grouped by file path
+        - Errors grouped by file path (optionally filtered)
         - File-level error statistics
         - Priority ordering by error count
         - Limited errors per file to prevent truncation
@@ -655,10 +806,18 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             job_id: The ID of a specific job to analyze (optional, overrides pipeline_id)
             max_files: Maximum number of files to return (default: 10)
             max_errors_per_file: Maximum errors per file (default: 5)
+            include_traceback: Whether to include traceback information (default: True)
+            exclude_paths: List of path patterns to exclude from traceback.
+                          If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
+                          Use [] to disable all filtering and get complete traceback.
 
         Returns:
-            Errors grouped by file with file-level statistics and priority ordering
+            Errors grouped by file with file-level statistics and priority ordering (optionally filtered)
         """
+        # Use default exclude paths if None provided, empty list means no filtering
+        if exclude_paths is None:
+            exclude_paths = DEFAULT_EXCLUDE_PATHS
+
         try:
             analyzer = get_gitlab_analyzer()
 
@@ -756,9 +915,15 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             else:
                 raise ValueError("Either pipeline_id or job_id must be provided")
 
+            # Apply traceback and path filtering to all errors before grouping
+            cleaned_errors = [
+                _clean_error_response(error, include_traceback, exclude_paths)
+                for error in all_errors
+            ]
+
             # Group errors by file path
             file_groups: dict[str, dict[str, Any]] = {}
-            for error in all_errors:
+            for error in cleaned_errors:
                 # Extract file path from different sources
                 file_path = None
 
@@ -838,6 +1003,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                     "max_files": max_files,
                     "max_errors_per_file": max_errors_per_file,
                     "total_files_available": total_files_with_errors,
+                },
+                "filtering_options": {
+                    "include_traceback": include_traceback,
+                    "exclude_paths": exclude_paths,
                 },
                 "analysis_timestamp": datetime.now().isoformat(),
                 "processing_mode": processing_mode,
@@ -1191,7 +1360,14 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
     @mcp.tool
     async def get_file_errors(
-        project_id: str | int, job_id: int, file_path: str, max_errors: int = 10
+        project_id: str | int,
+        job_id: int,
+        file_path: str,
+        max_errors: int = 10,
+        include_traceback: bool = True,
+        exclude_paths: list[str] | None = None,
+        job_name: str = "",
+        job_stage: str = "",
     ) -> dict[str, Any]:
         """
         📄 FILE FOCUS: Get all errors for a specific file from a job.
@@ -1204,22 +1380,33 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         WHAT YOU GET:
         - All errors for the specified file
         - File-specific error statistics
-        - Complete error context and details
+        - Complete error context and details (optionally filtered)
 
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the specific job to analyze
             file_path: The specific file path to get errors for
             max_errors: Maximum number of errors to return
+            include_traceback: Whether to include traceback information (default: True)
+            exclude_paths: List of path patterns to exclude from traceback.
+                          If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
+                          Use [] to disable all filtering and get complete traceback.
+            job_name: Optional job name for better parser detection (default: "")
+            job_stage: Optional job stage for better parser detection (default: "")
 
         Returns:
-            All errors for the specified file with complete context
+            All errors for the specified file with complete context (optionally filtered)
         """
+        # Use default exclude paths if None provided, empty list means no filtering
+        if exclude_paths is None:
+            exclude_paths = DEFAULT_EXCLUDE_PATHS
+
         try:
             analyzer = get_gitlab_analyzer()
             trace = await analyzer.get_job_trace(project_id, job_id)
 
-            if _is_pytest_log(trace):
+            # Use enhanced parser detection with job info
+            if _should_use_pytest_parser(trace, job_name, job_stage):
                 pytest_result = _extract_pytest_errors(trace)
                 all_errors = pytest_result.get("errors", [])
                 parser_type = "pytest"
@@ -1235,8 +1422,14 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             # Filter errors for the specific file
             file_errors = _filter_file_specific_errors(all_errors, file_path)
 
+            # Apply traceback and path filtering to each error
+            cleaned_errors = [
+                _clean_error_response(error, include_traceback, exclude_paths)
+                for error in file_errors
+            ]
+
             # Limit the number of errors returned
-            limited_errors = file_errors[:max_errors]
+            limited_errors = cleaned_errors[:max_errors]
 
             return {
                 "project_id": str(project_id),
@@ -1247,6 +1440,11 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                     "returned_errors": len(limited_errors),
                     "truncated": len(file_errors) > max_errors,
                     **_create_file_statistics_summary(file_errors),
+                },
+                "filtering_options": {
+                    "include_traceback": include_traceback,
+                    "exclude_paths": exclude_paths,
+                    "max_errors": max_errors,
                 },
                 "parser_type": parser_type,
                 "analysis_timestamp": datetime.now().isoformat(),

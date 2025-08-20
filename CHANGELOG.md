@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-08-20
+
+### Added 🚀
+
+- **Advanced Error Filtering & Traceback Management**: Enhanced pagination tools with sophisticated filtering capabilities
+  - New `include_traceback` parameter (default: True) to control traceback inclusion/exclusion
+  - New `exclude_paths` parameter with smart filtering to remove noise from system/dependency paths
+  - `DEFAULT_EXCLUDE_PATHS` automatically filters common system paths (.venv, site-packages, /builds/, etc.)
+  - Flexible filtering: default filtering, custom patterns, or complete traceback preservation
+- **Enhanced File-Based Error Processing**: Improved error processing for systematic debugging
+  - Updated `get_file_errors` with advanced filtering support and enhanced parser detection
+  - Enhanced `get_error_batch` with filtering options and metadata
+  - Improved `group_errors_by_file` with filtering and better error grouping
+- **Smarter Parser Detection**: New `_should_use_pytest_parser()` with hybrid detection approach
+  - Uses job name/stage for reliable test job identification (primary method)
+  - Falls back to log content analysis only when job info unavailable
+  - Enhanced `_is_test_job()` with comprehensive test job pattern recognition
+- **Comprehensive Documentation**: Extended README with detailed filtering examples and use cases
+
+### Enhanced ✨
+
+- **Cleaner Error Responses**: Filtered tracebacks focus on application code rather than system noise
+- **Faster Processing**: Reduced response sizes through intelligent path filtering
+- **Better Debugging Experience**: Configurable detail levels for different debugging scenarios
+- **Response Optimization**: Prevents response truncation by filtering irrelevant traceback entries
+
+### Fixed 🐛
+
+- **MyPy Type Safety**: Fixed type annotation for optional `exclude_paths` parameter
+- **Security Warnings**: Added nosec comment for false positive hardcoded path warning
+
+### Technical Improvements 🔧
+
+- **Modular Helper Functions**: Extracted `_filter_traceback_by_paths()` and `_clean_error_response()` for testability
+- **Enhanced Tool Metadata**: All filtering tools now return filtering_options in response for transparency
+- **Backward Compatibility**: All new parameters are optional with sensible defaults
+
 ## [0.2.8] - 2025-08-20
 
 ### Added 🚀

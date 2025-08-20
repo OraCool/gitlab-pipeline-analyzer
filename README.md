@@ -617,6 +617,79 @@ fastmcp run gitlab_analyzer.py:mcp
 3. **get_job_trace(project_id, job_id)** - Get trace log for a specific job
 4. **extract_log_errors(log_text)** - Extract errors and warnings from log text
 5. **get_pipeline_status(project_id, pipeline_id)** - Get basic pipeline status
+6. **get_file_errors(project_id, job_id, file_path, ...)** - Get errors for a specific file with filtering
+7. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Get paginated error batches
+8. **group_errors_by_file(project_id, job_id, ...)** - Group errors by file path for systematic fixing
+
+### Error Filtering and Traceback Management
+
+The error analysis tools support advanced filtering to reduce noise in large traceback responses:
+
+#### Parameters
+
+- **`include_traceback`** (bool, default: `True`): Include/exclude all traceback information
+- **`exclude_paths`** (list[str], optional): Filter out specific path patterns from traceback
+
+#### Default Filtering Behavior
+
+When `exclude_paths` is not specified, the tools automatically apply **DEFAULT_EXCLUDE_PATHS** to filter out common system and dependency paths:
+
+```python
+DEFAULT_EXCLUDE_PATHS = [
+    ".venv",           # Virtual environment packages
+    "site-packages",   # Python package installations
+    ".local",          # User-local Python installations
+    "/builds/",        # CI/CD build directories
+    "/root/.local",    # Root user local packages
+    "/usr/lib/python", # System Python libraries
+    "/opt/python",     # Optional Python installations
+    "/__pycache__/",   # Python bytecode cache
+    ".cache",          # Various cache directories
+    "/tmp/",           # Temporary files
+]
+```
+
+#### Usage Examples
+
+```python
+# Use default filtering (recommended for most cases)
+await client.call_tool("get_file_errors", {
+    "project_id": "83",
+    "job_id": 76474190,
+    "file_path": "src/my_module.py"
+})
+
+# Disable traceback completely for clean error summaries
+await client.call_tool("get_file_errors", {
+    "project_id": "83",
+    "job_id": 76474190,
+    "file_path": "src/my_module.py",
+    "include_traceback": False
+})
+
+# Custom path filtering
+await client.call_tool("get_file_errors", {
+    "project_id": "83",
+    "job_id": 76474190,
+    "file_path": "src/my_module.py",
+    "exclude_paths": [".venv", "site-packages", "/builds/"]
+})
+
+# Get complete traceback (no filtering)
+await client.call_tool("get_file_errors", {
+    "project_id": "83",
+    "job_id": 76474190,
+    "file_path": "src/my_module.py",
+    "exclude_paths": []  # Empty list = no filtering
+})
+```
+
+#### Benefits
+
+- **Reduced Response Size**: Filter out irrelevant system paths to focus on application code
+- **Faster Analysis**: Smaller responses mean faster processing and analysis
+- **Cleaner Debugging**: Focus on your code without noise from dependencies and system libraries
+- **Flexible Control**: Choose between default filtering, custom patterns, or complete traceback
 
 ## Example
 
