@@ -420,7 +420,13 @@ def register_info_tools(mcp: FastMCP) -> None:
                     # Use source branch as target for commits
                     target_branch = merge_request_info["source_branch"]
 
-                except (ValueError, IndexError, KeyError) as mr_error:
+                except (
+                    ValueError,
+                    IndexError,
+                    KeyError,
+                    httpx.HTTPError,
+                    httpx.RequestError,
+                ) as mr_error:
                     # If we can't parse MR info, mark as non-auto-fixable
                     can_auto_fix = False
                     target_branch = original_ref
