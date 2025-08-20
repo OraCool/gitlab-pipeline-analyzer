@@ -26,6 +26,7 @@ Prepare and release a new version of the **GitLab Pipeline Analyzer MCP** (`gitl
   - `pyproject.toml` - primary version declaration
   - Verify `uv.lock` gets updated automatically via `uv sync`
   - Check that no hardcoded versions exist in other files
+  - Check fallback version in `src/gitlab_analyzer/version.py`
 
 ### 3. ✅ Quality Assurance (CRITICAL)
 
