@@ -43,8 +43,18 @@ def _extract_file_path_from_message(message: str) -> str | None:
     if file_match:
         return file_match.group(1)
 
-    # Pattern: "File 'path/to/file.py'"
+    # Pattern: "File 'path/to/file.py'" or "File "path/to/file.py""
     file_match = re.search(r"File ['\"]([^'\"]+\.py)['\"]", message)
+    if file_match:
+        return file_match.group(1)
+
+    # Pattern: "for/in/at path/to/file.py" (common in error messages)
+    file_match = re.search(r"(?:for|in|at)\s+([^\s]+\.py)", message)
+    if file_match:
+        return file_match.group(1)
+
+    # Pattern: any Python file path mentioned in the message
+    file_match = re.search(r"([^\s]+\.py)", message)
     if file_match:
         return file_match.group(1)
 
@@ -170,6 +180,20 @@ def _create_batch_info(
 
 def _extract_error_context_from_generic_entry(entry: Any) -> dict[str, Any]:
     """Extract error context from generic log entry - testable helper function"""
+    # Extract traceback information from context if available
+    traceback_info = []
+    context_text = entry.context or ""
+
+    # Look for traceback patterns in the context
+    if context_text:
+        lines = context_text.split("\n")
+        for line in lines:
+            # Look for Python traceback patterns
+            if ('File "' in line and ", line " in line) or (
+                line.strip().startswith("File ") and "line " in line
+            ):
+                traceback_info.append(line.strip())
+
     return {
         "level": entry.level,
         "message": entry.message,
@@ -180,6 +204,8 @@ def _extract_error_context_from_generic_entry(entry: Any) -> dict[str, Any]:
             entry.message, entry.context or ""
         ),
         "test_file": "unknown",  # Generic parser doesn't extract test file
+        "traceback": traceback_info,  # Add traceback field for compatibility
+        "has_traceback": len(traceback_info) > 0,
     }
 
 
@@ -264,29 +290,7 @@ def _clean_error_response(
         cleaned_error.pop("full_error_text", None)
         cleaned_error["has_traceback"] = False
 
-        # Clean context to remove traceback information
-        if "context" in cleaned_error:
-            context_lines = cleaned_error["context"].split("\n")
-            cleaned_context_lines = []
-
-            skip_traceback = False
-            for line in context_lines:
-                # Skip lines that are part of traceback details
-                if (
-                    "--- Complete Test Failure Details ---" in line
-                    or "Traceback Details:" in line
-                ):
-                    skip_traceback = True
-                    continue
-                elif skip_traceback and (
-                    line.startswith("  File ") or line.startswith("    ")
-                ):
-                    continue
-                else:
-                    skip_traceback = False
-                    cleaned_context_lines.append(line)
-
-            cleaned_error["context"] = "\n".join(cleaned_context_lines).strip()
+        # Keep context as-is without filtering
 
     elif exclude_paths:
         # Filter traceback by paths if traceback is included
@@ -312,22 +316,7 @@ def _clean_error_response(
 
             cleaned_error["full_error_text"] = "\n".join(filtered_lines)
 
-        # Filter context to remove excluded paths
-        if "context" in cleaned_error:
-            context_lines = cleaned_error["context"].split("\n")
-            filtered_context_lines = []
-
-            for line in context_lines:
-                should_exclude = False
-                for exclude_pattern in exclude_paths:
-                    if exclude_pattern in line:
-                        should_exclude = True
-                        break
-
-                if not should_exclude:
-                    filtered_context_lines.append(line)
-
-            cleaned_error["context"] = "\n".join(filtered_context_lines)
+        # Keep context as-is without filtering
 
     return cleaned_error
 
@@ -360,8 +349,12 @@ def _filter_file_specific_errors(all_errors: list[dict], file_path: str) -> list
     for error in all_errors:
         error_file = None
 
-        # For pytest errors
-        if "test_file" in error and error["test_file"]:
+        # For pytest errors (test_file is actually useful)
+        if (
+            "test_file" in error
+            and error["test_file"]
+            and error["test_file"] != "unknown"
+        ):
             error_file = error["test_file"]
         # For generic errors, extract from message
         elif "message" in error:

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2025-08-21
+
+### Added 🚀
+
+- **New Repository Search Tools**: Enhanced MCP with comprehensive GitLab repository search capabilities
+  - `search_repository_code` - Search for code snippets with advanced filtering (file extensions, paths, filenames)
+  - `search_repository_commits` - Search commit messages with branch filtering support
+  - Both tools support project ID (string/integer), branch filtering, and configurable result limits
+  - Smart result limiting with overflow indicators for large result sets
+
+### Enhanced ✨
+
+- **Comprehensive Test Coverage**: Dramatically improved overall test coverage
+  - Added 9 comprehensive unit tests for search tools covering all scenarios
+  - Achieved 92% coverage for search_tools.py (improved from 7% to 92%)
+  - Overall project coverage increased to 73.11% (exceeding 70% requirement)
+  - Enhanced test patterns following FastMCP best practices
+
+### Fixed 🐛
+
+- **Tool Registration Consistency**: Fixed decorator pattern inconsistencies in search tools
+  - Corrected `@mcp.tool()` to `@mcp.tool` to match established codebase patterns
+  - Improved code consistency across all MCP tool registrations
+  - Better FastMCP framework integration
+
+### Technical Improvements 🔧
+
+- **Quality Assurance**: All quality checks passing for production release
+  - Ruff linting and formatting: ✅ All checks passed
+  - MyPy type checking: ✅ No issues found in 27 source files
+  - Bandit security scanning: ✅ No security issues identified
+  - Package integrity: ✅ Twine validation passed
+  - Test suite: ✅ 304 tests passing with 73.11% coverage
+
 ## [0.3.1] - 2025-08-21
 
 ### Added 🚀

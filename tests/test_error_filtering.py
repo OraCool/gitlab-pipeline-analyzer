@@ -78,10 +78,11 @@ class TestErrorFiltering:
         assert "full_error_text" not in result
         assert result["has_traceback"] is False
 
-        # Should clean context
+        # Should preserve all context when include_traceback=False
         context_lines = result["context"].split("\n")
-        assert "--- Complete Test Failure Details ---" not in result["context"]
-        assert "Traceback Details:" not in result["context"]
+        # Context is preserved, not filtered
+        assert "--- Complete Test Failure Details ---" in result["context"]
+        assert "Traceback Details:" in result["context"]
         assert any("Test: test_example" in line for line in context_lines)
 
     def test_clean_error_response_exclude_paths(self):
@@ -105,18 +106,20 @@ class TestErrorFiltering:
             error, include_traceback=True, exclude_paths=exclude_paths
         )
 
-        # Should filter traceback
+        # Should filter traceback but preserve context
         assert len(result["traceback"]) == 1
         assert result["traceback"][0]["file_path"] == "/app/src/main.py"
+        # Context is not filtered anymore - we preserve everything
+        assert ".venv" in result["context"]
 
         # Should filter full_error_text
         assert ".venv" not in result["full_error_text"]
         assert "site-packages" not in result["full_error_text"]
         assert "/app/src/main.py" in result["full_error_text"]
 
-        # Should filter context
-        assert ".venv" not in result["context"]
-        assert "site-packages" not in result["context"]
+        # Context is preserved (not filtered anymore)
+        assert ".venv" in result["context"]
+        assert "site-packages" in result["context"]
 
     def test_clean_error_response_no_filtering(self):
         """Test cleaning error response with no filtering applied"""

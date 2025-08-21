@@ -65,8 +65,10 @@ class PytestLogParser(BaseParser):
         for failures_match in failures_matches:
             failures_section = failures_match.group(1)
 
-            # Split by test failure headers (lines with underscores)
-            test_pattern = r"_{10,}\s+(.+?)\s+_{10,}"
+            # Split by test failure headers (flexible underscore patterns)
+            # Pattern 1: Long underscores: __________ test_name __________
+            # Pattern 2: Short underscores: _ test_name _
+            test_pattern = r"_{1,}\s+(.+?)\s+_{1,}"
             test_matches = re.split(test_pattern, failures_section)
 
             # Process each test failure in this section

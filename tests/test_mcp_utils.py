@@ -192,7 +192,6 @@ class TestMCPToolsUtils:
         """Test that pytest detection requires sufficient indicators."""
         # These should NOT trigger detection (only 1 indicator each)
         single_indicators = [
-            "=== FAILURES ===",  # Only 1 indicator
             "something.py::",  # Only 1 indicator (no test_)
             "1 failed",  # Only 1 indicator (no comma or 'in')
             "ERROR only",  # Only 1 indicator

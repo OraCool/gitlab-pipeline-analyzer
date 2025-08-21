@@ -99,27 +99,39 @@ def _should_use_pytest_parser(
 
 def _is_pytest_log(log_text: str) -> bool:
     """Detect if log text contains pytest output"""
-    pytest_indicators = [
+    # Strong pytest indicators that are unique to pytest
+    strong_indicators = [
         "=== FAILURES ===",
         "short test summary info",
+        "test session starts",
+        "collecting tests",  # More specific than "collecting ..."
+        "pytest-",
+        "rootdir:",
+    ]
+
+    # Weaker indicators that need combination
+    weak_indicators = [
         "failed, ",
         "passed, ",
-        " in ",
-        ".py::",
+        " passed in ",
         "test_",
-        "pytest",
         "PASSED",
         "FAILED",
         "ERROR",
-        "collecting ...",
+        ".py::",  # test file pattern - moved to weak indicators
     ]
 
     # Convert to lowercase for case-insensitive matching
     log_lower = log_text.lower()
 
-    # Check if at least 2 pytest indicators are present
-    indicator_count = sum(
-        1 for indicator in pytest_indicators if indicator.lower() in log_lower
+    # Check for strong indicators (any one is sufficient)
+    for indicator in strong_indicators:
+        if indicator.lower() in log_lower:
+            return True
+
+    # Check for weak indicators (need at least 2)
+    weak_indicator_count = sum(
+        1 for indicator in weak_indicators if indicator.lower() in log_lower
     )
 
-    return indicator_count >= 2
+    return weak_indicator_count >= 2

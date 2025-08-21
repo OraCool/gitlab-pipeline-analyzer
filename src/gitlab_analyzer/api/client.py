@@ -114,3 +114,81 @@ class GitLabAnalyzer:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
             return response.json()
+
+    async def search_project_code(
+        self,
+        project_id: str | int,
+        search_term: str,
+        branch: str | None = None,
+        filename_filter: str | None = None,
+        path_filter: str | None = None,
+        extension_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Search for code within a project repository
+
+        Args:
+            project_id: The GitLab project ID or path
+            search_term: The keyword(s) to search for
+            branch: Specific branch to search (optional, defaults to project's default branch)
+            filename_filter: Filter by filename pattern (supports wildcards)
+            path_filter: Filter by file path pattern
+            extension_filter: Filter by file extension (e.g., 'py', 'js')
+
+        Returns:
+            List of code search results with file paths, line numbers, and content snippets
+        """
+        url = f"{self.api_url}/projects/{project_id}/search"
+
+        # Build search query with filters
+        search_query = search_term
+        if filename_filter:
+            search_query += f" filename:{filename_filter}"
+        if path_filter:
+            search_query += f" path:{path_filter}"
+        if extension_filter:
+            search_query += f" extension:{extension_filter}"
+
+        params = {"scope": "blobs", "search": search_query}  # Search in code files
+
+        # Add branch-specific search if specified
+        if branch:
+            params["ref"] = branch
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+            return response.json()
+
+    async def search_project_commits(
+        self,
+        project_id: str | int,
+        search_term: str,
+        branch: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Search for commits within a project repository
+
+        Args:
+            project_id: The GitLab project ID or path
+            search_term: The keyword(s) to search for in commit messages
+            branch: Specific branch to search (optional, defaults to project's default branch)
+
+        Returns:
+            List of commit search results
+        """
+        url = f"{self.api_url}/projects/{project_id}/search"
+
+        params = {
+            "scope": "commits",  # Search in commit messages
+            "search": search_term,
+        }
+
+        # Add branch-specific search if specified
+        if branch:
+            params["ref"] = branch
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+            return response.json()

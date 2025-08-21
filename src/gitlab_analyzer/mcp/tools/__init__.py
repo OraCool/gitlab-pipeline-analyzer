@@ -12,6 +12,7 @@ from .info_tools import register_info_tools
 from .log_tools import register_log_tools
 from .pagination_tools import register_pagination_tools
 from .pytest_tools import register_pytest_tools
+from .search_tools import register_search_tools
 from .utils import get_gitlab_analyzer
 
 
@@ -22,6 +23,7 @@ def register_tools(mcp: FastMCP) -> None:
     register_log_tools(mcp)
     register_pagination_tools(mcp)
     register_pytest_tools(mcp)
+    register_search_tools(mcp)
 
 
 __all__ = [
@@ -31,5 +33,6 @@ __all__ = [
     "register_log_tools",
     "register_pagination_tools",
     "register_pytest_tools",
+    "register_search_tools",
     "get_gitlab_analyzer",
 ]
