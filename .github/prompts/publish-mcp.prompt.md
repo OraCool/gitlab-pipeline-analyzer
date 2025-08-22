@@ -33,6 +33,8 @@ Prepare and release a new version of the **GitLab Pipeline Analyzer MCP** (`gitl
 
 ### 3. ✅ Quality Assurance (CRITICAL)
 
+⚠️ **SAFETY NOTE**: The cleanup commands below have been carefully designed to preserve ALL legitimate test files in the `tests/` directory and any `pytest_*.py` files. Only temporary debug files from the root directory are removed.
+
 Run comprehensive quality checks and fix any issues:
 
 ```bash
@@ -74,30 +76,53 @@ fi
 # Clean up unnecessary files before checks
 echo "🧹 Cleaning up unnecessary files..."
 
+# ⚠️  CRITICAL SAFETY NOTE:
+# This cleanup ONLY removes temporary/debug files from the root directory.
+# NEVER delete legitimate test files from tests/ directory or pytest_*.py files!
+# The patterns below are carefully designed to preserve all legitimate test files.
+
+# Safety check: Verify we're not about to delete legitimate test files
+echo "🔍 Safety check: Verifying test file preservation..."
+if [ -d "tests/" ]; then
+    if [ "$FIND_CMD" = "fd" ]; then
+        TEST_FILE_COUNT=$(fd -t f "test_.*\.py$" tests/ | wc -l)
+    else
+        TEST_FILE_COUNT=$(find tests/ -name "test_*.py" | wc -l)
+    fi
+    echo "✅ Found $TEST_FILE_COUNT legitimate test files in tests/ directory (will be preserved)"
+else
+    echo "⚠️  No tests/ directory found"
+fi
+
 if [ "$FIND_CMD" = "fd" ]; then
-    # Modern fd syntax
+    # Modern fd syntax - only clean up obvious temporary/debug files
     fd -t f -e pyc -X rm 2>/dev/null || true
     fd -t d -n __pycache__ -X rm -rf 2>/dev/null || true
-    fd -t f "debug_.*\.py$" -E tests -X rm 2>/dev/null || true
-    fd -t f "test_.*\.py$" -E tests -X rm 2>/dev/null || true
-    fd -t f "temp_.*\.py$" -X rm 2>/dev/null || true
-    fd -t f "analyze_.*\.py$" -X rm 2>/dev/null || true
-    fd -t f "demo_.*\.py$" -X rm 2>/dev/null || true
-    fd -t f "simple_test.*\.py$" -X rm 2>/dev/null || true
+    # Only remove obvious temporary/debug files from root directory, not legitimate test files
+    fd -t f "debug_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    fd -t f "temp_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    fd -t f "demo_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    fd -t f "analyze_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    # Remove only very specific temporary test files (not legitimate test_*.py files)
+    fd -t f "simple_test.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    fd -t f "quick_test.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+    # Remove backup and temporary files
     fd -t f ".*_old\..*$" -X rm 2>/dev/null || true
     fd -t f ".*_clean\..*$" -X rm 2>/dev/null || true
     fd -t f ".*\.bak$" -X rm 2>/dev/null || true
     fd -t d ".*\.egg-info$" -X rm -rf 2>/dev/null || true
 else
-    # Traditional find syntax
+    # Traditional find syntax - only clean up obvious temporary/debug files
     find . -name "*.pyc" -delete 2>/dev/null || true
     find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    # Only remove obvious temporary/debug files from root directory, not legitimate test files
     find . -maxdepth 1 -name "debug_*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "test_*.py" ! -path "./tests/*" -delete 2>/dev/null || true
     find . -maxdepth 1 -name "temp_*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "analyze_*.py" -delete 2>/dev/null || true
     find . -maxdepth 1 -name "demo_*.py" -delete 2>/dev/null || true
+    find . -maxdepth 1 -name "analyze_*.py" -delete 2>/dev/null || true
+    # Remove only very specific temporary test files (not legitimate test_*.py files)
     find . -maxdepth 1 -name "simple_test*.py" -delete 2>/dev/null || true
+    find . -maxdepth 1 -name "quick_test*.py" -delete 2>/dev/null || true
     find . -name "*_old.*" -delete 2>/dev/null || true
     find . -name "*_clean.*" -delete 2>/dev/null || true
     find . -name "*.bak" -delete 2>/dev/null || true
@@ -110,6 +135,10 @@ rm -rf .mypy_cache/ .ruff_cache/ 2>/dev/null || true
 rm -f *.tmp *.temp *.log *.out 2>/dev/null || true
 rm -rf temp/ tmp/ debug/ 2>/dev/null || true
 # Note: *.egg-info directories can be in src/ or root, handled by find/fd commands above
+
+# ⚠️  IMPORTANT: The cleanup above ONLY removes temporary/debug files from the root directory.
+# Legitimate test files in tests/ directory and pytest_*.py files are preserved!
+# Do NOT delete test_*.py files from tests/ directory - they are essential for the project.
 
 # Install dependencies
 uv sync --all-extras

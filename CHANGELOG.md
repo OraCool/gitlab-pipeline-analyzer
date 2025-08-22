@@ -12,14 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added 🚀
 
 - **Response Mode Optimization**: New `response_mode` parameter for pagination tools
-
   - `"minimal"`: Essential error info only (~200 bytes per error)
   - `"balanced"`: Essential + limited context (~500 bytes per error) [RECOMMENDED]
   - `"full"`: Complete details including full traceback (~2000+ bytes per error)
   - Available in `get_files_with_errors` and `get_file_errors` tools
 
 - **Comprehensive Error Analysis**: Enhanced error categorization and fix guidance system
-
   - Detailed error parsing with specific parameter/function extraction
   - Fix guidance with likely causes, suggestions, and code inspection steps
   - Priority scoring for error fixing (urgency, complexity, confidence)
@@ -33,8 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Enhanced ✨
 
-- **Security Improvements**: Fixed hardcoded temporary directory usage
+- **Code Consistency Improvements**: Consolidated duplicate code and improved parameter handling
+  - Unified DEFAULT_EXCLUDE_PATHS definition in utils.py
+  - Fixed parameter logic in `_clean_error_response` function
+  - Improved filtering behavior: `exclude_paths=None` uses defaults, `exclude_paths=[]` disables filtering
+  - Enhanced traceback removal when `include_traceback=False`
 
+- **Security Improvements**: Fixed hardcoded temporary directory usage
   - Replaced `/tmp/` with dynamic `tempfile.gettempdir()` for better security
   - Addresses Bandit security warning B108
 
@@ -45,8 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Improvements 🔧
 
 - **Code Quality**: Enhanced type hints and error handling
-- **Documentation**: Updated tool count (now includes 17 specialized tools)
+- **Documentation**: Updated tool count (now includes 21 specialized tools)
 - **Build System**: Added docs dependencies for Sphinx documentation
+- **Import Structure**: Cleaned up duplicate imports and consolidated shared constants
 
 ## [0.3.4] - 2025-08-22
 

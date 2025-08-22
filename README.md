@@ -675,7 +675,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **17 comprehensive tools** for GitLab CI/CD pipeline analysis:
+The MCP server provides **21 comprehensive tools** for GitLab CI/CD pipeline analysis:
 
 #### 🔍 Pipeline Analysis Tools
 

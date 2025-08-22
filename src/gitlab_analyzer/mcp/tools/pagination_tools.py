@@ -17,6 +17,7 @@ from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.version import get_version
 
 from .utils import (
+    DEFAULT_EXCLUDE_PATHS,
     _extract_pytest_errors,
     _is_pytest_log,
     _should_use_pytest_parser,
@@ -50,23 +51,6 @@ def _filter_unknown_errors_from_pytest_result(
     result = pytest_result.copy()
     result["errors"] = meaningful_errors
     return result
-
-
-# Default paths to filter out from traceback for cleaner error reports
-# These paths typically contain system libraries, dependencies, and CI infrastructure
-# that are not relevant for debugging application code
-DEFAULT_EXCLUDE_PATHS = [
-    ".venv",  # Virtual environment packages
-    "site-packages",  # Python package installations
-    ".local",  # User-local Python installations
-    "/builds/",  # CI/CD build directories
-    "/root/.local",  # Root user local packages
-    "/usr/lib/python",  # System Python libraries
-    "/opt/python",  # Optional Python installations
-    "/__pycache__/",  # Python bytecode cache
-    ".cache",  # Various cache directories
-    "/tmp/",  # Temporary files  # nosec B108 - This is used for path filtering, not file creation
-]
 
 
 def _extract_file_path_from_message(message: str) -> str | None:
@@ -366,19 +350,19 @@ def _clean_error_response(
     exclude_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """Clean error response based on traceback and path filtering preferences - testable helper function"""
+    # Use DEFAULT_EXCLUDE_PATHS if None provided, empty list means no filtering
     if exclude_paths is None:
-        exclude_paths = []
+        exclude_paths = DEFAULT_EXCLUDE_PATHS
 
     cleaned_error = error.copy()
 
     # Handle traceback inclusion/exclusion
     if not include_traceback:
-        # Remove traceback-related fields completely
+        # Remove ALL traceback-related fields completely when include_traceback=False
         cleaned_error.pop("traceback", None)
         cleaned_error.pop("full_error_text", None)
+        cleaned_error.pop("context", None)  # Remove context too for consistency
         cleaned_error["has_traceback"] = False
-
-        # Keep context as-is without filtering
 
     else:
         # Include traceback, apply filtering if exclude_paths has items
@@ -1154,6 +1138,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         NEW: response_mode parameter for context optimization:
         - "minimal": File paths and error counts only
         - "balanced": File paths, counts, and error type summaries [RECOMMENDED]
+        - "fixing": File paths, counts, error types, and context for automated fixing
         - "full": Complete file error details
 
         WHEN TO USE:
@@ -1177,7 +1162,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                                   These patterns will be combined with default exclude patterns
                                   (DEFAULT_EXCLUDE_PATHS) to filter out system files and dependencies.
                                   Common additional patterns: [".mypy_cache", ".tox", "node_modules"]
-            response_mode: Controls response detail level ("minimal", "balanced", "full")
+            response_mode: Controls response detail level ("minimal", "balanced", "fixing", "full")
 
         Returns:
             List of files with errors, optimized based on response_mode
@@ -1480,6 +1465,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         NEW: response_mode parameter for context optimization:
         - "minimal": Essential error info only (~200 bytes per error)
         - "balanced": Essential + limited context (~500 bytes per error) [RECOMMENDED]
+        - "fixing": Essential + sufficient context for code analysis (~800 bytes per error)
         - "full": Complete details including full traceback (~2000+ bytes per error)
 
         WHEN TO USE:
@@ -1487,6 +1473,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         - Processing files one by one systematically
         - Use "minimal" for agent workflows and file iteration
         - Use "balanced" for error analysis and fixing (recommended)
+        - Use "fixing" for AI code analysis and automated fixing
         - Use "full" only when complete traceback details are needed
 
         WHAT YOU GET:
@@ -1505,7 +1492,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                           Use [] to disable all filtering and get complete traceback.
             job_name: Optional job name for better parser detection (default: "")
             job_stage: Optional job stage for better parser detection (default: "")
-            response_mode: Controls response detail level ("minimal", "balanced", "full")
+            response_mode: Controls response detail level ("minimal", "balanced", "fixing", "full")
 
         Returns:
             All errors for the specified file with optimization applied based on response_mode

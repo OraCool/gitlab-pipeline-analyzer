@@ -358,40 +358,69 @@ def _extract_key_traceback(traceback: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def _extract_fixing_traceback(traceback: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Extract traceback frames optimized for code fixing with more context."""
+    """Extract traceback frames optimized for code fixing with comprehensive context."""
     if not traceback:
         return []
 
-    # System paths to exclude (same as key traceback)
+    # For fixing mode, preserve more traceback frames with minimal filtering
+    # Only exclude the most obvious deep system paths
     exclude_patterns = [
         "/site-packages/",
         "/lib/python",
         "/usr/lib/",
-        "/.venv/",
-        "/venv/",
-        "/.tox/",
-        "/pytest",
-        "/unittest",
+        "/.local/share/uv/python",
+        "/root/.local",
     ]
 
-    # Filter to application code only
-    app_frames = []
-    for frame in traceback:
-        file_path = frame.get("file_path", "")
-        if not any(pattern in file_path for pattern in exclude_patterns):
-            # Keep more detailed frame info for fixing
-            app_frames.append(
-                {
-                    "file_path": file_path,
-                    "file": file_path.split("/")[-1] if "/" in file_path else file_path,
-                    "line": frame.get("line_number"),
-                    "function": frame.get("function_name"),
-                    "code_line": frame.get("code_line"),
-                }
-            )
+    # If the traceback is already reasonably sized (< 15 frames), apply minimal filtering
+    if len(traceback) <= 15:
+        # Keep all frames except deep system ones
+        filtered_frames = []
+        for frame in traceback:
+            file_path = frame.get("file_path", "")
 
-    # Return more frames (3-4) for better context understanding
-    return app_frames[:4]
+            # Only exclude deep system paths
+            if not any(pattern in file_path for pattern in exclude_patterns):
+                # Keep comprehensive frame info for fixing
+                filtered_frames.append(
+                    {
+                        "file_path": file_path,
+                        "file": (
+                            file_path.split("/")[-1] if "/" in file_path else file_path
+                        ),
+                        "line": frame.get("line_number"),
+                        "function": frame.get("function_name"),
+                        "code_line": frame.get("code_line"),
+                    }
+                )
+
+        # Return all filtered frames (no arbitrary limit)
+        return filtered_frames
+    else:
+        # For very long tracebacks, apply more aggressive filtering and limit
+        app_frames = []
+        for frame in traceback:
+            file_path = frame.get("file_path", "")
+
+            # More selective filtering for long tracebacks
+            if not any(
+                pattern in file_path
+                for pattern in exclude_patterns + ["/.venv/", "/venv/"]
+            ):
+                app_frames.append(
+                    {
+                        "file_path": file_path,
+                        "file": (
+                            file_path.split("/")[-1] if "/" in file_path else file_path
+                        ),
+                        "line": frame.get("line_number"),
+                        "function": frame.get("function_name"),
+                        "code_line": frame.get("code_line"),
+                    }
+                )
+
+        # Return up to 12 frames for very long tracebacks
+        return app_frames[:12]
 
 
 def _extract_fixing_context(error: dict[str, Any]) -> dict[str, Any]:
@@ -872,6 +901,26 @@ def _extract_pytest_errors(log_text: str) -> dict:
                     "test_file": failure.test_file,
                     "category": "test_failure",
                     "test_name": failure.test_name,
+                    # Preserve full traceback information for response optimization
+                    "traceback": (
+                        [
+                            {
+                                "file_path": frame.file_path,
+                                "line_number": frame.line_number,
+                                "function_name": frame.function_name,
+                                "code_line": frame.code_line,
+                                "error_type": getattr(frame, "error_type", None),
+                                "error_message": getattr(frame, "error_message", None),
+                            }
+                            for frame in failure.traceback
+                        ]
+                        if failure.traceback
+                        else []
+                    ),
+                    "has_traceback": (
+                        len(failure.traceback) > 0 if failure.traceback else False
+                    ),
+                    "platform_info": getattr(failure, "platform_info", "unknown"),
                 }
             )
 
