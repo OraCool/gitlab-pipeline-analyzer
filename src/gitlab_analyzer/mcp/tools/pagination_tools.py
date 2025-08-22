@@ -16,8 +16,14 @@ from fastmcp import FastMCP
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.version import get_version
 
-from .pytest_tools import _extract_pytest_errors
-from .utils import _is_pytest_log, _should_use_pytest_parser, get_gitlab_analyzer
+from .utils import (
+    _extract_pytest_errors,
+    _is_pytest_log,
+    _should_use_pytest_parser,
+    get_gitlab_analyzer,
+    get_mcp_info,
+    optimize_tool_response,
+)
 
 
 def _filter_unknown_errors_from_pytest_result(
@@ -405,16 +411,17 @@ def _clean_error_response(
 
 
 def _create_error_response_base(
-    project_id: str | int, job_id: int | None = None, pipeline_id: int | None = None
+    project_id: str | int,
+    tool_name: str,
+    job_id: int | None = None,
+    pipeline_id: int | None = None,
+    error: bool = False,
 ) -> dict[str, Any]:
     """Create base error response structure - testable helper function"""
     response: dict[str, Any] = {
         "project_id": str(project_id),
         "analysis_timestamp": datetime.now().isoformat(),
-        "mcp_info": {
-            "name": "GitLab Pipeline Analyzer",
-            "version": get_version(),
-        },
+        "mcp_info": get_mcp_info(tool_name, error),
     }
 
     if job_id is not None:
@@ -628,12 +635,7 @@ def _create_job_analysis_response(
             "total_available": error_data.get("total_errors", 0),
         },
         "analysis_timestamp": datetime.now().isoformat(),
-        "mcp_info": {
-            "name": "GitLab Pipeline Analyzer",
-            "version": get_version(),
-            "tool_used": "analyze_single_job_limited",
-            "parser_type": parser_type,
-        },
+        "mcp_info": get_mcp_info("analyze_single_job_limited"),
     }
 
     # Merge error data
@@ -703,11 +705,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to analyze pipeline summary: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "analyze_failed_pipeline_summary",
-                },
+                "mcp_info": get_mcp_info("analyze_failed_pipeline_summary", error=True),
             }
 
     @mcp.tool
@@ -777,11 +775,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to analyze job (limited): {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "analyze_single_job_limited",
-                },
+                "mcp_info": get_mcp_info("analyze_single_job_limited", error=True),
             }
 
     @mcp.tool
@@ -856,11 +850,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 },
                 "parser_type": "pytest" if _is_pytest_log(trace) else "generic",
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_error_batch",
-                },
+                "mcp_info": get_mcp_info(
+                    "get_error_batch",
+                    parser_type="pytest" if _is_pytest_log(trace) else "generic",
+                ),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -868,11 +861,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get error batch: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_error_batch",
-                },
+                "mcp_info": get_mcp_info("get_error_batch", error=True),
             }
 
     @mcp.tool
@@ -1128,11 +1117,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 },
                 "analysis_timestamp": datetime.now().isoformat(),
                 "processing_mode": processing_mode,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "group_errors_by_file",
-                },
+                "mcp_info": get_mcp_info("group_errors_by_file"),
             }
 
             # Add scope-specific information
@@ -1144,11 +1129,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             error_response: dict[str, Any] = {
                 "error": f"Failed to group errors by file: {str(e)}",
                 "project_id": str(project_id),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "group_errors_by_file",
-                },
+                "mcp_info": get_mcp_info("group_errors_by_file", error=True),
             }
 
             if job_id is not None:
@@ -1165,9 +1146,15 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         job_id: int | None = None,
         max_files: int = 20,
         exclude_file_patterns: list[str] | None = None,
+        response_mode: str = "balanced",
     ) -> dict[str, Any]:
         """
         📋 FILE LIST: Get list of files that have errors without the error details.
+
+        NEW: response_mode parameter for context optimization:
+        - "minimal": File paths and error counts only
+        - "balanced": File paths, counts, and error type summaries [RECOMMENDED]
+        - "full": Complete file error details
 
         WHEN TO USE:
         - Need quick overview of which files have errors
@@ -1179,7 +1166,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         - List of files with error counts
         - File type categorization (test, source, unknown)
         - Summary statistics
-        - No actual error details (lightweight response)
+        - Optimized detail level based on response_mode
 
         Args:
             project_id: The GitLab project ID or path
@@ -1190,9 +1177,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                                   These patterns will be combined with default exclude patterns
                                   (DEFAULT_EXCLUDE_PATHS) to filter out system files and dependencies.
                                   Common additional patterns: [".mypy_cache", ".tox", "node_modules"]
+            response_mode: Controls response detail level ("minimal", "balanced", "full")
 
         Returns:
-            List of files with error counts but no error details
+            List of files with errors, optimized based on response_mode
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -1449,27 +1437,22 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "parser_type": parser_type,
                 "analysis_timestamp": datetime.now().isoformat(),
                 "processing_mode": processing_mode,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_files_with_errors",
-                },
+                "mcp_info": get_mcp_info(
+                    "get_files_with_errors", parser_type=parser_type
+                ),
             }
 
             # Add scope-specific information
             response.update(scope_info)
 
-            return response
+            # Apply response optimization based on response_mode
+            return optimize_tool_response(response, response_mode)
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             error_response: dict[str, Any] = {
                 "error": f"Failed to get files with errors: {str(e)}",
                 "project_id": str(project_id),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_files_with_errors",
-                },
+                "mcp_info": get_mcp_info("get_files_with_errors", error=True),
             }
 
             if job_id is not None:
@@ -1489,19 +1472,27 @@ def register_pagination_tools(mcp: FastMCP) -> None:
         exclude_paths: list[str] | None = None,
         job_name: str = "",
         job_stage: str = "",
+        response_mode: str = "balanced",
     ) -> dict[str, Any]:
         """
         📄 FILE FOCUS: Get all errors for a specific file from a job.
 
+        NEW: response_mode parameter for context optimization:
+        - "minimal": Essential error info only (~200 bytes per error)
+        - "balanced": Essential + limited context (~500 bytes per error) [RECOMMENDED]
+        - "full": Complete details including full traceback (~2000+ bytes per error)
+
         WHEN TO USE:
         - Want to see all errors in a specific file
         - Processing files one by one systematically
-        - Need complete error context for a file
+        - Use "minimal" for agent workflows and file iteration
+        - Use "balanced" for error analysis and fixing (recommended)
+        - Use "full" only when complete traceback details are needed
 
         WHAT YOU GET:
         - All errors for the specified file
         - File-specific error statistics
-        - Complete error context and details (optionally filtered)
+        - Complete error context and details (optionally filtered and optimized)
 
         Args:
             project_id: The GitLab project ID or path
@@ -1514,9 +1505,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                           Use [] to disable all filtering and get complete traceback.
             job_name: Optional job name for better parser detection (default: "")
             job_stage: Optional job stage for better parser detection (default: "")
+            response_mode: Controls response detail level ("minimal", "balanced", "full")
 
         Returns:
-            All errors for the specified file with complete context (optionally filtered)
+            All errors for the specified file with optimization applied based on response_mode
         """
         # Use default exclude paths if None provided, empty list means no filtering
         if exclude_paths is None:
@@ -1552,7 +1544,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             # Limit the number of errors returned
             limited_errors = cleaned_errors[:max_errors]
 
-            return {
+            # Create the base response
+            response = {
                 "project_id": str(project_id),
                 "job_id": job_id,
                 "file_path": file_path,
@@ -1569,12 +1562,13 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 },
                 "parser_type": parser_type,
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_file_errors",
-                },
+                "mcp_info": get_mcp_info("get_file_errors", parser_type=parser_type),
             }
+
+            # Apply response optimization based on response_mode
+            return optimize_tool_response(
+                response, response_mode, error_fields=["errors"]
+            )
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
@@ -1582,9 +1576,5 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 "project_id": str(project_id),
                 "job_id": job_id,
                 "file_path": file_path,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_file_errors",
-                },
+                "mcp_info": get_mcp_info("get_file_errors", error=True),
             }

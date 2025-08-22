@@ -12,11 +12,14 @@ import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
-from gitlab_analyzer.version import get_version
 
 from .pagination_tools import _filter_unknown_errors_from_pytest_result
-from .pytest_tools import _extract_pytest_errors
-from .utils import _is_pytest_log, get_gitlab_analyzer
+from .utils import (
+    _extract_pytest_errors,
+    _is_pytest_log,
+    get_gitlab_analyzer,
+    get_mcp_info,
+)
 
 
 def register_analysis_tools(mcp: FastMCP) -> None:
@@ -123,12 +126,9 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                     "trace_length": len(trace),
                     "parser_type": "pytest",
                     "analysis_timestamp": datetime.now().isoformat(),
-                    "mcp_info": {
-                        "name": "GitLab Pipeline Analyzer",
-                        "version": get_version(),
-                        "tool_used": "analyze_single_job",
-                        "parser_type": "pytest",
-                    },
+                    "mcp_info": get_mcp_info(
+                        "analyze_single_job", parser_type="pytest"
+                    ),
                 }
             else:
                 # Use generic log parser for non-pytest logs
@@ -172,12 +172,9 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                     "trace_length": len(trace),
                     "parser_type": "generic",
                     "analysis_timestamp": datetime.now().isoformat(),
-                    "mcp_info": {
-                        "name": "GitLab Pipeline Analyzer",
-                        "version": get_version(),
-                        "tool_used": "analyze_single_job",
-                        "parser_type": "generic",
-                    },
+                    "mcp_info": get_mcp_info(
+                        "analyze_single_job", parser_type="generic"
+                    ),
                 }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -185,12 +182,7 @@ def register_analysis_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to analyze job: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "analyze_single_job",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("analyze_single_job", error=True),
             }
 
 
@@ -248,6 +240,9 @@ async def analyze_failed_pipeline_optimized(
                             "has_detailed_failures": bool(pytest_result.get("errors")),
                             "extraction_method": "pytest_specialized_parser",
                         },
+                        "mcp_info": get_mcp_info(
+                            "analyze_failed_pipeline", parser_type="pytest"
+                        ),
                     }
                 else:
                     # Use generic log parser for non-pytest logs
@@ -296,6 +291,9 @@ async def analyze_failed_pipeline_optimized(
                             "log_entries_found": len(entries),
                             "extraction_method": "generic_log_parser",
                         },
+                        "mcp_info": get_mcp_info(
+                            "analyze_failed_pipeline", parser_type="generic"
+                        ),
                     }
 
             except (httpx.HTTPError, ValueError, KeyError) as job_error:
@@ -309,6 +307,7 @@ async def analyze_failed_pipeline_optimized(
                         "log_entries_found": 0,
                         "extraction_method": "error_during_analysis",
                     },
+                    "mcp_info": get_mcp_info("analyze_failed_pipeline", error=True),
                 }
             except Exception as job_error:  # noqa: BLE001
                 return {
@@ -327,6 +326,7 @@ async def analyze_failed_pipeline_optimized(
                         "extraction_method": "failed_analysis",
                         "error_details": str(job_error),
                     },
+                    "mcp_info": get_mcp_info("analyze_failed_pipeline", error=True),
                 }
 
         # Analyze jobs concurrently (limit concurrency to avoid overwhelming the API)
@@ -438,18 +438,20 @@ async def analyze_failed_pipeline_optimized(
             },
             "analysis_timestamp": datetime.now().isoformat(),
             "processing_mode": "optimized_concurrent",
-            "mcp_info": {
-                "name": "GitLab Pipeline Analyzer",
-                "version": get_version(),
-                "tools_used": [
-                    "analyze_failed_pipeline",
-                    "get_job_trace",
-                    "extract_pytest_errors",
-                ],
-                "parser_types": list(
-                    {job.get("parser_type", "unknown") for job in job_analyses}
+            "mcp_info": get_mcp_info(
+                "analyze_failed_pipeline",
+                parser_type=(
+                    "mixed"
+                    if len({job.get("parser_type", "unknown") for job in job_analyses})
+                    > 1
+                    else next(
+                        iter(
+                            {job.get("parser_type", "unknown") for job in job_analyses}
+                        ),
+                        "unknown",
+                    )
                 ),
-            },
+            ),
         }
 
     except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -457,10 +459,5 @@ async def analyze_failed_pipeline_optimized(
             "error": f"Failed to analyze pipeline (optimized): {str(e)}",
             "project_id": str(project_id),
             "pipeline_id": pipeline_id,
-            "mcp_info": {
-                "name": "GitLab Pipeline Analyzer",
-                "version": get_version(),
-                "tool_used": "analyze_failed_pipeline",
-                "error": True,
-            },
+            "mcp_info": get_mcp_info("analyze_failed_pipeline", error=True),
         }

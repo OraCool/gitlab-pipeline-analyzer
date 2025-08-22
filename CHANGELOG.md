@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2025-08-22
+
+### Added 🚀
+
+- **Response Mode Optimization**: New `response_mode` parameter for pagination tools
+
+  - `"minimal"`: Essential error info only (~200 bytes per error)
+  - `"balanced"`: Essential + limited context (~500 bytes per error) [RECOMMENDED]
+  - `"full"`: Complete details including full traceback (~2000+ bytes per error)
+  - Available in `get_files_with_errors` and `get_file_errors` tools
+
+- **Comprehensive Error Analysis**: Enhanced error categorization and fix guidance system
+
+  - Detailed error parsing with specific parameter/function extraction
+  - Fix guidance with likely causes, suggestions, and code inspection steps
+  - Priority scoring for error fixing (urgency, complexity, confidence)
+  - Smart traceback filtering to focus on application code
+
+- **Sphinx Documentation Setup**: Complete documentation infrastructure
+  - Added Sphinx documentation with RTD theme
+  - Mermaid diagram support for architecture docs
+  - Enhanced configuration guide with comprehensive settings
+  - GitHub Pages integration ready
+
+### Enhanced ✨
+
+- **Security Improvements**: Fixed hardcoded temporary directory usage
+
+  - Replaced `/tmp/` with dynamic `tempfile.gettempdir()` for better security
+  - Addresses Bandit security warning B108
+
+- **Tool Detection Improvements**: Enhanced test job detection patterns
+  - Better recognition of test, pytest, and quality assurance jobs
+  - Improved stage pattern matching for various CI/CD setups
+
+### Technical Improvements 🔧
+
+- **Code Quality**: Enhanced type hints and error handling
+- **Documentation**: Updated tool count (now includes 17 specialized tools)
+- **Build System**: Added docs dependencies for Sphinx documentation
+
 ## [0.3.4] - 2025-08-22
 
 ### Added 🚀

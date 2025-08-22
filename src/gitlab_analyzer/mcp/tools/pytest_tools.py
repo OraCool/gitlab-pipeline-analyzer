@@ -1,270 +1,316 @@
 """
-Pytest-specific MCP tools for GitLab Pipeline Analyzer
+Pytest-specific MCP tools for GitLab Pipeline Analyzer.
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-from datetime import datetime
 from typing import Any
 
 import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
-from gitlab_analyzer.version import get_version
 
-from .utils import get_gitlab_analyzer
+from .utils import DEFAULT_EXCLUDE_PATHS, get_gitlab_analyzer, get_mcp_info
 
 
-def _extract_pytest_errors(log_text: str) -> dict[str, Any]:
-    """Extract errors from pytest logs using specialized parser"""
-    try:
-        pytest_analysis = PytestLogParser.parse_pytest_log(log_text)
+async def _extract_pytest_detailed_failures_impl(
+    project_id: int | str,
+    job_id: int,
+    include_traceback: bool = True,
+    exclude_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Implementation for extract_pytest_detailed_failures."""
+    analyzer = get_gitlab_analyzer()
+    trace = await analyzer.get_job_trace(project_id, job_id)
 
-        # Convert detailed failures to error format
-        errors = []
+    # Use the specialized PytestLogParser for detailed analysis
+    pytest_result = PytestLogParser.parse_pytest_log(trace)
 
-        # Use detailed failures if available (more comprehensive)
-        if pytest_analysis.detailed_failures:
-            for failure in pytest_analysis.detailed_failures:
-                # Extract the actual source code line number from traceback
-                source_line_number = None
-                if failure.traceback:
-                    # Find the first traceback entry that has a line number
-                    for tb in failure.traceback:
-                        if tb.line_number:
-                            source_line_number = tb.line_number
-                            break
-
-                # Build comprehensive context with full error text and traceback
-                context_parts = [
-                    f"Test: {failure.test_name}",
-                    f"File: {failure.test_file}",
-                    f"Function: {failure.test_function}",
-                    f"Exception: {failure.exception_type}: {failure.exception_message}",
+    if pytest_result.detailed_failures:
+        # Convert to expected format with traceback filtering support
+        detailed_failures = []
+        for failure in pytest_result.detailed_failures:
+            # Convert traceback to dict format for filtering
+            traceback_dicts = []
+            if failure.traceback:
+                traceback_dicts = [
+                    {
+                        "file_path": tb.file_path,
+                        "line_number": tb.line_number,
+                        "function_name": tb.function_name,
+                        "code_line": tb.code_line,
+                        "error_type": tb.error_type,
+                        "error_message": tb.error_message,
+                    }
+                    for tb in failure.traceback
                 ]
 
-                # Add full error text if available - this contains the complete pytest output
-                if failure.full_error_text:
-                    context_parts.append(
-                        f"\n--- Complete Test Failure Details ---\n{failure.full_error_text}"
-                    )
+            failure_dict = {
+                "test_name": failure.test_name,
+                "test_file": failure.test_file,
+                "test_function": failure.test_function,
+                "test_parameters": failure.test_parameters,
+                "platform_info": failure.platform_info,
+                "exception_type": failure.exception_type,
+                "exception_message": failure.exception_message,
+                "traceback": traceback_dicts,
+                "full_error_text": failure.full_error_text,
+            }
 
-                error: dict[str, Any] = {
-                    "level": "error",
-                    "message": f"{failure.test_file}:{failure.exception_type}: {failure.exception_message}",
-                    "line_number": source_line_number,  # Use actual source code line number
-                    "timestamp": None,
-                    "context": "\n".join(context_parts),
-                    "test_name": failure.test_name,
-                    "test_file": failure.test_file,
-                    "test_function": failure.test_function,
-                    "exception_type": failure.exception_type,
-                    "exception_message": failure.exception_message,
-                    "platform_info": failure.platform_info,
-                    "python_version": failure.python_version,
-                    "full_error_text": failure.full_error_text,  # Add full error text as separate field
-                    "has_traceback": bool(
-                        failure.traceback
-                    ),  # Indicate if detailed traceback is available
-                }
-                if failure.traceback:
-                    # Add detailed traceback info to context
-                    traceback_info = []
-                    for tb in failure.traceback:
-                        if tb.line_number:
-                            traceback_info.append(
-                                f'  File "{tb.file_path}", line {tb.line_number}, in {tb.function_name}'
-                            )
-                            if tb.code_line:
-                                traceback_info.append(f"    {tb.code_line}")
-                            if tb.error_type and tb.error_message:
-                                traceback_info.append(
-                                    f"    {tb.error_type}: {tb.error_message}"
-                                )
+            # Apply traceback filtering
+            cleaned_failure = _clean_pytest_error_response(
+                failure_dict, include_traceback, exclude_paths
+            )
+            detailed_failures.append(cleaned_failure)
 
-                    if traceback_info:
-                        # Add traceback to context (which already has full error text)
-                        current_context = str(error.get("context", ""))
-                        error["context"] = (
-                            current_context
-                            + "\n\nTraceback Details:\n"
-                            + "\n".join(traceback_info)
-                        )
-                        # Also add traceback as separate field for structured access
-                        error["traceback"] = [
-                            {
-                                "file_path": tb.file_path,
-                                "line_number": tb.line_number,
-                                "function_name": tb.function_name,
-                                "code_line": tb.code_line,
-                                "error_type": tb.error_type,
-                                "error_message": tb.error_message,
-                            }
-                            for tb in failure.traceback
-                        ]
-                errors.append(error)
+        return {
+            "project_id": str(project_id),
+            "job_id": job_id,
+            "detailed_failures": detailed_failures,
+            "parser_type": "pytest",
+            "failure_count": len(detailed_failures),
+            "platform_info": "Extracted from pytest output",
+            "traceback_included": include_traceback,
+            "traceback_filtered": exclude_paths is not None and len(exclude_paths) > 0,
+            "mcp_info": get_mcp_info("extract_pytest_detailed_failures"),
+        }
+    else:
+        return {
+            "project_id": str(project_id),
+            "job_id": job_id,
+            "detailed_failures": [],
+            "parser_type": "not_pytest",
+            "failure_count": 0,
+            "message": "No pytest failures detected in job trace",
+            "mcp_info": get_mcp_info("extract_pytest_detailed_failures"),
+        }
 
-        # If no detailed failures, fall back to short summary
-        elif pytest_analysis.short_summary:
-            for summary in pytest_analysis.short_summary:
-                # Build comprehensive context for short summary
-                context_parts = [
-                    f"Test: {summary.test_name}",
-                    f"File: {summary.test_file}",
-                    f"Function: {summary.test_function}",
-                    f"Exception: {summary.error_type}: {summary.error_message}",
-                    "\nNote: This is from short summary - limited details available",
-                ]
 
-                summary_error: dict[str, Any] = {
-                    "level": "error",
-                    "message": f"{summary.test_file}:{summary.error_type}: {summary.error_message}",
-                    "line_number": None,
-                    "timestamp": None,
-                    "context": "\n".join(context_parts),
-                    "test_name": summary.test_name,
-                    "test_file": summary.test_file,
-                    "test_function": summary.test_function,
-                    "exception_type": summary.error_type,
-                    "exception_message": summary.error_message,
-                }
-                errors.append(summary_error)
+async def _extract_pytest_short_summary_impl(
+    project_id: int | str, job_id: int
+) -> dict[str, Any]:
+    """Implementation for extract_pytest_short_summary."""
+    analyzer = get_gitlab_analyzer()
+    trace = await analyzer.get_job_trace(project_id, job_id)
 
-        # Add statistics information if available
-        additional_info = {}
-        if pytest_analysis.statistics:
-            stats = pytest_analysis.statistics
-            additional_info.update(
+    # Use the specialized PytestLogParser for short summary
+    pytest_result = PytestLogParser.parse_pytest_log(trace)
+
+    if pytest_result.short_summary:
+        # Convert to expected format
+        summary = []
+        for item in pytest_result.short_summary:
+            summary.append(
                 {
-                    "total_tests": stats.total_tests,
-                    "passed": stats.passed,
-                    "failed": stats.failed,
-                    "skipped": stats.skipped,
-                    "pytest_errors": stats.errors,  # Rename to avoid conflict
-                    "pytest_warnings": stats.warnings,  # Rename to avoid conflict
-                    "duration_seconds": stats.duration_seconds,
-                    "duration_formatted": stats.duration_formatted,
+                    "test_name": item.test_name,
+                    "exception_type": item.error_type,
+                    "brief_message": item.error_message[:100],  # Truncate for brevity
+                    "test_file": item.test_file,
+                    "test_function": item.test_function,
+                    "test_parameters": item.test_parameters,
                 }
             )
 
         return {
-            "total_entries": len(errors),
-            "errors": errors,
-            "warnings": [],  # pytest warnings not typically captured as warnings
-            "error_count": len(errors),
-            "warning_count": 0,
-            "analysis_timestamp": datetime.now().isoformat(),
+            "project_id": str(project_id),
+            "job_id": job_id,
+            "failed_tests": summary,
+            "failure_count": len(summary),
             "parser_type": "pytest",
-            "has_failures_section": pytest_analysis.has_failures_section,
-            "has_short_summary_section": pytest_analysis.has_short_summary_section,
-            **additional_info,
+            "mcp_info": get_mcp_info("extract_pytest_short_summary"),
+        }
+    else:
+        return {
+            "project_id": str(project_id),
+            "job_id": job_id,
+            "failed_tests": [],
+            "failure_count": 0,
+            "parser_type": "not_pytest",
+            "message": "No pytest failures detected in job trace",
+            "mcp_info": get_mcp_info("extract_pytest_short_summary"),
         }
 
-    except Exception as e:
-        return {"error": f"Failed to extract pytest errors: {str(e)}"}
+
+async def _extract_pytest_statistics_impl(
+    project_id: int | str, job_id: int
+) -> dict[str, Any]:
+    """Implementation for extract_pytest_statistics."""
+    analyzer = get_gitlab_analyzer()
+    trace = await analyzer.get_job_trace(project_id, job_id)
+
+    # Use the specialized PytestLogParser for statistics
+    pytest_result = PytestLogParser.parse_pytest_log(trace)
+
+    # Extract statistics from the parser result
+    stats = pytest_result.statistics
+
+    return {
+        "project_id": str(project_id),
+        "job_id": job_id,
+        "statistics": {
+            "total_tests": stats.total_tests,
+            "passed_tests": stats.passed,
+            "failed_tests": stats.failed,
+            "skipped_tests": stats.skipped,
+            "errors": stats.errors,
+            "warnings": stats.warnings,
+            "pass_rate": round(
+                (
+                    (stats.passed / stats.total_tests * 100)
+                    if stats.total_tests > 0
+                    else 0
+                ),
+                2,
+            ),
+            "failure_rate": round(
+                (
+                    (stats.failed / stats.total_tests * 100)
+                    if stats.total_tests > 0
+                    else 0
+                ),
+                2,
+            ),
+            "duration_seconds": stats.duration_seconds,
+            "duration_formatted": stats.duration_formatted,
+        },
+        "parser_type": (
+            "pytest"
+            if pytest_result.has_failures_section
+            or pytest_result.has_short_summary_section
+            else "not_pytest"
+        ),
+        "mcp_info": get_mcp_info("extract_pytest_statistics"),
+    }
+
+
+def _filter_traceback_by_paths(
+    traceback_entries: list[dict], exclude_paths: list[str]
+) -> list[dict]:
+    """Filter traceback entries by excluding specified path patterns"""
+    if not exclude_paths:
+        return traceback_entries
+
+    filtered_traceback = []
+    for entry in traceback_entries:
+        file_path = entry.get("file_path", "")
+
+        # Check if this file path should be excluded
+        should_exclude = False
+        for exclude_pattern in exclude_paths:
+            if exclude_pattern in file_path:
+                should_exclude = True
+                break
+
+        if not should_exclude:
+            filtered_traceback.append(entry)
+
+    return filtered_traceback
+
+
+def _clean_pytest_error_response(
+    error: dict[str, Any],
+    include_traceback: bool = True,
+    exclude_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Clean pytest error response based on traceback and path filtering preferences"""
+    if exclude_paths is None:
+        exclude_paths = DEFAULT_EXCLUDE_PATHS
+
+    cleaned_error = error.copy()
+
+    # Handle traceback inclusion/exclusion
+    if not include_traceback:
+        # Remove traceback-related fields completely
+        cleaned_error.pop("traceback", None)
+        cleaned_error.pop("full_error_text", None)
+        cleaned_error["has_traceback"] = False
+    else:
+        # Include traceback, apply filtering if exclude_paths has items
+        if exclude_paths and "traceback" in cleaned_error:
+            # Filter traceback by paths if traceback is included
+            cleaned_error["traceback"] = _filter_traceback_by_paths(
+                cleaned_error["traceback"], exclude_paths
+            )
+
+        # Filter full_error_text to remove excluded paths only if exclude_paths has items
+        if exclude_paths and "full_error_text" in cleaned_error:
+            full_error_lines = cleaned_error["full_error_text"].split("\n")
+            filtered_lines = []
+
+            for line in full_error_lines:
+                should_exclude = False
+                for exclude_pattern in exclude_paths:
+                    if exclude_pattern in line:
+                        should_exclude = True
+                        break
+
+                if not should_exclude:
+                    filtered_lines.append(line)
+
+            cleaned_error["full_error_text"] = "\n".join(filtered_lines)
+
+        cleaned_error["has_traceback"] = True
+
+    return cleaned_error
 
 
 def register_pytest_tools(mcp: FastMCP) -> None:
-    """Register pytest-specific analysis tools"""
+    """Register pytest-specific MCP tools."""
 
     @mcp.tool
     async def extract_pytest_detailed_failures(
-        project_id: str | int, job_id: int
+        project_id: int | str,
+        job_id: int,
+        include_traceback: bool = True,
+        exclude_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         """
-        🔍 DEEP DETAIL: Extract comprehensive test failure information with full tracebacks.
+        🧪 PYTEST DEEP DIVE: Extract comprehensive pytest failure information with full tracebacks.
 
         WHEN TO USE:
-        - Need maximum detail about pytest failures including full call stacks
-        - Debugging complex test failures requiring traceback analysis
-        - Want complete exception details and file/line information
+        - Job name contains "test", "pytest", or shows test-related failures
+        - Need comprehensive test failure analysis
+        - User asks "what tests failed and why?"
 
         WHAT YOU GET:
-        - Detailed failure objects with complete traceback chains
+        - Detailed failures: Full tracebacks, exception details, file/line info
         - Exception types, messages, and platform information
         - File paths, line numbers, and code context
         - Test parameters and function details
 
-        AI ANALYSIS TIPS:
-        - Focus on "exception_type" and "exception_message" for error classification
-        - Use "traceback" array for call stack analysis
-        - Check "test_file" and line numbers for precise error location
-        - Look at "platform_info" for environment-specific issues
-
         Args:
             project_id: The GitLab project ID or path
-            job_id: The ID of the job containing pytest failures
+            job_id: The ID of the job containing pytest results
+            include_traceback: Whether to include traceback information (default: True)
+            exclude_paths: List of path patterns to exclude from traceback.
+                          If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
+                          Use [] to disable all filtering and get complete traceback.
 
         Returns:
-            Detailed analysis of pytest failures including full tracebacks, exception details, and file/line information
-
-        WORKFLOW: Use when analyze_pytest_job_complete needs more detail → provides maximum context
+            Detailed analysis of pytest failures including full tracebacks and exception details
         """
         try:
-            analyzer = get_gitlab_analyzer()
-            trace = await analyzer.get_job_trace(project_id, job_id)
-
-            pytest_analysis = PytestLogParser.parse_pytest_log(trace)
-
-            return {
-                "project_id": str(project_id),
-                "job_id": job_id,
-                "has_failures_section": pytest_analysis.has_failures_section,
-                "detailed_failures": [
-                    {
-                        "test_name": failure.test_name,
-                        "test_file": failure.test_file,
-                        "test_function": failure.test_function,
-                        "test_parameters": failure.test_parameters,
-                        "platform_info": failure.platform_info,
-                        "python_version": failure.python_version,
-                        "exception_type": failure.exception_type,
-                        "exception_message": failure.exception_message,
-                        "traceback": [
-                            {
-                                "file_path": tb.file_path,
-                                "line_number": tb.line_number,
-                                "function_name": tb.function_name,
-                                "code_line": tb.code_line,
-                                "error_type": tb.error_type,
-                                "error_message": tb.error_message,
-                            }
-                            for tb in failure.traceback
-                        ],
-                        "full_error_text": failure.full_error_text,
-                    }
-                    for failure in pytest_analysis.detailed_failures
-                ],
-                "failure_count": len(pytest_analysis.detailed_failures),
-                "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_detailed_failures",
-                },
-            }
-
+            return await _extract_pytest_detailed_failures_impl(
+                project_id, job_id, include_traceback, exclude_paths
+            )
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
                 "error": f"Failed to extract pytest detailed failures: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_detailed_failures",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info(
+                    "extract_pytest_detailed_failures", error=True
+                ),
             }
 
     @mcp.tool
     async def extract_pytest_short_summary(
-        project_id: str | int, job_id: int
+        project_id: int | str, job_id: int
     ) -> dict[str, Any]:
         """
-        📝 QUICK OVERVIEW: Get concise test failure summary for rapid assessment.
+        📋 QUICK OVERVIEW: Get concise test failure summary for rapid assessment.
 
         WHEN TO USE:
         - Need quick overview of test failures without full detail
@@ -277,67 +323,26 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         - Exception types without full tracebacks
         - Concise failure count and summary
 
-        AI ANALYSIS TIPS:
-        - Use for quick failure pattern identification
-        - Look for common error types across multiple tests
-        - Check test file patterns to identify problem modules
-        - Combine with extract_pytest_detailed_failures for deeper analysis
-
         Args:
             project_id: The GitLab project ID or path
-            job_id: The ID of the job containing pytest failures
+            job_id: The ID of the job containing pytest results
 
         Returns:
             Short summary of pytest failures with test names and brief error messages
-
-        WORKFLOW: Use for quick assessment → extract_pytest_detailed_failures for deep dive
         """
         try:
-            analyzer = get_gitlab_analyzer()
-            trace = await analyzer.get_job_trace(project_id, job_id)
-
-            pytest_analysis = PytestLogParser.parse_pytest_log(trace)
-
-            return {
-                "project_id": str(project_id),
-                "job_id": job_id,
-                "has_short_summary_section": pytest_analysis.has_short_summary_section,
-                "short_summary": [
-                    {
-                        "test_name": summary.test_name,
-                        "test_file": summary.test_file,
-                        "test_function": summary.test_function,
-                        "test_parameters": summary.test_parameters,
-                        "error_type": summary.error_type,
-                        "error_message": summary.error_message,
-                    }
-                    for summary in pytest_analysis.short_summary
-                ],
-                "summary_count": len(pytest_analysis.short_summary),
-                "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_short_summary",
-                },
-            }
-
+            return await _extract_pytest_short_summary_impl(project_id, job_id)
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
                 "error": f"Failed to extract pytest short summary: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_short_summary",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("extract_pytest_short_summary", error=True),
             }
 
     @mcp.tool
     async def extract_pytest_statistics(
-        project_id: str | int, job_id: int
+        project_id: int | str, job_id: int
     ) -> dict[str, Any]:
         """
         📊 METRICS: Get test execution statistics and performance data.
@@ -353,73 +358,32 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         - Pass rate and failure rate calculations
         - Performance metrics for test suite analysis
 
-        AI ANALYSIS TIPS:
-        - Calculate pass rate: passed/(total-skipped) for quality assessment
-        - Check duration for performance issues or timeouts
-        - High skipped count may indicate configuration problems
-        - Compare failed vs errors for different issue types
-
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest results
 
         Returns:
             Complete pytest run statistics including test counts and timing information
-
-        WORKFLOW: Use for high-level test health assessment → complement other pytest tools
         """
         try:
-            analyzer = get_gitlab_analyzer()
-            trace = await analyzer.get_job_trace(project_id, job_id)
-
-            pytest_analysis = PytestLogParser.parse_pytest_log(trace)
-
-            statistics = pytest_analysis.statistics
-            return {
-                "project_id": str(project_id),
-                "job_id": job_id,
-                "statistics": {
-                    "total_tests": statistics.total_tests,
-                    "passed": statistics.passed,
-                    "failed": statistics.failed,
-                    "skipped": statistics.skipped,
-                    "errors": statistics.errors,
-                    "warnings": statistics.warnings,
-                    "duration_seconds": statistics.duration_seconds,
-                    "duration_formatted": statistics.duration_formatted,
-                    "success_rate": (
-                        round((statistics.passed / statistics.total_tests) * 100, 2)
-                        if statistics.total_tests > 0
-                        else 0
-                    ),
-                },
-                "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_statistics",
-                },
-            }
-
+            return await _extract_pytest_statistics_impl(project_id, job_id)
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
                 "error": f"Failed to extract pytest statistics: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "extract_pytest_statistics",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("extract_pytest_statistics", error=True),
             }
 
     @mcp.tool
     async def analyze_pytest_job_complete(
-        project_id: str | int, job_id: int
+        project_id: int | str,
+        job_id: int,
+        include_traceback: bool = True,
+        exclude_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         """
-        🧪 PYTEST DEEP DIVE: Complete pytest analysis combining detailed failures, summary, and statistics.
+        🎯 COMPLETE: Complete pytest analysis combining detailed failures, summary, and statistics.
 
         WHEN TO USE:
         - Job name contains "test", "pytest", or shows test-related failures
@@ -431,130 +395,46 @@ def register_pytest_tools(mcp: FastMCP) -> None:
         - Short summary: Concise failure list with test names and brief errors
         - Statistics: Test counts (total, passed, failed, skipped) and timing
 
-        AI ANALYSIS TIPS:
-        - Start with statistics for quick overview (pass rate, failure count)
-        - Use detailed_failures for root cause analysis
-        - Look for patterns in failure types and modules
-        - Check test_file and line_number for precise error location
-
         Args:
             project_id: The GitLab project ID or path
             job_id: The ID of the job containing pytest results
+            include_traceback: Whether to include traceback information (default: True)
+            exclude_paths: List of path patterns to exclude from traceback.
+                          If None, uses DEFAULT_EXCLUDE_PATHS for common system/dependency paths.
+                          Use [] to disable all filtering and get complete traceback.
 
         Returns:
             Complete pytest analysis with detailed failures, summary, and statistics
-
-        WORKFLOW: Use after analyze_failed_pipeline identifies test jobs → provides full test context
         """
         try:
-            analyzer = get_gitlab_analyzer()
-            trace = await analyzer.get_job_trace(project_id, job_id)
+            # Get all three analyses using the implementation functions
+            detailed = await _extract_pytest_detailed_failures_impl(
+                project_id, job_id, include_traceback, exclude_paths
+            )
+            summary = await _extract_pytest_short_summary_impl(project_id, job_id)
+            stats = await _extract_pytest_statistics_impl(project_id, job_id)
 
-            pytest_analysis = PytestLogParser.parse_pytest_log(trace)
-
-            # Convert detailed failures
-            detailed_failures = [
-                {
-                    "test_name": failure.test_name,
-                    "test_file": failure.test_file,
-                    "test_function": failure.test_function,
-                    "test_parameters": failure.test_parameters,
-                    "platform_info": failure.platform_info,
-                    "python_version": failure.python_version,
-                    "exception_type": failure.exception_type,
-                    "exception_message": failure.exception_message,
-                    "traceback": [
-                        {
-                            "file_path": tb.file_path,
-                            "line_number": tb.line_number,
-                            "function_name": tb.function_name,
-                            "code_line": tb.code_line,
-                            "error_type": tb.error_type,
-                            "error_message": tb.error_message,
-                        }
-                        for tb in failure.traceback
-                    ],
-                    "full_error_text": failure.full_error_text,
-                }
-                for failure in pytest_analysis.detailed_failures
-            ]
-
-            # Convert short summary
-            short_summary = [
-                {
-                    "test_name": summary.test_name,
-                    "test_file": summary.test_file,
-                    "test_function": summary.test_function,
-                    "test_parameters": summary.test_parameters,
-                    "error_type": summary.error_type,
-                    "error_message": summary.error_message,
-                }
-                for summary in pytest_analysis.short_summary
-            ]
-
-            # Convert statistics
-            statistics = {
-                "total_tests": pytest_analysis.statistics.total_tests,
-                "passed": pytest_analysis.statistics.passed,
-                "failed": pytest_analysis.statistics.failed,
-                "skipped": pytest_analysis.statistics.skipped,
-                "errors": pytest_analysis.statistics.errors,
-                "warnings": pytest_analysis.statistics.warnings,
-                "duration_seconds": pytest_analysis.statistics.duration_seconds,
-                "duration_formatted": pytest_analysis.statistics.duration_formatted,
-                "success_rate": (
-                    round(
-                        (
-                            pytest_analysis.statistics.passed
-                            / pytest_analysis.statistics.total_tests
-                        )
-                        * 100,
-                        2,
-                    )
-                    if pytest_analysis.statistics.total_tests > 0
-                    else 0
-                ),
-            }
-
+            # Combine results
             return {
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "detailed_failures": detailed_failures,
-                "short_summary": short_summary,
-                "statistics": statistics,
-                "has_failures_section": pytest_analysis.has_failures_section,
-                "has_short_summary_section": pytest_analysis.has_short_summary_section,
-                "analysis_timestamp": datetime.now().isoformat(),
-                "summary": {
-                    "failure_count": len(detailed_failures),
-                    "summary_count": len(short_summary),
-                    "test_success_rate": statistics["success_rate"],
-                    "critical_failures": len(
-                        [
-                            f
-                            for f in detailed_failures
-                            if (exception_type := f.get("exception_type"))
-                            and isinstance(exception_type, str)
-                            and "error" in exception_type.lower()
-                        ]
-                    ),
-                },
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "analyze_pytest_job_complete",
-                },
+                "detailed_failures": detailed.get("detailed_failures", []),
+                "failure_summary": summary.get("failed_tests", []),
+                "statistics": stats.get("statistics", {}),
+                "parser_type": detailed.get("parser_type", "unknown"),
+                "analysis_complete": True,
+                "tools_used": [
+                    "extract_pytest_detailed_failures",
+                    "extract_pytest_short_summary",
+                    "extract_pytest_statistics",
+                ],
+                "mcp_info": get_mcp_info("analyze_pytest_job_complete"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
             return {
-                "error": f"Failed to analyze pytest job: {str(e)}",
+                "error": f"Failed to complete pytest analysis: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "analyze_pytest_job_complete",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("analyze_pytest_job_complete", error=True),
             }

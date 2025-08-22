@@ -1,0 +1,99 @@
+/* Custom CSS for GitLab Pipeline Analyzer Documentation */
+
+/* Improve code block styling */
+.highlight pre {
+    padding: 12px;
+    border-radius: 6px;
+    line-height: 1.4;
+}
+
+/* Better table styling */
+.rst-content table.docutils {
+    border: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.rst-content table.docutils thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+}
+
+.rst-content table.docutils td,
+.rst-content table.docutils th {
+    border: 1px solid #dee2e6;
+    padding: 8px 12px;
+}
+
+/* Improve admonition styling */
+.rst-content .admonition {
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.rst-content .note {
+    border-left: 4px solid #17a2b8;
+}
+
+.rst-content .warning {
+    border-left: 4px solid #ffc107;
+}
+
+.rst-content .danger {
+    border-left: 4px solid #dc3545;
+}
+
+/* Improve list styling */
+.rst-content .section ul li {
+    margin-bottom: 4px;
+}
+
+/* Better spacing for tool descriptions */
+.rst-content .section .line-block {
+    margin-bottom: 20px;
+}
+
+/* Improve navigation */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+/* Better mobile responsiveness */
+@media screen and (max-width: 768px) {
+    .wy-nav-content {
+        margin-left: 0;
+    }
+}
+
+/* Custom styling for tool reference tables */
+.tool-params-table {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.tool-params-table th {
+    background-color: #e9ecef;
+    font-weight: 600;
+}
+
+/* Highlight important information */
+.important-note {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    padding: 12px;
+    border-radius: 6px;
+    margin: 16px 0;
+}
+
+/* Improve code example readability */
+.code-example {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.code-example .highlight {
+    margin-bottom: 0;
+}

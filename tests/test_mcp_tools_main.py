@@ -58,18 +58,6 @@ class TestMCPToolsMain:
             for tool_name in log_tools:
                 assert tool_name in tool_names, f"Log tool {tool_name} not registered"
 
-            # Verify pytest tools are registered
-            pytest_tools = [
-                "extract_pytest_detailed_failures",
-                "extract_pytest_short_summary",
-                "extract_pytest_statistics",
-                "analyze_pytest_job_complete",
-            ]
-            for tool_name in pytest_tools:
-                assert tool_name in tool_names, (
-                    f"Pytest tool {tool_name} not registered"
-                )
-
     async def test_register_tools_no_duplicates(self, mcp_server):
         """Test that no duplicate tools are registered."""
         with patch("gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer"):
@@ -134,10 +122,10 @@ class TestMCPToolsMain:
                 "get_job_trace",
                 "get_cleaned_job_trace",
                 "get_pipeline_status",
-                "extract_pytest_detailed_failures",
-                "extract_pytest_short_summary",
-                "extract_pytest_statistics",
-                "analyze_pytest_job_complete",
+                "get_file_errors",
+                "group_errors_by_file",
+                "search_repository_code",
+                "search_repository_commits",
             ]
 
             for tool in (await mcp_server.get_tools()).values():
@@ -168,7 +156,6 @@ class TestMCPToolsMain:
             register_analysis_tools,
             register_info_tools,
             register_log_tools,
-            register_pytest_tools,
             register_tools,
         )
 
@@ -178,7 +165,6 @@ class TestMCPToolsMain:
             register_analysis_tools,
             register_info_tools,
             register_log_tools,
-            register_pytest_tools,
             get_gitlab_analyzer,
         ]
 
@@ -198,10 +184,8 @@ class TestMCPToolsMain:
                 "analysis": ["analyze_failed_pipeline", "analyze_single_job"],
                 "info": ["get_pipeline_jobs", "get_failed_jobs"],
                 "log": ["extract_log_errors"],
-                "pytest": [
-                    "extract_pytest_detailed_failures",
-                    "analyze_pytest_job_complete",
-                ],
+                "pagination": ["get_file_errors", "group_errors_by_file"],
+                "search": ["search_repository_code", "search_repository_commits"],
             }
 
             for category, expected_tools in categories.items():
@@ -226,11 +210,11 @@ class TestMCPToolsMain:
                 "get_job_trace",
                 "get_cleaned_job_trace",
                 "get_pipeline_status",
-                "extract_pytest_detailed_failures",
-                "extract_pytest_short_summary",
-                "extract_pytest_statistics",
-                "analyze_pytest_job_complete",
                 "extract_log_errors",
+                "get_file_errors",
+                "group_errors_by_file",
+                "search_repository_code",
+                "search_repository_commits",
             ]
 
             for tool in (await mcp_server.get_tools()).values():
@@ -248,10 +232,10 @@ class TestMCPToolsMain:
             # Register tools
             register_tools(mcp_server)
 
-            # We should have at least 11 tools (based on our current implementation)
-            # 2 analysis + 5 info + 1 log + 4 pytest = 12 tools minimum
-            assert len(await mcp_server.get_tools()) >= 11, (
-                f"Expected at least 11 tools, got {len(await mcp_server.get_tools())}"
+            # We should have 17 tools (based on our current implementation)
+            # 4 analysis + 6 info + 1 log + 4 pagination + 2 search = 17 tools
+            assert len(await mcp_server.get_tools()) >= 17, (
+                f"Expected at least 17 tools, got {len(await mcp_server.get_tools())}"
             )
 
     async def test_register_tools_with_mock_error(self, mcp_server):

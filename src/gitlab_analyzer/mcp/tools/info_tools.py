@@ -12,9 +12,8 @@ import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.base_parser import BaseParser
-from gitlab_analyzer.version import get_version
 
-from .utils import get_gitlab_analyzer
+from .utils import get_gitlab_analyzer, get_mcp_info
 
 
 def register_info_tools(mcp: FastMCP) -> None:
@@ -62,11 +61,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "jobs": jobs,
                 "job_count": len(jobs),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_jobs",
-                },
+                "mcp_info": get_mcp_info("get_pipeline_jobs"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -74,12 +69,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get pipeline jobs: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_jobs",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_pipeline_jobs", error=True),
             }
 
     @mcp.tool
@@ -126,11 +116,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "failed_jobs": failed_jobs,
                 "failed_job_count": len(failed_jobs),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_failed_jobs",
-                },
+                "mcp_info": get_mcp_info("get_failed_jobs"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -138,12 +124,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get failed jobs: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_failed_jobs",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_failed_jobs", error=True),
             }
 
     @mcp.tool
@@ -185,11 +166,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "trace": trace,
                 "trace_length": len(trace),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_job_trace",
-                },
+                "mcp_info": get_mcp_info("get_job_trace"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -197,12 +174,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get job trace: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_job_trace",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_job_trace", error=True),
             }
 
     @mcp.tool
@@ -268,11 +240,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "ansi_sequences_found": len(ansi_matches),  # Change back to "found"
                 "unique_ansi_types": len(ansi_types),
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_cleaned_job_trace",
-                },
+                "mcp_info": get_mcp_info("get_cleaned_job_trace"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -280,12 +248,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get cleaned job trace: {str(e)}",
                 "project_id": str(project_id),
                 "job_id": job_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_cleaned_job_trace",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_cleaned_job_trace", error=True),
             }
 
     @mcp.tool
@@ -330,11 +293,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "pipeline_id": pipeline_id,
                 "pipeline": status,  # Change from "status" to "pipeline" to match test expectation
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_status",
-                },
+                "mcp_info": get_mcp_info("get_pipeline_status"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -342,12 +301,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "error": f"Failed to get pipeline status: {str(e)}",
                 "project_id": str(project_id),
                 "pipeline_id": pipeline_id,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_status",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_pipeline_status", error=True),
             }
 
     @mcp.tool
@@ -444,11 +398,7 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "merge_request_info": merge_request_info,  # MR details if applicable
                 "can_auto_fix": can_auto_fix,  # Whether auto-fix should proceed
                 "analysis_timestamp": datetime.now().isoformat(),
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_info",
-                },
+                "mcp_info": get_mcp_info("get_pipeline_info"),
             }
 
         except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as e:
@@ -461,10 +411,5 @@ def register_info_tools(mcp: FastMCP) -> None:
                 "pipeline_type": "unknown",
                 "merge_request_info": None,
                 "can_auto_fix": False,
-                "mcp_info": {
-                    "name": "GitLab Pipeline Analyzer",
-                    "version": get_version(),
-                    "tool_used": "get_pipeline_info",
-                    "error": True,
-                },
+                "mcp_info": get_mcp_info("get_pipeline_info", error=True),
             }

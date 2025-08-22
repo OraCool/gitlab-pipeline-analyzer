@@ -1,43 +1,16 @@
 """
-Search to        format: str = "text",       format: str = "tex        Args:
-            project_id: The GitLab project ID or path
-            search_keywords: Keywords to search for in code
-            branch: Specific branch to search (optional, defaults to project's default branch)
-            filename_filter: Filter by filename pattern (supports wildcards like *.py)
-            path_filter: Filter by file path pattern (e.g., src/*, models/*)
-            extension_filter: Filter by file extension (e.g., 'py', 'js', 'ts')
-            max_results: Maximum number of results to return (default: 20)
-            format: Output format - 'text' for readable format, 'json' for structured data  # noqa: A002
-
-        Returns:
-            Search results with file paths, line numbers, and code snippets
-            Format: Text (readable) or JSON (structured with file/branch/content properties)c def search_repository_code(
-        self,
-        project_id: str | int,
-        search_keywords: str,
-        branch: str | None = None,
-        filename_filter: str | None = None,
-        p    async def search_repository_commits(
-        self,
-        project_id: str | int,
-        search_keywords: str,
-        branch: str | None = None,
-        max_results: int = 20,
-        output_format: str = "text"
-    ) -> str:er: str | None = None,
-        extension_filter: str | None = None,
-        max_results: int = 20,
-        output_format: str = "text"
-    ) -> str: repository content
+Search tools for repository content
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+from typing import Any
+
 import httpx
 from fastmcp import FastMCP
 
-from .utils import get_gitlab_analyzer
+from .utils import get_gitlab_analyzer, get_mcp_info
 
 
 def register_search_tools(mcp: FastMCP) -> None:
@@ -125,6 +98,7 @@ def register_search_tools(mcp: FastMCP) -> None:
                             },
                             "results": [],
                             "message": no_results_msg,
+                            "mcp_info": get_mcp_info("search_repository_code"),
                         },
                         indent=2,
                     )
@@ -168,6 +142,7 @@ def register_search_tools(mcp: FastMCP) -> None:
                             "extension_filter": extension_filter,
                         },
                         "results": json_results,
+                        "mcp_info": get_mcp_info("search_repository_code"),
                     },
                     indent=2,
                 )
@@ -289,17 +264,34 @@ def register_search_tools(mcp: FastMCP) -> None:
             )
 
             if not results:
-                return (
+                no_results_msg = (
                     f"No commit matches found for '{search_keywords}' in project {project_id}"
                     + (f" on branch '{branch}'" if branch else "")
                 )
+
+                if output_format == "json":
+                    import json
+
+                    return json.dumps(
+                        {
+                            "search_keywords": search_keywords,
+                            "project_id": str(project_id),
+                            "branch": branch,
+                            "total_results": 0,
+                            "showing_results": 0,
+                            "commits": [],
+                            "message": no_results_msg,
+                            "mcp_info": get_mcp_info("search_repository_commits"),
+                        },
+                        indent=2,
+                    )
+                return no_results_msg
 
             # Limit results to max_results
             limited_results = results[:max_results]
 
             if output_format == "json":
                 import json
-                from typing import Any
 
                 # Return structured JSON format
                 json_result: dict[str, Any] = {
@@ -309,6 +301,7 @@ def register_search_tools(mcp: FastMCP) -> None:
                     "total_matches": len(results),
                     "showing_results": len(limited_results),
                     "commits": [],
+                    "mcp_info": get_mcp_info("search_repository_commits"),
                 }
 
                 for result in limited_results:

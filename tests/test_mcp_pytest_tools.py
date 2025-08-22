@@ -12,9 +12,9 @@ import pytest
 from fastmcp import FastMCP
 
 from gitlab_analyzer.mcp.tools.pytest_tools import (
-    _extract_pytest_errors,
     register_pytest_tools,
 )
+from gitlab_analyzer.mcp.tools.utils import _extract_pytest_errors
 from gitlab_analyzer.models.pytest_models import (
     PytestFailureDetail,
     PytestLogAnalysis,

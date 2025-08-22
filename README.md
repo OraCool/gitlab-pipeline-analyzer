@@ -24,17 +24,24 @@ pip install -e .
 
 ## Configuration
 
-Set the following environment variables:
+Set the following environment variables:15. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
 
-```bash
-export GITLAB_URL="https://gitlab.com"  # Your GitLab instance URL
-export GITLAB_TOKEN="your-access-token"  # Your GitLab personal access token
+#### 🔍 Repository Search Tools
+
+16. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
+17. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
+
+### Error Filtering and Traceback Managementt GITLAB_URL="https://gitlab.com" # Your GitLab instance URL
+
+export GITLAB_TOKEN="your-access-token" # Your GitLab personal access token
 
 # Optional: Configure transport settings
-export MCP_HOST="127.0.0.1"  # Host for HTTP/SSE transport (default: 127.0.0.1)
-export MCP_PORT="8000"       # Port for HTTP/SSE transport (default: 8000)
-export MCP_PATH="/mcp"       # Path for HTTP transport (default: /mcp)
-```
+
+export MCP_HOST="127.0.0.1" # Host for HTTP/SSE transport (default: 127.0.0.1)
+export MCP_PORT="8000" # Port for HTTP/SSE transport (default: 8000)
+export MCP_PATH="/mcp" # Path for HTTP transport (default: /mcp)
+
+`````
 
 Note: Project ID is now passed as a parameter to each tool, making the server more flexible.
 
@@ -49,7 +56,7 @@ Best for local tools and command-line scripts:
 ````bash
 ```bash
 gitlab-analyzer
-````
+`````
 
 Or explicitly specify the transport:
 
@@ -668,7 +675,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **21 comprehensive tools** for GitLab CI/CD pipeline analysis:
+The MCP server provides **17 comprehensive tools** for GitLab CI/CD pipeline analysis:
 
 #### 🔍 Pipeline Analysis Tools
 
@@ -690,17 +697,17 @@ The MCP server provides **21 comprehensive tools** for GitLab CI/CD pipeline ana
 10. **get_cleaned_job_trace(project_id, job_id)** - Cleaned job traces without ANSI codes
 11. **extract_log_errors(log_text)** - Extract structured errors from any log text
 
-#### 🧪 Pytest-Specific Analysis Tools
+#### 🧪 File-Based Error Analysis Tools (Response Mode Optimized)
 
-12. **extract_pytest_detailed_failures(project_id, job_id)** - Detailed pytest failures with full tracebacks
-13. **extract_pytest_short_summary(project_id, job_id)** - Concise pytest failure summary
-14. **extract_pytest_statistics(project_id, job_id)** - Test execution metrics and statistics
-15. **analyze_pytest_job_complete(project_id, job_id)** - Complete pytest analysis combining all pytest tools
+12. **get_file_errors(project_id, job_id, file_path, response_mode, ...)** - Errors for specific files with response optimization
+13. **get_files_with_errors(project_id, pipeline_id/job_id, response_mode, ...)** - List files containing errors with detail control
+14. **group_errors_by_file(project_id, pipeline_id/job_id, ...)** - Group errors by file for systematic fixing
+15. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
 
-#### 📁 File-Based Error Analysis Tools
+#### � Repository Search Tools
 
-16. **get_file_errors(project_id, job_id, file_path, ...)** - Errors for specific files with advanced filtering
-17. **group_errors_by_file(project_id, pipeline_id/job_id, ...)** - Group errors by file for systematic fixing
+16. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
+17. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
 18. **get_files_with_errors(project_id, pipeline_id/job_id, ...)** - List files containing errors
 19. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
 

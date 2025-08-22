@@ -96,11 +96,11 @@ class TestMCPIntegration:
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
         ):
@@ -192,11 +192,11 @@ class TestMCPIntegration:
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
         ):
@@ -253,11 +253,11 @@ class TestMCPIntegration:
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
         ):
@@ -312,11 +312,11 @@ class TestMCPIntegration:
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
         ):
@@ -404,11 +404,11 @@ class TestMCPIntegration:
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_analyzer,
             ),
         ):

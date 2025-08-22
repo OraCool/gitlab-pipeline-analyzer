@@ -1,0 +1,7 @@
+# GitHub Pages will be handled by GitHub Actions workflow
+# This file is here for reference only
+
+# URL where the documentation will be published
+url: https://oracool.github.io/gitlab-pipeline-analyzer/
+# The documentation is built using Sphinx and deployed via GitHub Actions
+# See .github/workflows/docs.yml for the deployment configuration

@@ -56,7 +56,7 @@ class TestGetCleanedJobTrace:
                 return_value=mock_instance,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_instance,
             ),
         ):
@@ -106,7 +106,7 @@ class TestGetCleanedJobTrace:
                 return_value=mock_instance,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_instance,
             ),
         ):
@@ -151,7 +151,7 @@ class TestGetCleanedJobTrace:
                 return_value=mock_instance,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_instance,
             ),
         ):
@@ -307,7 +307,7 @@ class TestToolIntegration:
                 return_value=mock_instance,
             ),
             patch(
-                "gitlab_analyzer.mcp.tools.pytest_tools.get_gitlab_analyzer",
+                "gitlab_analyzer.mcp.tools.utils.get_gitlab_analyzer",
                 return_value=mock_instance,
             ),
         ):
