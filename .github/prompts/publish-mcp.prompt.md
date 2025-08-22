@@ -320,20 +320,90 @@ cat /tmp/current_tools.txt
 
 - [ ] **Update Sphinx Documentation** (if present):
   ```bash
-  # Check if docs exist and update them
+  # Check if docs exist and update them comprehensively
   if [ -d "docs/" ]; then
+    echo "📖 Updating Sphinx documentation..."
     cd docs/
-    # Update tool count in documentation with available commands
+
+    # Update tool count in all documentation files
     if command -v rg &> /dev/null; then
+      echo "🔢 Updating tool count to $TOOL_COUNT in documentation..."
+      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ comprehensive tools/$TOOL_COUNT comprehensive tools/g" {} \;
+      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ specialized tools/$TOOL_COUNT specialized tools/g" {} \;
       find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ tools/$TOOL_COUNT tools/g" {} \;
     else
+      echo "🔢 Updating tool count to $TOOL_COUNT in documentation..."
+      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ comprehensive tools/$TOOL_COUNT comprehensive tools/g" {} \;
+      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ specialized tools/$TOOL_COUNT specialized tools/g" {} \;
       find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ tools/$TOOL_COUNT tools/g" {} \;
     fi
+
+    # Check for missing tools in mcp_tools.rst
+    echo "🔍 Validating tool documentation completeness..."
+
+    # Extract documented tools from mcp_tools.rst
+    if [ -f "mcp_tools.rst" ]; then
+      DOCUMENTED_TOOLS=$(grep -E "^[🔍📊🧪🌐🛡️📈🎯🔧📱📋📄📂📦📝🚨] " mcp_tools.rst | wc -l || echo "0")
+      echo "📚 Found $DOCUMENTED_TOOLS documented tools in mcp_tools.rst"
+
+      # Warn if counts don't match
+      if [ "$DOCUMENTED_TOOLS" -lt "$TOOL_COUNT" ]; then
+        echo "⚠️  WARNING: mcp_tools.rst has $DOCUMENTED_TOOLS tools but codebase has $TOOL_COUNT"
+        echo "   Please manually update docs/mcp_tools.rst with missing tools:"
+
+        # Show actual tools for comparison
+        echo "   Current tools in codebase:"
+        cd ..
+        fd -t f -e py . src/ -x rg -A 1 "@mcp\.tool" | rg "def " | sed 's/.*def //' | sed 's/(.*//g' | sort
+        cd docs/
+      fi
+    else
+      echo "⚠️  No mcp_tools.rst found - documentation may be incomplete"
+    fi
+
     # Rebuild documentation to check for warnings
-    make clean && make html
+    echo "🏗️  Building documentation..."
+    if command -v make &> /dev/null; then
+      make clean && make html
+      BUILD_SUCCESS=$?
+    else
+      echo "⚠️  Make not available - cannot build documentation"
+      BUILD_SUCCESS=0
+    fi
+
+    if [ $BUILD_SUCCESS -eq 0 ]; then
+      echo "✅ Documentation build successful"
+    else
+      echo "❌ Documentation build failed - check warnings before release"
+      echo "   Common issues:"
+      echo "   - Missing tool references"
+      echo "   - Broken links"
+      echo "   - Sphinx syntax errors"
+      cd ..
+      exit 1
+    fi
+
     cd ..
+
+    # Clean up backup files
+    find docs/ -name "*.bak" -delete 2>/dev/null || true
+
+    echo "📚 Documentation update completed"
+  else
+    echo "📝 No docs/ directory found - skipping Sphinx documentation update"
   fi
   ```
+
+**Manual Documentation Updates Required:**
+
+- [ ] **docs/mcp_tools.rst**: Verify all 21 tools are documented with current parameters and descriptions
+- [ ] **docs/tool_reference.rst**: Update complete API reference for any new or changed tools
+- [ ] **docs/examples.rst**: Update code examples to reflect current API signatures and new features
+- [ ] **docs/index.rst**: Update overview and feature highlights with latest capabilities
+- [ ] **docs/configuration.rst**: Add any new configuration options or environment variables
+- [ ] **Tool categorization**: Ensure all tools are properly categorized (Analysis, Info, Log, Pytest, Pagination, Search)
+- [ ] **Parameter documentation**: Verify all new parameters like `response_mode`, filtering options are documented
+- [ ] **Example responses**: Update example JSON responses to match current tool output format
 
 #### 4.3 Validate Documentation Accuracy
 
@@ -395,6 +465,55 @@ if ! diff /tmp/readme_tools.txt /tmp/actual_tools.txt > /dev/null; then
   cat /tmp/actual_tools.txt
   echo "Please update README.md tool references"
   exit 1
+fi
+
+# Validate docs/ folder documentation if present
+if [ -d "docs/" ]; then
+  echo "📚 Validating docs/ folder documentation..."
+
+  # Check if docs tool count matches actual
+  if [ -f "docs/mcp_tools.rst" ]; then
+    if [ "$GREP_VALIDATE" = "rg" ]; then
+      DOCS_TOOL_COUNT=$(rg -o "[0-9]+ comprehensive tools" docs/mcp_tools.rst | head -1 | rg -o "[0-9]+")
+    else
+      DOCS_TOOL_COUNT=$(grep -o "[0-9]\+ comprehensive tools" docs/mcp_tools.rst | head -1 | grep -o "[0-9]\+")
+    fi
+
+    if [ -n "$DOCS_TOOL_COUNT" ] && [ "$DOCS_TOOL_COUNT" != "$TOOL_COUNT" ]; then
+      echo "❌ docs/mcp_tools.rst tool count ($DOCS_TOOL_COUNT) doesn't match actual ($TOOL_COUNT)"
+      exit 1
+    else
+      echo "✅ docs/mcp_tools.rst tool count matches actual ($TOOL_COUNT)"
+    fi
+  fi
+
+  # Check for broken internal links in documentation
+  if command -v fd &> /dev/null && command -v rg &> /dev/null; then
+    echo "🔗 Checking for broken internal references in docs..."
+    # Find :doc: references that might be broken
+    BROKEN_DOCS=$(fd -e rst . docs/ -x rg ":doc:" | rg -o ":doc:\`[^\`]+\`" | rg -o "[^\`]+\`$" | rg -o "^[^\`]+" | sort -u)
+    if [ -n "$BROKEN_DOCS" ]; then
+      echo "📋 Found doc references (verify these files exist):"
+      echo "$BROKEN_DOCS"
+    fi
+  fi
+
+  # Verify docs can be built without errors
+  if [ -f "docs/Makefile" ]; then
+    echo "🏗️  Testing documentation build..."
+    cd docs/
+    if make html > /tmp/docs_build.log 2>&1; then
+      echo "✅ Documentation builds successfully"
+    else
+      echo "❌ Documentation build failed - check docs/:"
+      cat /tmp/docs_build.log | tail -20
+      cd ..
+      exit 1
+    fi
+    cd ..
+  fi
+else
+  echo "📝 No docs/ folder found - skipping docs validation"
 fi
 
 echo "✅ Documentation validation passed"
@@ -493,10 +612,23 @@ The tag push will automatically trigger:
 - **PyPI publication failing**: Check for version conflicts, ensure unique version number
 - **GitHub Actions stuck**: Check workflow permissions, secrets, and API limits
 - **Documentation out of sync**: Run tool validation commands, update README.md tool lists and examples
+- **Sphinx documentation build failing**:
+  - Check for missing dependencies: `pip install sphinx sphinx_rtd_theme myst_parser`
+  - Verify all referenced files exist (broken :doc: links)
+  - Check RST syntax errors in .rst files
+  - Ensure all new tools are documented in docs/mcp_tools.rst
+- **Tool count mismatches**:
+  - Run tool counting validation: actual vs README.md vs docs/mcp_tools.rst
+  - Update all three locations: codebase, README.md, and docs/
+  - Verify new tools have proper @mcp.tool decorators
 - **PyPI page looks outdated**: README.md is cached by PyPI, may take a few minutes to update after publication
 
 ## 📦 Project Context
 
-This is the **GitLab Pipeline Analyzer MCP** - a FastMCP server for analyzing GitLab CI/CD pipeline failures. It provides 18+ MCP tools for comprehensive pipeline failure analysis and AI-assisted troubleshooting. The project itself is hosted on **GitHub** and uses **GitHub Actions** for CI/CD and PyPI publishing.
+This is the **GitLab Pipeline Analyzer MCP** - a FastMCP server for analyzing GitLab CI/CD pipeline failures. It provides 21 MCP tools for comprehensive pipeline failure analysis and AI-assisted troubleshooting. The project itself is hosted on **GitHub** and uses **GitHub Actions** for CI/CD and PyPI publishing.
 
-**Documentation Maintenance**: The project maintains detailed tool documentation in README.md which serves as the primary PyPI package description. Keeping this current is crucial for user adoption and accurate feature representation.
+**Documentation Maintenance**: The project maintains comprehensive documentation in multiple locations:
+- **README.md**: Primary PyPI package description and user-facing documentation
+- **docs/ folder**: Detailed Sphinx documentation with complete API reference
+- **CHANGELOG.md**: Version history and release notes
+- All locations must be kept synchronized for accurate tool count and feature representation.
