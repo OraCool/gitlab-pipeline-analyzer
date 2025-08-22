@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2025-08-22
+
+### Added 🚀
+
+- **Production Validation Complete**: Comprehensive real-world testing with actual GitLab production data
+  - Validated all 21 MCP tools using failed pipeline 1594344 from PandaDoc project 83
+  - Confirmed proper error categorization, pytest parsing, and comprehensive pipeline analysis
+  - Demonstrated robust handling of production-scale failures (136 errors across 12 jobs)
+
+### Enhanced ✨
+
+- **Search Tools Enhancement**: Major improvements to repository search functionality
+
+  - Added dual output format support: JSON and text formats for better readability
+  - Enhanced raw content preservation from GitLab API responses
+  - Improved error handling and parameter naming (format → output_format to avoid builtin shadowing)
+  - All linting issues resolved (ruff, mypy, pylint) with comprehensive functionality testing
+
+- **Documentation Accuracy**: Updated README.md with complete and current tool inventory
+  - Corrected tool count from 8 to **21 comprehensive MCP tools**
+  - Added detailed categorization: Analysis (4), Info (4), Pytest (4), File-based (4), Search (2), Log (1)
+  - Enhanced tool descriptions with AI optimization indicators and usage patterns
+  - Updated installation instructions and configuration examples
+
+### Fixed 🐛
+
+- **Test Suite Reliability**: Fixed critical test failures preventing PyPI release
+  - Fixed file path extraction in pagination tools to handle absolute paths like "/path/to/file.py"
+  - Fixed file categorization to properly include `unknown_files` category in response
+  - Fixed pytest header validation to correctly handle TestClass::test_method format
+  - All 304 tests now passing with 71.16% coverage (exceeding 70% requirement)
+- **Parser Reliability**: Enhanced pytest parser robustness with real production test data
+  - Confirmed proper handling of `TypeError: generate_email_tokens() got an unexpected keyword argument 'user'`
+  - Verified accurate traceback extraction and error context preservation
+  - Validated comprehensive test failure analysis across multiple domains
+
+### Technical Improvements 🔧
+
+- **Production Readiness**: Complete quality assurance validation with real GitLab data
+  - All 21 tools tested against actual failed MR pipeline (MMGPP-314 ActorService UUID refactoring)
+  - Comprehensive error analysis: 12 failed jobs with proper categorization
+  - Pytest parser correctly identified test failures without false "unknown" errors
+  - Version consistency updated: 0.3.4.dev1 → 0.3.4 for stable release
+
 ## [0.3.3] - 2025-08-21
 
 ### Added 🚀

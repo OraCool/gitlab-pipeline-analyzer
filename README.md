@@ -116,6 +116,62 @@ async with Client("http://127.0.0.1:8000/mcp") as client:
     })
 ```
 
+### VS Code Local MCP Configuration
+
+This project includes a local MCP configuration in `.vscode/mcp.json` for easy development:
+
+```json
+{
+  "servers": {
+    "gitlab-pipeline-analyzer": {
+      "command": "uv",
+      "args": ["run", "gitlab-analyzer"],
+      "env": {
+        "GITLAB_URL": "${input:gitlab_pandadoc_url}",
+        "GITLAB_TOKEN": "${input:gitlab_pandadoc_token}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "gitlab_pandadoc_url",
+      "type": "promptString",
+      "description": "GitLab Instance URL"
+    },
+    {
+      "id": "gitlab_pandadoc_token",
+      "type": "promptString",
+      "description": "GitLab Personal Access Token"
+    }
+  ]
+}
+```
+
+This configuration uses **VS Code MCP inputs** which:
+
+- **🔒 More secure** - No credentials stored on disk
+- **🎯 Interactive** - VS Code prompts for credentials when needed
+- **⚡ Session-based** - Credentials only exist in memory
+
+**Alternative: `.env` file approach** for rapid development:
+
+1. Copy the example environment file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your GitLab credentials:
+
+   ```bash
+   GITLAB_URL=https://your-gitlab-instance.com
+   GITLAB_TOKEN=your-personal-access-token
+   ```
+
+3. Update `.vscode/mcp.json` to remove the `env` and `inputs` sections - the server will auto-load from `.env`
+
+Both approaches work - choose based on your security requirements and workflow preferences.
+
 ### VS Code Claude Desktop Configuration
 
 Add the following to your VS Code Claude Desktop `claude_desktop_config.json` file:
@@ -612,14 +668,46 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-1. **analyze_failed_pipeline(project_id, pipeline_id)** - Analyze a failed pipeline by ID
-2. **get_pipeline_jobs(project_id, pipeline_id)** - Get all jobs for a pipeline
-3. **get_job_trace(project_id, job_id)** - Get trace log for a specific job
-4. **extract_log_errors(log_text)** - Extract errors and warnings from log text
-5. **get_pipeline_status(project_id, pipeline_id)** - Get basic pipeline status
-6. **get_file_errors(project_id, job_id, file_path, ...)** - Get errors for a specific file with filtering
-7. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Get paginated error batches
-8. **group_errors_by_file(project_id, job_id, ...)** - Group errors by file path for systematic fixing
+The MCP server provides **21 comprehensive tools** for GitLab CI/CD pipeline analysis:
+
+#### 🔍 Pipeline Analysis Tools
+
+1. **analyze_failed_pipeline(project_id, pipeline_id)** - Complete failed pipeline analysis with error extraction
+2. **analyze_failed_pipeline_summary(project_id, pipeline_id)** - Lightweight pipeline overview with error counts
+3. **analyze_single_job(project_id, job_id)** - Deep analysis of individual job failures
+4. **analyze_single_job_limited(project_id, job_id, max_errors, include_traceback)** - Controlled job analysis
+
+#### 📊 Pipeline Information Tools
+
+5. **get_pipeline_info(project_id, pipeline_id)** - Comprehensive pipeline metadata with MR branch resolution
+6. **get_pipeline_status(project_id, pipeline_id)** - Basic pipeline status and timing information
+7. **get_pipeline_jobs(project_id, pipeline_id)** - Complete list of all jobs in a pipeline
+8. **get_failed_jobs(project_id, pipeline_id)** - Filtered list of only failed jobs
+
+#### 📋 Job Trace and Log Tools
+
+9. **get_job_trace(project_id, job_id)** - Raw job trace logs with ANSI formatting
+10. **get_cleaned_job_trace(project_id, job_id)** - Cleaned job traces without ANSI codes
+11. **extract_log_errors(log_text)** - Extract structured errors from any log text
+
+#### 🧪 Pytest-Specific Analysis Tools
+
+12. **extract_pytest_detailed_failures(project_id, job_id)** - Detailed pytest failures with full tracebacks
+13. **extract_pytest_short_summary(project_id, job_id)** - Concise pytest failure summary
+14. **extract_pytest_statistics(project_id, job_id)** - Test execution metrics and statistics
+15. **analyze_pytest_job_complete(project_id, job_id)** - Complete pytest analysis combining all pytest tools
+
+#### 📁 File-Based Error Analysis Tools
+
+16. **get_file_errors(project_id, job_id, file_path, ...)** - Errors for specific files with advanced filtering
+17. **group_errors_by_file(project_id, pipeline_id/job_id, ...)** - Group errors by file for systematic fixing
+18. **get_files_with_errors(project_id, pipeline_id/job_id, ...)** - List files containing errors
+19. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
+
+#### 🔍 Repository Search Tools
+
+20. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
+21. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
 
 ### Error Filtering and Traceback Management
 

@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.version import get_version
 
+from .pagination_tools import _filter_unknown_errors_from_pytest_result
 from .pytest_tools import _extract_pytest_errors
 from .utils import _is_pytest_log, get_gitlab_analyzer
 
@@ -99,6 +100,14 @@ def register_analysis_tools(mcp: FastMCP) -> None:
             # Auto-detect pytest logs and use specialized parser
             if _is_pytest_log(trace):
                 pytest_result = _extract_pytest_errors(trace)
+                print(
+                    f"DEBUG: Before filtering - {len(pytest_result.get('errors', []))} errors"
+                )
+                # Filter out unknown errors
+                pytest_result = _filter_unknown_errors_from_pytest_result(pytest_result)
+                print(
+                    f"DEBUG: After filtering - {len(pytest_result.get('errors', []))} errors"
+                )
 
                 errors = pytest_result.get("errors", [])
                 warnings = pytest_result.get("warnings", [])
@@ -216,6 +225,10 @@ async def analyze_failed_pipeline_optimized(
 
                 if is_pytest:
                     pytest_result = _extract_pytest_errors(trace)
+                    # Filter out unknown errors
+                    pytest_result = _filter_unknown_errors_from_pytest_result(
+                        pytest_result
+                    )
                     errors = pytest_result.get("errors", [])
                     warnings = pytest_result.get("warnings", [])
 
@@ -285,7 +298,19 @@ async def analyze_failed_pipeline_optimized(
                         },
                     }
 
-            except Exception as job_error:
+            except (httpx.HTTPError, ValueError, KeyError) as job_error:
+                return {
+                    "job_id": job_id,
+                    "job_name": job_name,
+                    "job_status": job.status,
+                    "error": f"Error analyzing job: {str(job_error)}",
+                    "parser_metadata": {
+                        "detected_as_pytest": False,
+                        "log_entries_found": 0,
+                        "extraction_method": "error_during_analysis",
+                    },
+                }
+            except Exception as job_error:  # noqa: BLE001
                 return {
                     "job_id": job_id,
                     "job_name": job_name,

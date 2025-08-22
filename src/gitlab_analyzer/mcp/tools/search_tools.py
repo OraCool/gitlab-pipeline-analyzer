@@ -1,12 +1,40 @@
 """
-Search tools for GitLab repository content
+Search to        format: str = "text",       format: str = "tex        Args:
+            project_id: The GitLab project ID or path
+            search_keywords: Keywords to search for in code
+            branch: Specific branch to search (optional, defaults to project's default branch)
+            filename_filter: Filter by filename pattern (supports wildcards like *.py)
+            path_filter: Filter by file path pattern (e.g., src/*, models/*)
+            extension_filter: Filter by file extension (e.g., 'py', 'js', 'ts')
+            max_results: Maximum number of results to return (default: 20)
+            format: Output format - 'text' for readable format, 'json' for structured data  # noqa: A002
+
+        Returns:
+            Search results with file paths, line numbers, and code snippets
+            Format: Text (readable) or JSON (structured with file/branch/content properties)c def search_repository_code(
+        self,
+        project_id: str | int,
+        search_keywords: str,
+        branch: str | None = None,
+        filename_filter: str | None = None,
+        p    async def search_repository_commits(
+        self,
+        project_id: str | int,
+        search_keywords: str,
+        branch: str | None = None,
+        max_results: int = 20,
+        output_format: str = "text"
+    ) -> str:er: str | None = None,
+        extension_filter: str | None = None,
+        max_results: int = 20,
+        output_format: str = "text"
+    ) -> str: repository content
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-from typing import Annotated
-
+import httpx
 from fastmcp import FastMCP
 
 from .utils import get_gitlab_analyzer
@@ -17,17 +45,14 @@ def register_search_tools(mcp: FastMCP) -> None:
 
     @mcp.tool
     async def search_repository_code(
-        project_id: Annotated[str | int, "GitLab project ID or path"],
-        search_keywords: Annotated[str, "Keywords to search for in code"],
-        branch: Annotated[str | None, "Specific branch to search (optional)"] = None,
-        filename_filter: Annotated[
-            str | None, "Filter by filename pattern (supports wildcards)"
-        ] = None,
-        path_filter: Annotated[str | None, "Filter by file path pattern"] = None,
-        extension_filter: Annotated[
-            str | None, "Filter by file extension (e.g., 'py', 'js')"
-        ] = None,
-        max_results: Annotated[int, "Maximum number of results to return"] = 20,
+        project_id: str | int,
+        search_keywords: str,
+        branch: str | None = None,
+        filename_filter: str | None = None,
+        path_filter: str | None = None,
+        extension_filter: str | None = None,
+        max_results: int = 20,
+        output_format: str = "text",
     ) -> str:
         """
         🔍 SEARCH: Search for keywords in GitLab repository code files.
@@ -44,12 +69,13 @@ def register_search_tools(mcp: FastMCP) -> None:
         - File type filtering (by extension, filename, path)
         - Wildcard support in filters
         - Line number and context for each match
+        - JSON and text output formats
 
         EXAMPLES:
         - search_keywords="async def process" extension_filter="py"
         - search_keywords="import pandas" filename_filter="*.py"
         - search_keywords="class UserModel" path_filter="models/*"
-        - search_keywords="TODO" branch="feature-branch"
+        - search_keywords="TODO" branch="feature-branch" output_format="json"
 
         Args:
             project_id: The GitLab project ID or path
@@ -59,9 +85,11 @@ def register_search_tools(mcp: FastMCP) -> None:
             path_filter: Filter by file path pattern (e.g., src/*, models/*)
             extension_filter: Filter by file extension (e.g., 'py', 'js', 'ts')
             max_results: Maximum number of results to return (default: 20)
+            output_format: Output format - 'text' for readable format, 'json' for structured data
 
         Returns:
             Search results with file paths, line numbers, and code snippets
+            Format: Text (readable) or JSON (structured with file, branch, start_line, search_content)
         """
         try:
             gitlab_client = get_gitlab_analyzer()
@@ -75,15 +103,76 @@ def register_search_tools(mcp: FastMCP) -> None:
             )
 
             if not results:
-                return (
+                no_results_msg = (
                     f"No code matches found for '{search_keywords}' in project {project_id}"
                     + (f" on branch '{branch}'" if branch else "")
                 )
 
+                if output_format == "json":
+                    import json
+
+                    return json.dumps(
+                        {
+                            "search_keywords": search_keywords,
+                            "project_id": str(project_id),
+                            "branch": branch,
+                            "total_results": 0,
+                            "showing_results": 0,
+                            "filters": {
+                                "filename_filter": filename_filter,
+                                "path_filter": path_filter,
+                                "extension_filter": extension_filter,
+                            },
+                            "results": [],
+                            "message": no_results_msg,
+                        },
+                        indent=2,
+                    )
+                return no_results_msg
+
             # Limit results to max_results
             limited_results = results[:max_results]
 
-            # Format search results
+            if output_format == "json":
+                import json
+
+                # Structure results in JSON format
+                json_results = []
+                for result in limited_results:
+                    file_path = result.get("path", result.get("filename", "Unknown"))
+                    start_line = result.get("startline", "Unknown")
+                    content_snippet = result.get(
+                        "data", ""
+                    )  # Keep raw content without .strip()
+                    ref = result.get("ref", "Unknown")
+
+                    json_results.append(
+                        {
+                            "file": file_path,
+                            "branch": ref,
+                            "start_line": start_line,
+                            "search_content": content_snippet,
+                        }
+                    )
+
+                return json.dumps(
+                    {
+                        "search_keywords": search_keywords,
+                        "project_id": str(project_id),
+                        "branch": branch,
+                        "total_results": len(results),
+                        "showing_results": len(limited_results),
+                        "filters": {
+                            "filename_filter": filename_filter,
+                            "path_filter": path_filter,
+                            "extension_filter": extension_filter,
+                        },
+                        "results": json_results,
+                    },
+                    indent=2,
+                )
+
+            # Format search results in text format (existing implementation)
             output_lines = [
                 f"🔍 Code Search Results for '{search_keywords}' in project {project_id}",
                 f"Found {len(results)} total matches (showing first {len(limited_results)})",
@@ -108,7 +197,9 @@ def register_search_tools(mcp: FastMCP) -> None:
             for i, result in enumerate(limited_results, 1):
                 file_path = result.get("path", result.get("filename", "Unknown"))
                 start_line = result.get("startline", "Unknown")
-                content_snippet = result.get("data", "").strip()
+                content_snippet = result.get(
+                    "data", ""
+                )  # Keep raw content without .strip()
                 ref = result.get("ref", "Unknown")
 
                 output_lines.extend(
@@ -143,15 +234,18 @@ def register_search_tools(mcp: FastMCP) -> None:
 
             return "\n".join(output_lines)
 
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            return f"Error searching repository code: {str(e)}"
         except Exception as e:  # noqa: BLE001
             return f"Error searching repository code: {str(e)}"
 
     @mcp.tool
     async def search_repository_commits(
-        project_id: Annotated[str | int, "GitLab project ID or path"],
-        search_keywords: Annotated[str, "Keywords to search for in commit messages"],
-        branch: Annotated[str | None, "Specific branch to search (optional)"] = None,
-        max_results: Annotated[int, "Maximum number of results to return"] = 20,
+        project_id: str | int,
+        search_keywords: str,
+        branch: str | None = None,
+        max_results: int = 20,
+        output_format: str = "text",
     ) -> str:
         """
         🔍 COMMITS: Search for keywords in GitLab repository commit messages.
@@ -167,21 +261,24 @@ def register_search_tools(mcp: FastMCP) -> None:
         - Branch-specific searching
         - Author and date information
         - Commit SHA and web links
+        - JSON and text output formats
 
         EXAMPLES:
         - search_keywords="fix bug" - find bug fix commits
         - search_keywords="JIRA-123" - find commits referencing ticket
         - search_keywords="refactor database" - find database refactoring
-        - search_keywords="merge" branch="main" - find merge commits
+        - search_keywords="merge" branch="main" output_format="json" - find merge commits
 
         Args:
             project_id: The GitLab project ID or path
             search_keywords: Keywords to search for in commit messages
             branch: Specific branch to search (optional, defaults to project's default branch)
             max_results: Maximum number of results to return (default: 20)
+            output_format: Output format - 'text' for readable format, 'json' for structured data
 
         Returns:
             Search results with commit information, messages, and metadata
+            Format: Text (readable) or JSON (structured with commit details)
         """
         try:
             gitlab_client = get_gitlab_analyzer()
@@ -200,7 +297,47 @@ def register_search_tools(mcp: FastMCP) -> None:
             # Limit results to max_results
             limited_results = results[:max_results]
 
-            # Format search results
+            if output_format == "json":
+                import json
+                from typing import Any
+
+                # Return structured JSON format
+                json_result: dict[str, Any] = {
+                    "search_query": search_keywords,
+                    "project_id": str(project_id),
+                    "branch": branch,
+                    "total_matches": len(results),
+                    "showing_results": len(limited_results),
+                    "commits": [],
+                }
+
+                for result in limited_results:
+                    commit_data = {
+                        "sha": result.get("id", "Unknown"),
+                        "short_sha": result.get(
+                            "short_id",
+                            (
+                                result.get("id", "Unknown")[:8]
+                                if result.get("id") != "Unknown"
+                                else "Unknown"
+                            ),
+                        ),
+                        "title": result.get("title", "No title"),
+                        "message": result.get("message", "").strip(),
+                        "author": {
+                            "name": result.get("author_name", "Unknown"),
+                            "email": result.get("author_email", ""),
+                        },
+                        "date": result.get(
+                            "committed_date", result.get("created_at", "Unknown")
+                        ),
+                        "created_at": result.get("created_at", "Unknown"),
+                    }
+                    json_result["commits"].append(commit_data)
+
+                return json.dumps(json_result, indent=2)
+
+            # Format search results for text output
             output_lines = [
                 f"🔍 Commit Search Results for '{search_keywords}' in project {project_id}",
                 f"Found {len(results)} total matches (showing first {len(limited_results)})",
@@ -264,5 +401,7 @@ def register_search_tools(mcp: FastMCP) -> None:
 
             return "\n".join(output_lines)
 
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            return f"Error searching repository commits: {str(e)}"
         except Exception as e:  # noqa: BLE001
             return f"Error searching repository commits: {str(e)}"

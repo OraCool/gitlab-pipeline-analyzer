@@ -19,13 +19,16 @@ Prepare and release a new version of the **GitLab Pipeline Analyzer MCP** (`gitl
 ### 2. 📝 Version Management
 
 - [ ] **Determine next version** following [Semantic Versioning](https://semver.org/):
-  - Patch (0.2.9): Bug fixes, small improvements
-  - Minor (0.3.0): New features, backward compatible
-  - Major (1.0.0): Breaking changes
+  - Check current version in git and compare with `pyproject.toml`
+  - Decide whether the update of the version is needed (do not update in case already changed)
+    - Patch (0.2.9): Bug fixes, small improvements
+    - Minor (0.3.0): New features, backward compatible
+    - Major (1.0.0): Breaking changes
 - [ ] **Update version in ALL locations**:
   - `pyproject.toml` - primary version declaration
   - Verify `uv.lock` gets updated automatically via `uv sync`
   - Check that no hardcoded versions exist in other files
+  - Check that no hardcoded versions exist in README.md
   - Check and update fallback version in `src/gitlab_analyzer/version.py`
 
 ### 3. ✅ Quality Assurance (CRITICAL)
@@ -62,6 +65,14 @@ uv run pytest --tb=short --cov-report=term --cov-fail-under=70
 # Build and validate package
 uv run python -m build
 uv run twine check dist/*
+
+# Validate documentation accuracy (CRITICAL for PyPI)
+echo "📚 Validating documentation accuracy..."
+echo "🔍 Current tool count:"
+find src/ -name "*tools.py" -exec grep -h "@mcp.tool" {} \; | wc -l
+echo "🔍 Available tools:"
+find src/ -name "*tools.py" -exec grep -h "def " {} \; | grep -v "def _" | grep -v "register_" | head -20
+echo "⚠️  Verify README.md 'Available tools' section matches the above list"
 ```
 
 **If ANY checks fail**:
@@ -69,18 +80,33 @@ uv run twine check dist/*
 - Fix all issues before proceeding
 - Re-run tests to ensure fixes don't break anything
 - Consider if fixes require version bump adjustment
+- **Re-run documentation validation** after any code changes that affect tool APIs
 
 ### 4. 📚 Documentation Updates
+
+**⚠️ CRITICAL**: README.md is displayed on PyPI and is the primary documentation users see. Outdated tool lists, examples, or feature descriptions directly impact adoption and user experience.
 
 - [ ] **Update `CHANGELOG.md`**:
   - Move items from `[Unreleased]` to new version section
   - Follow existing format with categories: Added 🚀, Enhanced ✨, Fixed 🐛, Technical Improvements 🔧
   - Include date in format `[X.Y.Z] - YYYY-MM-DD`
   - Add meaningful descriptions of changes for users
-- [ ] **Update `README.md`** if needed:
-  - Installation instructions
-  - Version references
-  - New features documentation
+- [ ] **Update `README.md`** (CRITICAL for PyPI visibility):
+  - [ ] **Version references**: Update any version-specific examples or installation commands
+  - [ ] **Complete tools list**: Update "Available tools" section with current tool count and names
+    - Count all tools: `find src/ -name "*tools.py" -exec grep -h "@mcp.tool" {} \; | wc -l`
+    - List all tools: `find src/ -name "*tools.py" -exec grep -h "def " {} \; | grep -v "def _" | grep -v "register_"`
+    - Verify search tools are included: `search_repository_code`, `search_repository_commits`
+  - [ ] **Tool descriptions**: Update tool descriptions with latest parameters and capabilities
+  - [ ] **New features documentation**: Add documentation for new features/tools added in this release
+  - [ ] **Installation instructions**: Verify pip install commands reference correct version
+  - [ ] **Examples and usage**: Update code examples to reflect current API
+  - [ ] **Feature matrix**: Update any feature comparison tables or capability lists
+- [ ] **Validate documentation accuracy**:
+  - [ ] All tool names match actual implementation
+  - [ ] Parameter descriptions are current and complete
+  - [ ] Example code runs without errors
+  - [ ] No references to deprecated features or old APIs
 
 ### 5. 🚀 Release Process
 
@@ -139,10 +165,12 @@ The tag push will automatically trigger:
 ## ⚠️ Important Notes
 
 - **Never skip quality checks** - they prevent broken releases
+- **Never skip documentation validation** - README.md is the primary PyPI documentation
 - **TestPyPI publication happens on every main push** - use for testing
 - **Production PyPI publication only happens on version tags** - no rollbacks!
 - **GitHub Release is automatic** - manual editing available post-creation
 - **Version must follow semver strictly** - tools and CI depend on it
+- **Tool count and descriptions must be current** - users rely on accurate documentation for feature discovery
 
 ## 🆘 Troubleshooting
 
@@ -150,7 +178,11 @@ The tag push will automatically trigger:
 - **Build failing**: Verify `pyproject.toml` syntax, check dependencies
 - **PyPI publication failing**: Check for version conflicts, ensure unique version number
 - **GitHub Actions stuck**: Check workflow permissions, secrets, and API limits
+- **Documentation out of sync**: Run tool validation commands, update README.md tool lists and examples
+- **PyPI page looks outdated**: README.md is cached by PyPI, may take a few minutes to update after publication
 
 ## 📦 Project Context
 
-This is the **GitLab Pipeline Analyzer MCP** - a FastMCP server for analyzing GitLab CI/CD pipeline failures. It provides 16+ MCP tools for comprehensive pipeline failure analysis and AI-assisted troubleshooting. The project itself is hosted on **GitHub** and uses **GitHub Actions** for CI/CD and PyPI publishing.
+This is the **GitLab Pipeline Analyzer MCP** - a FastMCP server for analyzing GitLab CI/CD pipeline failures. It provides 18+ MCP tools for comprehensive pipeline failure analysis and AI-assisted troubleshooting. The project itself is hosted on **GitHub** and uses **GitHub Actions** for CI/CD and PyPI publishing.
+
+**Documentation Maintenance**: The project maintains detailed tool documentation in README.md which serves as the primary PyPI package description. Keeping this current is crucial for user adoption and accurate feature representation.

@@ -143,6 +143,7 @@ node_modules/
 
 # IDEs
 .vscode/
+!.vscode/mcp.json.template
 .idea/
 *.swp
 *.swo

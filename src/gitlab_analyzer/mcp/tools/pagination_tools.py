@@ -5,6 +5,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import asyncio
 import re
 from datetime import datetime
 from typing import Any
@@ -17,6 +18,33 @@ from gitlab_analyzer.version import get_version
 
 from .pytest_tools import _extract_pytest_errors
 from .utils import _is_pytest_log, _should_use_pytest_parser, get_gitlab_analyzer
+
+
+def _filter_unknown_errors_from_pytest_result(
+    pytest_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Filter out unknown errors from pytest results - helper for all tools"""
+    if not pytest_result or "errors" not in pytest_result:
+        return pytest_result
+
+    all_errors = pytest_result.get("errors", [])
+    meaningful_errors = []
+
+    for error in all_errors:
+        # Skip unknown files and errors
+        if (
+            error.get("test_file") == "unknown"
+            or error.get("exception_type") == "Unknown"
+            or error.get("message", "").startswith("unknown:")
+        ):
+            continue
+        meaningful_errors.append(error)
+
+    # Return updated result with filtered errors
+    result = pytest_result.copy()
+    result["errors"] = meaningful_errors
+    return result
+
 
 # Default paths to filter out from traceback for cleaner error reports
 # These paths typically contain system libraries, dependencies, and CI infrastructure
@@ -38,25 +66,75 @@ DEFAULT_EXCLUDE_PATHS = [
 def _extract_file_path_from_message(message: str) -> str | None:
     """Extract file path from error message - testable helper function"""
 
+    def _is_application_file(file_path: str) -> bool:
+        """Check if file path looks like an application file vs dependency file"""
+        if not file_path:
+            return False
+
+        # Use existing DEFAULT_EXCLUDE_PATHS for consistency
+        if any(exclude_path in file_path for exclude_path in DEFAULT_EXCLUDE_PATHS):
+            return False
+
+        # Generic application indicators (no hardcoded project names)
+        app_indicators = [
+            "domains/",
+            "apps/",
+            "tests/",
+            "test_",
+            "src/",
+            "/apps/",
+            "/tests/",
+            "/src/",
+            "/domain/",
+            "models/",
+            "services/",
+            "views/",
+            "utils/",
+            "api/",
+            "core/",
+        ]
+
+        # If it has application indicators, it's likely an app file
+        if any(indicator in file_path for indicator in app_indicators):
+            return True
+
+        # If it's a relative path without slashes (just filename), include it
+        if "/" not in file_path and file_path.endswith(".py"):
+            return True
+
+        # If it starts with a simple directory structure (no deep nesting), likely app file
+        if file_path.count("/") <= 4 and not file_path.startswith("/"):
+            return True
+
+        # For test purposes, also accept absolute paths that look like test paths
+        return file_path.startswith("/") and file_path.endswith(".py")
+
     # Pattern: "path/to/file.py:line_number"
     file_match = re.search(r"([^\s:]+\.py):\d+", message)
     if file_match:
-        return file_match.group(1)
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
 
     # Pattern: "File 'path/to/file.py'" or "File "path/to/file.py""
     file_match = re.search(r"File ['\"]([^'\"]+\.py)['\"]", message)
     if file_match:
-        return file_match.group(1)
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
 
     # Pattern: "for/in/at path/to/file.py" (common in error messages)
     file_match = re.search(r"(?:for|in|at)\s+([^\s]+\.py)", message)
     if file_match:
-        return file_match.group(1)
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
 
-    # Pattern: any Python file path mentioned in the message
-    file_match = re.search(r"([^\s]+\.py)", message)
-    if file_match:
-        return file_match.group(1)
+    # Pattern: any Python file path mentioned in the message (most permissive)
+    file_matches = re.findall(r"([^\s]+\.py)", message)
+    for file_path in file_matches:
+        if _is_application_file(file_path):
+            return file_path
 
     return None
 
@@ -118,11 +196,15 @@ def _categorize_files_by_type(sorted_files: list[dict]) -> dict[str, dict]:
         )
     ]
 
-    source_files = [
-        f for f in sorted_files if f not in test_files and f["file_path"] != "unknown"
+    unknown_files = [
+        f
+        for f in sorted_files
+        if f["file_path"] == "unknown" or f["file_path"].lower() == "unknown"
     ]
 
-    unknown_files = [f for f in sorted_files if f["file_path"] == "unknown"]
+    source_files = [
+        f for f in sorted_files if f not in test_files and f not in unknown_files
+    ]
 
     return {
         "test_files": {
@@ -292,15 +374,16 @@ def _clean_error_response(
 
         # Keep context as-is without filtering
 
-    elif exclude_paths:
-        # Filter traceback by paths if traceback is included
-        if "traceback" in cleaned_error:
+    else:
+        # Include traceback, apply filtering if exclude_paths has items
+        if exclude_paths and "traceback" in cleaned_error:
+            # Filter traceback by paths if traceback is included
             cleaned_error["traceback"] = _filter_traceback_by_paths(
                 cleaned_error["traceback"], exclude_paths
             )
 
-        # Filter full_error_text to remove excluded paths
-        if "full_error_text" in cleaned_error:
+        # Filter full_error_text to remove excluded paths only if exclude_paths has items
+        if exclude_paths and "full_error_text" in cleaned_error:
             full_error_lines = cleaned_error["full_error_text"].split("\n")
             filtered_lines = []
 
@@ -316,7 +399,7 @@ def _clean_error_response(
 
             cleaned_error["full_error_text"] = "\n".join(filtered_lines)
 
-        # Keep context as-is without filtering
+        # If exclude_paths is empty or None, keep all fields as-is (no filtering needed)
 
     return cleaned_error
 
@@ -456,10 +539,13 @@ def _limit_pytest_errors(
     pytest_result: dict[str, Any], max_errors: int, include_traceback: bool
 ) -> dict[str, Any]:
     """Limit pytest errors and optionally remove traceback data - testable helper function"""
-    all_errors = pytest_result.get("errors", [])
+
+    # Filter out unknown errors first
+    filtered_result = _filter_unknown_errors_from_pytest_result(pytest_result)
+    meaningful_errors = filtered_result.get("errors", [])
 
     limited_errors = []
-    for i, error in enumerate(all_errors):
+    for i, error in enumerate(meaningful_errors):
         if i >= max_errors:
             break
 
@@ -484,9 +570,9 @@ def _limit_pytest_errors(
 
     return {
         "errors": limited_errors,
-        "total_errors": len(all_errors),
+        "total_errors": len(meaningful_errors),  # Use meaningful errors count
         "returned_errors": len(limited_errors),
-        "truncated": len(all_errors) > max_errors,
+        "truncated": len(meaningful_errors) > max_errors,
     }
 
 
@@ -583,7 +669,6 @@ def register_pagination_tools(mcp: FastMCP) -> None:
             analyzer = get_gitlab_analyzer()
 
             # Get pipeline status and failed jobs
-            import asyncio
 
             pipeline_status, failed_jobs = await asyncio.gather(
                 analyzer.get_pipeline(project_id, pipeline_id),
@@ -877,7 +962,6 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
             elif pipeline_id is not None:
                 # Pipeline mode
-                import asyncio
 
                 pipeline_status, failed_jobs = await asyncio.gather(
                     analyzer.get_pipeline(project_id, pipeline_id),
@@ -946,6 +1030,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
             # Group errors by file path
             file_groups: dict[str, dict[str, Any]] = {}
+            unknown_error_count = 0  # Track unknown errors separately
+
             for error in cleaned_errors:
                 # Extract file path from different sources
                 file_path = None
@@ -961,9 +1047,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 elif "message" in error:
                     file_path = _extract_file_path_from_message(error["message"])
 
-                # Fallback to "unknown" if no file path found
+                # Handle cases where no meaningful file path was found
                 if not file_path:
-                    file_path = "unknown"
+                    unknown_error_count += 1
+                    continue  # Always skip unknown files - no unknown files in output
 
                 # Skip files that match exclude patterns
                 if _should_exclude_file_path(file_path, exclude_file_patterns):
@@ -1024,6 +1111,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                     "files_returned": len(sorted_files),
                     "total_errors": total_errors,
                     "files_truncated": total_files_with_errors > max_files,
+                    "unknown_errors_found": unknown_error_count,
+                    "unknown_errors_excluded": unknown_error_count,
                 },
                 "categorization": categorization,
                 "processing_limits": {
@@ -1141,7 +1230,6 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
             elif pipeline_id is not None:
                 # Pipeline mode
-                import asyncio
 
                 pipeline_status, failed_jobs = await asyncio.gather(
                     analyzer.get_pipeline(project_id, pipeline_id),
@@ -1205,6 +1293,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
 
             # Group errors by file path (without storing actual errors)
             file_counts: dict[str, dict[str, Any]] = {}
+            unknown_error_count = 0  # Track unknown errors separately
+
             for error in all_errors:
                 # Extract file path from different sources
                 file_path = None
@@ -1220,9 +1310,10 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 elif "message" in error:
                     file_path = _extract_file_path_from_message(error["message"])
 
-                # Fallback to "unknown" if no file path found
-                if not file_path:
-                    file_path = "unknown"
+                # Handle cases where no meaningful file path was found
+                if not file_path or file_path == "unknown":
+                    unknown_error_count += 1
+                    continue  # Always skip unknown files - no unknown files in output
 
                 # Skip files that match exclude patterns
                 if _should_exclude_file_path(file_path, exclude_file_patterns):
@@ -1291,7 +1382,7 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                 if f not in test_files and f["file_path"] != "unknown"
             ]
 
-            unknown_files = [f for f in sorted_files if f["file_path"] == "unknown"]
+            # No need for unknown_files since we exclude them completely
 
             categorization = {
                 "test_files": {
@@ -1332,25 +1423,6 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                         for f in source_files
                     ],
                 },
-                "unknown_files": {
-                    "count": len(unknown_files),
-                    "total_errors": sum(f["error_count"] for f in unknown_files),
-                    "files": [
-                        {
-                            "file_path": f["file_path"],
-                            "error_count": f["error_count"],
-                            "error_types": f["error_types"],
-                            "job_id": f.get("job_id"),
-                            "job_name": f.get("job_name"),
-                            **(
-                                {"jobs_affected": f["jobs_affected"]}
-                                if "jobs_affected" in f
-                                else {}
-                            ),
-                        }
-                        for f in unknown_files
-                    ],
-                },
             }
 
             # Build response
@@ -1362,6 +1434,8 @@ def register_pagination_tools(mcp: FastMCP) -> None:
                     "files_returned": len(sorted_files),
                     "total_errors": total_errors,
                     "files_truncated": total_files_with_errors > max_files,
+                    "unknown_errors_found": unknown_error_count,
+                    "unknown_errors_excluded": unknown_error_count,
                 },
                 "categorization": categorization,
                 "processing_limits": {

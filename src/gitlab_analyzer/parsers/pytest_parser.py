@@ -67,8 +67,8 @@ class PytestLogParser(BaseParser):
 
             # Split by test failure headers (flexible underscore patterns)
             # Pattern 1: Long underscores: __________ test_name __________
-            # Pattern 2: Short underscores: _ test_name _
-            test_pattern = r"_{1,}\s+(.+?)\s+_{1,}"
+            # Must have at least 5 consecutive underscores to avoid matching traceback separators
+            test_pattern = r"_{5,}\s+(.+?)\s+_{5,}"
             test_matches = re.split(test_pattern, failures_section)
 
             # Process each test failure in this section
@@ -103,47 +103,78 @@ class PytestLogParser(BaseParser):
         test_parameters = test_match.group(2) if test_match.group(2) else None
 
         # Extract test file and function name
-        # First try to find the file path from the content
-        # Pattern 1: file.py:line: in function
-        file_line_match = re.search(
-            r"([^/\s]+/[^:\s]+\.py):(\d+):\s+in\s+(\w+)", content
+        # Strategy: Find the actual test file by looking for the test invocation in traceback
+        # Priority: 1) Test files (contain "test"), 2) Files with test methods, 3) Fallback to any file
+
+        # Look for all file references in the content
+        file_line_matches = re.findall(
+            r"([^/\s]+/[^:\s]+\.py):(\d+):\s+(?:in\s+(\w+)|(\w+(?:Exception|Error)))",
+            content,
         )
 
-        # Pattern 2: file.py:line: ExceptionType (simple format)
-        if not file_line_match:
-            file_line_match = re.search(
-                r"([^/\s]+/[^:\s]+\.py):(\d+):\s+(\w+(?:Exception|Error))", content
-            )
+        # Also look for the actual test file line which often appears as:
+        # "test_file.py:line_number:"
+        test_file_matches = re.findall(
+            r"([^/\s]+/[^:\s]*test[^:\s]*\.py):(\d+):", content
+        )
 
-        if file_line_match:
-            test_file = file_line_match.group(1)
-            # For the simple format (pattern 2), the third group is exception type, not function
-            # So we need to extract the function name from the header or traceback
-            if len(file_line_match.groups()) >= 3 and not file_line_match.group(
-                3
-            ).endswith(("Error", "Exception")):
-                test_function = file_line_match.group(3)
+        test_file = None
+        test_function = None
+
+        # First priority: Look for explicit test files in traceback
+        if test_file_matches:
+            for match in test_file_matches:
+                file_path = match[0]
+                if "test" in file_path.lower():
+                    test_file = file_path
+                    # Try to extract function name from the test_name header
+                    if "::" in test_name:
+                        test_function = test_name.split("::")[-1]
+                    break
+
+        # Second priority: Look for files with "test" in path from regular matches
+        if not test_file and file_line_matches:
+            for match in file_line_matches:
+                file_path = match[0]
+                func_name = match[2] if match[2] else None
+                if "test" in file_path.lower():
+                    test_file = file_path
+                    if func_name and not func_name.endswith(("Error", "Exception")):
+                        test_function = func_name
+                    break
+
+        # Third priority: Use any file match, but this is likely a source file
+        if not test_file and file_line_matches:
+            first_match = file_line_matches[0]
+            test_file = first_match[0]
+            func_name = first_match[2] if first_match[2] else None
+            if func_name and not func_name.endswith(("Error", "Exception")):
+                test_function = func_name
+
+        # If we still don't have a test function, extract from test_name
+        if not test_function:
+            if "::" in test_name:
+                test_function = test_name.split("::")[-1]
             else:
-                # Extract function name from test_name or look for 'def function():' in content
-                if "::" in test_name:
-                    test_function = test_name.split("::")[-1]
-                else:
-                    # Look for function definition in content
-                    def_match = re.search(r"def\s+(\w+)\s*\(", content)
-                    test_function = def_match.group(1) if def_match else test_name
+                # Look for function definition in content
+                def_match = re.search(r"def\s+(\w+)\s*\(", content)
+                test_function = def_match.group(1) if def_match else test_name
 
-            # Reconstruct full test name with file path if it's not already included
-            if "::" not in test_name:
-                test_name = f"{test_file}::{test_function}"
-        elif "::" in test_name:
-            # Fallback to parsing from test_name if it contains the full path
-            parts = test_name.split("::")
-            test_file = parts[0]
-            test_function = parts[-1]
-        else:
-            # Last resort - use unknowns
-            test_file = "unknown"
-            test_function = test_name
+        # Final fallback handling
+        if not test_file:
+            if "::" in test_name:
+                # Fallback to parsing from test_name if it contains the full path
+                parts = test_name.split("::")
+                test_file = parts[0]
+                test_function = parts[-1]
+            else:
+                # Last resort - use unknowns
+                test_file = "unknown"
+                test_function = test_name
+
+        # Reconstruct full test name with file path if it's not already included
+        if "::" not in test_name:
+            test_name = f"{test_file}::{test_function}"
 
         # Extract platform info
         platform_match = re.search(
@@ -199,6 +230,14 @@ class PytestLogParser(BaseParser):
         if not header:
             return False
 
+        # Reject single characters or very short strings (these are usually traceback artifacts)
+        if len(header) <= 2:
+            return False
+
+        # Reject traceback separator lines (single underscores, spaces, etc.)
+        if re.match(r"^[_\s]+$", header):
+            return False
+
         # Filter out coverage reports and other non-test sections
         invalid_patterns = [
             r"^coverage:",
@@ -222,8 +261,32 @@ class PytestLogParser(BaseParser):
         if header.startswith("test_"):
             return True
 
-        if "::" in header and "test_" in header:
-            return True
+        # For paths with ::, be more strict - the function name after :: must be a test
+        if "::" in header:
+            parts = header.split("::")
+            if len(parts) >= 2:
+                function_name = parts[-1]
+                # Function must start with "test_" or be a test class method
+                if (
+                    function_name.startswith("test_")
+                    or re.match(
+                        r"^Test[A-Z][a-zA-Z0-9_]*\.test_[a-zA-Z0-9_]*$", function_name
+                    )
+                    or "test_" in function_name
+                ):
+                    # Also check that the file path looks like a test file
+                    file_path = parts[0]
+                    if "test" in file_path.lower() and file_path.endswith(".py"):
+                        return True
+
+                # Special case: simple class::method format like TestClass::test_method
+                if len(parts) == 2:
+                    class_name, method_name = parts
+                    if class_name.startswith("Test") and method_name.startswith(
+                        "test_"
+                    ):
+                        return True
+            return False
 
         # Check for pytest class-based tests: TestClassName.test_method
         if re.match(r"^Test[A-Z][a-zA-Z0-9_]*\.test_[a-zA-Z0-9_]*$", header):
@@ -234,9 +297,18 @@ class PytestLogParser(BaseParser):
         if any(word in header.lower() for word in non_test_words):
             return False
 
+        # Reject anything that looks like a file path without test indicators
+        if "/" in header and not (
+            "test" in header.lower() and header.endswith("test_")
+        ):
+            return False
+
         # If it looks like a simple identifier and doesn't contain spaces, it might be a test
-        # Updated pattern to allow dots for class.method syntax
-        return re.match(r"^[a-zA-Z_][a-zA-Z0-9_.]*$", header) is not None
+        # But be more restrictive - it should contain "test" somewhere
+        if re.match(r"^[a-zA-Z_][a-zA-Z0-9_.]*$", header):
+            return "test" in header.lower()
+
+        return False
 
     @classmethod
     def _parse_traceback(cls, content: str) -> list[PytestTraceback]:
