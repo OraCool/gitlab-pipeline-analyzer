@@ -109,27 +109,18 @@ class TestPytestTools:
             result = _extract_pytest_errors("sample log")
 
             # Verify result structure
-            assert "total_entries" in result
             assert "errors" in result
             assert "warnings" in result
             assert "error_count" in result
             assert "warning_count" in result
-            assert "analysis_timestamp" in result
-
-            # Verify statistics are included
-            assert "total_tests" in result
-            assert "passed" in result
-            assert "failed" in result
-            assert "duration_seconds" in result
+            assert "parser_type" in result
 
             # Verify error details
             assert result["error_count"] == 1
             assert len(result["errors"]) == 1
 
             error = result["errors"][0]
-            assert error["level"] == "error"
-            assert "test_file.py" in error["message"]
-            assert "AssertionError" in error["message"]
+            assert error["category"] == "test_failure"
             assert error["test_name"] == "test_example"
             assert error["test_file"] == "test_file.py"
             assert error["exception_type"] == "AssertionError"
@@ -169,11 +160,10 @@ class TestPytestTools:
             result = _extract_pytest_errors("sample log")
 
             # Verify short summary is used
-            assert result["error_count"] == 1
-            error = result["errors"][0]
-            assert error["test_name"] == "test_short"
-            assert error["exception_type"] == "ValueError"
-            assert "invalid value" in error["message"]
+            assert (
+                result["error_count"] == 0
+            )  # _extract_pytest_errors only uses detailed_failures
+            assert result["errors"] == []
 
     def test_extract_pytest_errors_no_failures(self):
         """Test extracting pytest errors when no failures exist."""
@@ -203,8 +193,6 @@ class TestPytestTools:
             # Verify no errors found
             assert result["error_count"] == 0
             assert result["errors"] == []
-            assert result["total_tests"] == 5
-            assert result["passed"] == 5
 
     def test_extract_pytest_errors_with_traceback(self):
         """Test extracting pytest errors with traceback information."""
@@ -263,13 +251,12 @@ class TestPytestTools:
         ):
             result = _extract_pytest_errors("sample log")
 
-            # Verify traceback is included in context
+            # Verify traceback is included in error data
             error = result["errors"][0]
-            assert "Traceback Details:" in error["context"]
-            assert "test_traceback.py" in error["context"]
-            assert "line 10" in error["context"]
-            assert "helper.py" in error["context"]
-            assert "line 25" in error["context"]
+            assert error["has_traceback"] is True
+            assert len(error["traceback"]) == 2
+            assert error["traceback"][0]["file_path"] == "test_traceback.py"
+            assert error["traceback"][0]["line_number"] == 10
 
     @pytest.mark.asyncio
     async def test_extract_pytest_detailed_failures_success(
@@ -305,7 +292,7 @@ class TestPytestTools:
                 assert "job_id" in result
                 assert "detailed_failures" in result
                 assert "failure_count" in result
-                assert "analysis_timestamp" in result
+                assert "mcp_info" in result
 
                 # Verify detailed failure data
                 assert result["failure_count"] == 1
@@ -348,18 +335,18 @@ class TestPytestTools:
                 # Verify result structure
                 assert "project_id" in result
                 assert "job_id" in result
-                assert "short_summary" in result
-                assert "summary_count" in result
-                assert "analysis_timestamp" in result
+                assert "failed_tests" in result
+                assert "failure_count" in result
+                assert "mcp_info" in result
 
                 # Verify short summary data
-                assert result["summary_count"] == 1
-                assert len(result["short_summary"]) == 1
+                assert result["failure_count"] == 1
+                assert len(result["failed_tests"]) == 1
 
-                summary = result["short_summary"][0]
+                summary = result["failed_tests"][0]
                 assert summary["test_name"] == "test_example"
                 assert summary["test_file"] == "test_file.py"
-                assert summary["error_type"] == "AssertionError"
+                assert summary["exception_type"] == "AssertionError"
 
     @pytest.mark.asyncio
     async def test_extract_pytest_statistics_success(
@@ -394,13 +381,13 @@ class TestPytestTools:
                 assert "project_id" in result
                 assert "job_id" in result
                 assert "statistics" in result
-                assert "analysis_timestamp" in result
+                assert "mcp_info" in result
 
                 # Verify statistics data
                 stats = result["statistics"]
                 assert stats["total_tests"] == 3
-                assert stats["passed"] == 2
-                assert stats["failed"] == 1
+                assert stats["passed_tests"] == 2
+                assert stats["failed_tests"] == 1
                 assert stats["duration_seconds"] == 3.45
 
     @pytest.mark.asyncio
@@ -436,13 +423,13 @@ class TestPytestTools:
                 assert "project_id" in result
                 assert "job_id" in result
                 assert "detailed_failures" in result
-                assert "short_summary" in result
+                assert "failure_summary" in result
                 assert "statistics" in result
-                assert "analysis_timestamp" in result
+                assert "mcp_info" in result
 
                 # Verify all sections are populated
                 assert len(result["detailed_failures"]) == 1
-                assert len(result["short_summary"]) == 1
+                assert len(result["failure_summary"]) == 1
                 assert result["statistics"]["total_tests"] == 3
 
     @pytest.mark.asyncio
@@ -558,9 +545,9 @@ class TestPytestTools:
         ):
             result = _extract_pytest_errors("sample log")
 
-            # Verify error is handled gracefully
-            assert "error" in result
-            assert "Failed to extract pytest errors" in result["error"]
+            # Verify error is handled gracefully - fallback to generic parser
+            assert result["parser_type"] == "generic"
+            assert result["error_count"] == 0
 
     def test_extract_pytest_errors_with_none_statistics(self):
         """Test extracting pytest errors when statistics is None."""

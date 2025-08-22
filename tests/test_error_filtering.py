@@ -73,17 +73,15 @@ class TestErrorFiltering:
 
         result = _clean_error_response(error, include_traceback=False)
 
-        # Should remove traceback-related fields
+        # Should remove ALL traceback-related fields when include_traceback=False
         assert "traceback" not in result
         assert "full_error_text" not in result
+        assert "context" not in result  # Context is also removed for consistency
         assert result["has_traceback"] is False
 
-        # Should preserve all context when include_traceback=False
-        context_lines = result["context"].split("\n")
-        # Context is preserved, not filtered
-        assert "--- Complete Test Failure Details ---" in result["context"]
-        assert "Traceback Details:" in result["context"]
-        assert any("Test: test_example" in line for line in context_lines)
+        # Should preserve basic error information
+        assert result["level"] == "error"
+        assert result["message"] == "Test error"
 
     def test_clean_error_response_exclude_paths(self):
         """Test cleaning error response with path exclusions"""

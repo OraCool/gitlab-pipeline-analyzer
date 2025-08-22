@@ -747,7 +747,7 @@ class TestPaginationToolsRegistration:
     def test_create_error_response_base(self):
         """Test error response base creation"""
         # Test with just project_id
-        result1 = _create_error_response_base("project-123")
+        result1 = _create_error_response_base("project-123", "test_tool")
         assert result1["project_id"] == "project-123"
         assert "analysis_timestamp" in result1
         assert "mcp_info" in result1
@@ -755,20 +755,22 @@ class TestPaginationToolsRegistration:
         assert "pipeline_id" not in result1
 
         # Test with job_id
-        result2 = _create_error_response_base("project-456", job_id=789)
+        result2 = _create_error_response_base("project-456", "test_tool", job_id=789)
         assert result2["project_id"] == "project-456"
         assert result2["job_id"] == 789
         assert "pipeline_id" not in result2
 
         # Test with pipeline_id
-        result3 = _create_error_response_base("project-789", pipeline_id=123)
+        result3 = _create_error_response_base(
+            "project-789", "test_tool", pipeline_id=123
+        )
         assert result3["project_id"] == "project-789"
         assert result3["pipeline_id"] == 123
         assert "job_id" not in result3
 
         # Test with both
         result4 = _create_error_response_base(
-            "project-000", job_id=111, pipeline_id=222
+            "project-000", "test_tool", job_id=111, pipeline_id=222
         )
         assert result4["project_id"] == "project-000"
         assert result4["job_id"] == 111
@@ -946,11 +948,13 @@ class TestEdgeCasesAndBoundaryConditions:
     def test_response_base_with_string_ids(self):
         """Test response base creation with string vs numeric IDs"""
         # Test with string project_id
-        result1 = _create_error_response_base("string-project-123", job_id=456)
+        result1 = _create_error_response_base(
+            "string-project-123", "test_tool", job_id=456
+        )
         assert result1["project_id"] == "string-project-123"
 
         # Test with numeric project_id
-        result2 = _create_error_response_base(789, pipeline_id=101112)
+        result2 = _create_error_response_base(789, "test_tool", pipeline_id=101112)
         assert result2["project_id"] == "789"
 
         # Both should have proper structure

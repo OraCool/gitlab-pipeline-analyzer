@@ -319,6 +319,7 @@ cat /tmp/current_tools.txt
 - [ ] **Feature matrix**: Update any feature comparison tables or capability lists
 
 - [ ] **Update Sphinx Documentation** (if present):
+
   ```bash
   # Check if docs exist and update them comprehensively
   if [ -d "docs/" ]; then
@@ -628,6 +629,7 @@ The tag push will automatically trigger:
 This is the **GitLab Pipeline Analyzer MCP** - a FastMCP server for analyzing GitLab CI/CD pipeline failures. It provides 21 MCP tools for comprehensive pipeline failure analysis and AI-assisted troubleshooting. The project itself is hosted on **GitHub** and uses **GitHub Actions** for CI/CD and PyPI publishing.
 
 **Documentation Maintenance**: The project maintains comprehensive documentation in multiple locations:
+
 - **README.md**: Primary PyPI package description and user-facing documentation
 - **docs/ folder**: Detailed Sphinx documentation with complete API reference
 - **CHANGELOG.md**: Version history and release notes
