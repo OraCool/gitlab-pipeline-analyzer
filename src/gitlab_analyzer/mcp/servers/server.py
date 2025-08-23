@@ -11,7 +11,6 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
-from gitlab_analyzer.mcp.cache import get_cache_manager
 from gitlab_analyzer.mcp.prompts import register_all_prompts
 from gitlab_analyzer.mcp.resources import register_all_resources
 from gitlab_analyzer.mcp.tools import register_tools
@@ -37,17 +36,8 @@ def create_server() -> FastMCP:
         """,
     )
 
-    # Initialize cache manager
-    cache_manager = get_cache_manager()
-
-    # Initialize cache on startup
-    async def initialize_cache():
-        await cache_manager.initialize()
-
-    # Call initialization during server startup
-    import asyncio
-
-    asyncio.create_task(initialize_cache())
+    # Cache manager will be initialized when server starts
+    # Note: We don't initialize here to avoid event loop issues
 
     # Register all tools, resources, and prompts
     register_tools(mcp)
@@ -99,9 +89,36 @@ def main() -> None:
     load_env_file()
     mcp = create_server()
 
+    # Initialize cache before running server
+    async def startup():
+        """Initialize cache when server starts"""
+        from gitlab_analyzer.mcp.cache import get_cache_manager
+
+        cache_manager = get_cache_manager()
+        await cache_manager.initialize()
+
+    # Run server with proper cache initialization
     if args.transport == "stdio":
-        mcp.run(transport="stdio")
+        import asyncio
+
+        async def run_stdio():
+            await startup()
+            await mcp.run_stdio_async()
+
+        asyncio.run(run_stdio())
     elif args.transport == "http":
-        mcp.run(transport="http", host=args.host, port=args.port, path=args.path)
+        import asyncio
+
+        async def run_http():
+            await startup()
+            await mcp.run_http_async(host=args.host, port=args.port, path=args.path)
+
+        asyncio.run(run_http())
     elif args.transport == "sse":
-        mcp.run(transport="sse", host=args.host, port=args.port)
+        import asyncio
+
+        async def run_sse():
+            await startup()
+            await mcp.run_sse_async(host=args.host, port=args.port)
+
+        asyncio.run(run_sse())

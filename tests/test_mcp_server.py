@@ -6,7 +6,7 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -151,6 +151,8 @@ class TestMainFunction:
         """Test main function with default stdio transport"""
         # Setup mocks
         mock_mcp = MagicMock()
+        # Mock the async methods
+        mock_mcp.run_stdio_async = AsyncMock()
         mock_create_server.return_value = mock_mcp
 
         # Call main function
@@ -159,7 +161,7 @@ class TestMainFunction:
         # Verify calls
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
-        mock_mcp.run.assert_called_once_with(transport="stdio")
+        mock_mcp.run_stdio_async.assert_called_once()
 
     @patch("gitlab_analyzer.mcp.servers.server.create_server")
     @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
@@ -179,6 +181,8 @@ class TestMainFunction:
         """Test main function with HTTP transport"""
         # Setup mocks
         mock_mcp = MagicMock()
+        # Mock the async methods
+        mock_mcp.run_http_async = AsyncMock()
         mock_create_server.return_value = mock_mcp
 
         # Call main function
@@ -187,8 +191,8 @@ class TestMainFunction:
         # Verify calls
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
-        mock_mcp.run.assert_called_once_with(
-            transport="http", host="localhost", port=9000, path="/mcp"
+        mock_mcp.run_http_async.assert_called_once_with(
+            host="localhost", port=9000, path="/mcp"
         )
 
     @patch("gitlab_analyzer.mcp.servers.server.create_server")
@@ -209,6 +213,8 @@ class TestMainFunction:
         """Test main function with SSE transport"""
         # Setup mocks
         mock_mcp = MagicMock()
+        # Mock the async methods
+        mock_mcp.run_sse_async = AsyncMock()
         mock_create_server.return_value = mock_mcp
 
         # Call main function
@@ -217,7 +223,7 @@ class TestMainFunction:
         # Verify calls
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
-        mock_mcp.run.assert_called_once_with(transport="sse", host="0.0.0.0", port=8080)
+        mock_mcp.run_sse_async.assert_called_once_with(host="0.0.0.0", port=8080)
 
     @patch("gitlab_analyzer.mcp.servers.server.create_server")
     @patch("gitlab_analyzer.mcp.servers.server.load_env_file")
@@ -235,6 +241,8 @@ class TestMainFunction:
         """Test main function using environment variables for defaults"""
         # Setup mocks
         mock_mcp = MagicMock()
+        # Mock the async methods
+        mock_mcp.run_http_async = AsyncMock()
         mock_create_server.return_value = mock_mcp
 
         # Call main function
@@ -243,6 +251,6 @@ class TestMainFunction:
         # Verify calls
         mock_load_env.assert_called_once()
         mock_create_server.assert_called_once()
-        mock_mcp.run.assert_called_once_with(
-            transport="http", host="example.com", port=3000, path="/api/mcp"
+        mock_mcp.run_http_async.assert_called_once_with(
+            host="example.com", port=3000, path="/api/mcp"
         )
