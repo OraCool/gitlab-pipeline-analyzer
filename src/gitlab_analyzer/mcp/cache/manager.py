@@ -394,8 +394,24 @@ class CacheManager:
     async def close(self) -> None:
         """Close database connections and cleanup"""
         if self._initialized:
-            logger.info("Cache manager closed")
-            self._initialized = False
+            try:
+                # Try to cleanly close any remaining connections
+                # Note: aiosqlite uses connection pooling, so we just need to mark as closed
+                logger.info("Closing cache manager")
+                self._initialized = False
+
+                # Give a small delay to allow any pending operations to complete
+                await asyncio.sleep(0.1)
+
+            except Exception as e:
+                logger.debug(f"Non-critical error during cache cleanup: {e}")
+                self._initialized = False
+
+    def __del__(self):
+        """Destructor to handle cleanup when object is garbage collected"""
+        if self._initialized:
+            # Don't try to run async operations in __del__
+            logger.debug("Cache manager being garbage collected")
 
 
 # Global cache manager instance
@@ -408,3 +424,11 @@ def get_cache_manager(db_path: str = "mcp_cache.db") -> CacheManager:
     if _cache_manager is None:
         _cache_manager = CacheManager(db_path)
     return _cache_manager
+
+
+async def cleanup_cache_manager() -> None:
+    """Cleanup global cache manager instance"""
+    global _cache_manager
+    if _cache_manager is not None:
+        await _cache_manager.close()
+        _cache_manager = None

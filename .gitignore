@@ -64,6 +64,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Test databases
+test_*.db
+*_test.db
+test_cleanup*.db
+mcp_cache.db
+
 # Flask stuff:
 instance/
 .webassets-cache

@@ -1,0 +1,5 @@
+- always use "uv" when running the \*.py files or python based scripts /packages
+- always ensure proper cleanup of resources
+- for terminal commands like "find", "grep" initially identify what command is available in the environment
+- do not create big inputs for terminal commands as it freezes the terminal
+- do not use cat just to view files as it do not return to the terminal
