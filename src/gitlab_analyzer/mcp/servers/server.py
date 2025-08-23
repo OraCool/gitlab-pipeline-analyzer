@@ -11,6 +11,9 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.mcp.cache import get_cache_manager
+from gitlab_analyzer.mcp.prompts import register_all_prompts
+from gitlab_analyzer.mcp.resources import register_all_resources
 from gitlab_analyzer.mcp.tools import register_tools
 from gitlab_analyzer.version import get_version
 
@@ -26,12 +29,30 @@ def create_server() -> FastMCP:
         instructions=f"""
         Analyze GitLab CI/CD pipelines for errors and warnings
 
+        This server provides comprehensive pipeline analysis with intelligent caching.
+        Available resources: pipelines, jobs, analysis results, and error details.
+        Use prompts for guided investigation workflows.
+
         GitLab Pipeline Analyzer v{version}
         """,
     )
 
-    # Register all tools
+    # Initialize cache manager
+    cache_manager = get_cache_manager()
+
+    # Initialize cache on startup
+    async def initialize_cache():
+        await cache_manager.initialize()
+
+    # Call initialization during server startup
+    import asyncio
+
+    asyncio.create_task(initialize_cache())
+
+    # Register all tools, resources, and prompts
     register_tools(mcp)
+    register_all_resources(mcp)
+    register_all_prompts(mcp)
     return mcp
 
 
