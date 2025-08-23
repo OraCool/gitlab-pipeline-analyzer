@@ -310,7 +310,8 @@ class CacheManager:
             """,
                 (current_time,),
             ) as cursor:
-                count, size = await cursor.fetchone()
+                result = await cursor.fetchone()
+                count, size = result if result else (0, 0)
 
             # Delete expired entries
             await db.execute(
@@ -359,7 +360,8 @@ class CacheManager:
                 FROM cache_metadata
             """
             ) as cursor:
-                total_entries, total_size = await cursor.fetchone()
+                result = await cursor.fetchone()
+                total_entries, total_size = result if result else (0, 0)
 
             # Get entries by type
             entries_by_type = {}
@@ -381,7 +383,8 @@ class CacheManager:
                 FROM cache_metadata
             """
             ) as cursor:
-                oldest, newest = await cursor.fetchone()
+                result = await cursor.fetchone()
+                oldest, newest = result if result else (None, None)
 
             self._stats = CacheStats(
                 total_entries=total_entries or 0,
