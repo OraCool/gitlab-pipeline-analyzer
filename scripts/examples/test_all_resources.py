@@ -4,8 +4,15 @@ Comprehensive test script for all MCP resources with mode parameter functionalit
 """
 
 import asyncio
+import sys
+from pathlib import Path
 
-from src.gitlab_analyzer.mcp.servers.server import create_server
+# Add the project root to the Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+# Import after path modification
+from src.gitlab_analyzer.mcp.servers.server import create_server  # noqa: E402
 
 
 async def test_all_resources():
@@ -111,7 +118,7 @@ async def test_all_resources():
 
         return True
 
-    except Exception as e:
+    except (ConnectionError, TimeoutError, ValueError) as e:
         print(f"✗ Error during testing: {e}")
         return False
 
