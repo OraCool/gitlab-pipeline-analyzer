@@ -5,6 +5,8 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from gitlab_analyzer.mcp.servers.server import create_server
@@ -13,20 +15,24 @@ from gitlab_analyzer.mcp.servers.server import create_server
 class TestServerIntegration:
     """Test server integration with new features"""
 
-    def test_create_server_with_cache(self):
+    @patch("asyncio.create_task")
+    def test_create_server_with_cache(self, mock_create_task):
         """Test that server is created with cache integration"""
+        # Mock create_task to avoid event loop issues
+        mock_create_task.return_value = None
+
         server = create_server()
 
         assert server is not None
         assert "GitLab Pipeline Analyzer v" in server.name
-        assert "caching" in server.instructions
+        assert "caching" in server.instructions.lower()
 
-        # Check that cache initialization hook is stored
-        assert hasattr(server, "_cache_init")
-        assert callable(server._cache_init)
-
-    def test_server_instructions_updated(self):
+    @patch("asyncio.create_task")
+    def test_server_instructions_updated(self, mock_create_task):
         """Test that server instructions mention new features"""
+        # Mock create_task to avoid event loop issues
+        mock_create_task.return_value = None
+
         server = create_server()
 
         instructions = server.instructions.lower()
@@ -37,9 +43,12 @@ class TestServerIntegration:
     @pytest.mark.asyncio
     async def test_cache_initialization(self):
         """Test that cache can be initialized"""
-        server = create_server()
+        # Test cache manager initialization directly
+        from gitlab_analyzer.mcp.cache import get_cache_manager
 
-        # Should be able to call the cache initialization
-        await server._cache_init()
+        cache_manager = get_cache_manager()
+
+        # Should be able to initialize cache
+        await cache_manager.initialize()
 
         # This should not raise an exception

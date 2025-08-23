@@ -17,16 +17,24 @@ from gitlab_analyzer.mcp.tools.utils import get_gitlab_analyzer
 class TestMCPServer:
     """Test MCP server creation and configuration"""
 
-    def test_create_server(self):
+    @patch("asyncio.create_task")
+    def test_create_server(self, mock_create_task):
         """Test that MCP server is created successfully"""
+        # Mock create_task to avoid event loop issues
+        mock_create_task.return_value = None
+
         server = create_server()
 
         assert server is not None
         assert "GitLab Pipeline Analyzer v" in server.name
         assert "Analyze GitLab CI/CD pipelines" in server.instructions
 
-    def test_server_has_tools(self):
+    @patch("asyncio.create_task")
+    def test_server_has_tools(self, mock_create_task):
         """Test that server has the expected tools registered"""
+        # Mock create_task to avoid event loop issues
+        mock_create_task.return_value = None
+
         server = create_server()
 
         # The tools should be registered
