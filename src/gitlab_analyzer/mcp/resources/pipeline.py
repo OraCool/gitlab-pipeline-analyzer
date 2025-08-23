@@ -77,9 +77,11 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
                 "resource_type": "pipeline",
                 "project_id": project_id,
                 "pipeline_id": int(pipeline_id),
-                "cached_at": cache_manager._stats.newest_entry.isoformat()
-                if cache_manager._stats.newest_entry
-                else None,
+                "cached_at": (
+                    cache_manager._stats.newest_entry.isoformat()
+                    if cache_manager._stats.newest_entry
+                    else None
+                ),
             },
             "mcp_info": get_mcp_info("pipeline_resource"),
         }

@@ -57,7 +57,12 @@ Focus on specific files with many errors:
 ```
 Tool: get_files_with_errors
 Tool: get_file_errors (for specific files)
+Resource: gl://file/{{project_id}}/{{job_id}}/{{file_path}}
 ```
+The file resource provides:
+- File-specific error analysis with context
+- Error filtering and categorization
+- Line numbers and exception details
 
 ### Step 5: Generate Solutions
 Use analysis results to generate fixes:

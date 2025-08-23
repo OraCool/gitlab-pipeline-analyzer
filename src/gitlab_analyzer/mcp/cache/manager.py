@@ -51,7 +51,8 @@ class CacheManager:
         logger.info(f"Initializing cache database at {self.db_path}")
 
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE TABLE IF NOT EXISTS cache_metadata (
                     key TEXT PRIMARY KEY,
                     data_type TEXT NOT NULL,
@@ -64,43 +65,56 @@ class CacheManager:
                     parser_type TEXT,
                     data_size INTEGER DEFAULT 0
                 )
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_project_pipeline
                 ON cache_metadata(project_id, pipeline_id)
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_project_job
                 ON cache_metadata(project_id, job_id)
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_expires_at
                 ON cache_metadata(expires_at)
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_data_type
                 ON cache_metadata(data_type)
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE TABLE IF NOT EXISTS cache_data (
                     key TEXT PRIMARY KEY REFERENCES cache_metadata(key) ON DELETE CASCADE,
                     json_data TEXT NOT NULL,
                     mcp_info TEXT NOT NULL
                 )
-            """)
+            """
+            )
 
-            await db.execute("""
+            await db.execute(
+                """
                 CREATE TABLE IF NOT EXISTS cleanup_log (
                     run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     items_cleaned INTEGER,
                     space_freed INTEGER
                 )
-            """)
+            """
+            )
 
             await db.commit()
 
@@ -339,28 +353,34 @@ class CacheManager:
 
         async with aiosqlite.connect(self.db_path) as db:
             # Get total entries and size
-            async with db.execute("""
+            async with db.execute(
+                """
                 SELECT COUNT(*), COALESCE(SUM(data_size), 0)
                 FROM cache_metadata
-            """) as cursor:
+            """
+            ) as cursor:
                 total_entries, total_size = await cursor.fetchone()
 
             # Get entries by type
             entries_by_type = {}
-            async with db.execute("""
+            async with db.execute(
+                """
                 SELECT data_type, COUNT(*)
                 FROM cache_metadata
                 GROUP BY data_type
-            """) as cursor:
+            """
+            ) as cursor:
                 async for row in cursor:
                     data_type, count = row
                     entries_by_type[data_type] = count
 
             # Get oldest and newest entries
-            async with db.execute("""
+            async with db.execute(
+                """
                 SELECT MIN(created_at), MAX(created_at)
                 FROM cache_metadata
-            """) as cursor:
+            """
+            ) as cursor:
                 oldest, newest = await cursor.fetchone()
 
             self._stats = CacheStats(
