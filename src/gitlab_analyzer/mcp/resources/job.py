@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from ..cache import get_cache_manager
+from ...cache.mcp_cache import get_cache_manager
 from ..tools.utils import get_gitlab_analyzer, get_mcp_info
 
 logger = logging.getLogger(__name__)

@@ -92,7 +92,7 @@ def main() -> None:
     # Initialize cache before running server
     async def startup():
         """Initialize cache when server starts"""
-        from gitlab_analyzer.mcp.cache import get_cache_manager
+        from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
         cache_manager = get_cache_manager()
         await cache_manager.initialize()

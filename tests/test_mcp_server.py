@@ -9,6 +9,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastmcp import Client
 
 from gitlab_analyzer.mcp.servers.server import create_server, load_env_file, main
 from gitlab_analyzer.mcp.tools.utils import get_gitlab_analyzer
@@ -100,10 +101,10 @@ class TestMCPServer:
 
 
 class TestMCPTools:
-    """Test MCP tool functions"""
+    """Test MCP tool functions using FastMCP Client"""
 
     @pytest.mark.asyncio
-    async def test_analyze_failed_pipeline(
+    async def test_analyze_failed_pipeline_via_mcp(
         self,
         mock_env_vars,
         clean_global_analyzer,
@@ -112,7 +113,7 @@ class TestMCPTools:
         sample_failed_jobs,
         sample_job_trace,
     ):
-        """Test analyzing a failed pipeline"""
+        """Test analyzing a failed pipeline via MCP protocol"""
         # Setup mock analyzer
         mock_gitlab_analyzer.get_pipeline.return_value = sample_pipeline_data
         mock_gitlab_analyzer.get_failed_pipeline_jobs.return_value = sample_failed_jobs
@@ -122,7 +123,70 @@ class TestMCPTools:
             "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
             return_value=mock_gitlab_analyzer,
         ):
-            # Import and call the function directly instead of going through FastMCP
+            # Create MCP server and client for proper protocol testing
+            server = create_server()
+
+            async with Client(transport=server) as client:
+                # Test calling the tool via MCP protocol
+                result = await client.call_tool(
+                    "analyze_failed_pipeline",
+                    {"project_id": "test-project", "pipeline_id": 12345},
+                )
+
+                assert result is not None
+                assert isinstance(result.content, list)
+                assert len(result.content) > 0
+
+                # The result should be a TextContent containing our response
+                content = result.content[0]
+                assert hasattr(content, "text")
+
+                # Parse the JSON response from the text content
+                import json
+
+                response_data = json.loads(content.text)
+
+                assert "project_id" in response_data
+                assert "pipeline_id" in response_data
+                assert "failed_jobs" in response_data  # New format with resource URIs
+                assert response_data["project_id"] == "test-project"
+                assert response_data["pipeline_id"] == 12345
+
+                # Verify we get resource URIs for failed jobs
+                failed_jobs = response_data["failed_jobs"]
+                assert isinstance(failed_jobs, list)
+                assert len(failed_jobs) > 0
+
+                # Each failed job should have resource URIs
+                for job in failed_jobs:
+                    assert "resources" in job
+                    resources = job["resources"]
+                    assert "job_trace" in resources
+                    assert "error_analysis" in resources
+                    assert resources["job_trace"].startswith("gl://job/")
+                    assert resources["error_analysis"].startswith("gl://error/")
+
+    @pytest.mark.asyncio
+    async def test_analyze_failed_pipeline_direct_call(
+        self,
+        mock_env_vars,
+        clean_global_analyzer,
+        mock_gitlab_analyzer,
+        sample_pipeline_data,
+        sample_failed_jobs,
+        sample_job_trace,
+    ):
+        """Test analyzing a failed pipeline via direct function call (for comparison)"""
+        # Setup mock analyzer
+        mock_gitlab_analyzer.get_pipeline.return_value = sample_pipeline_data
+        mock_gitlab_analyzer.get_failed_pipeline_jobs.return_value = sample_failed_jobs
+        mock_gitlab_analyzer.get_job_trace.return_value = sample_job_trace
+
+        with patch(
+            "gitlab_analyzer.mcp.tools.analysis_tools.get_gitlab_analyzer",
+            return_value=mock_gitlab_analyzer,
+        ):
+            # Import and call the function directly (legacy test for comparison)
             from gitlab_analyzer.mcp.tools.analysis_tools import (
                 analyze_failed_pipeline_optimized,
             )
@@ -136,7 +200,7 @@ class TestMCPTools:
             assert isinstance(result, dict)
             assert "project_id" in result
             assert "pipeline_id" in result
-            assert "job_analyses" in result
+            assert "failed_jobs" in result  # Updated to match new format
             assert result["project_id"] == "test-project"
             assert result["pipeline_id"] == 12345
 

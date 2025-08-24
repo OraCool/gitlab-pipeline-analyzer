@@ -2,7 +2,7 @@
 MCP (Model Context Protocol) integration modules
 """
 
-from .cache import get_cache_manager
+from ..cache.mcp_cache import get_cache_manager
 from .prompts import register_all_prompts
 from .resources import register_all_resources
 from .servers.server import create_server

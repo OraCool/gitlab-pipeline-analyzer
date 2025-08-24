@@ -12,8 +12,8 @@ Licensed under the MIT License - see LICENSE file for details
 import logging
 from typing import Any
 
-from ..cache import get_cache_manager
-from ..cache.models import generate_cache_key
+from ...cache.mcp_cache import get_cache_manager
+from ...cache.models import generate_cache_key
 from ..tools.utils import get_gitlab_analyzer, get_mcp_info
 
 logger = logging.getLogger(__name__)

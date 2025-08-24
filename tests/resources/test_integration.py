@@ -2,7 +2,16 @@
 Simple integration tests for MCP resources
 
 Copyright (c) 2025 Siarhei Skuratovich
-Licensed under the MIT License - see LICENSE file for details
+Licensed under the MIT License - see LIC    def test_cache_models_import(self):
+        """Test cache models can be imported"""
+        from gitlab_analyzer.cache.models import CacheData, generate_cache_key
+
+        assert CacheData is not None
+        assert callable(generate_cache_key)
+
+    def test_cache_key_generation(self):
+        """Test cache key generation"""
+        from gitlab_analyzer.cache.models import generate_cache_keyfor details
 """
 
 import pytest
