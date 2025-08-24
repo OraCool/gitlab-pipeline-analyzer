@@ -1,7 +1,7 @@
 """
 FastMCP resource handlers for cache-first serving.
 
-This implements the serving phase with cache-first resources:
+This implements resource-based data access:
 - gl://job/{proj}/{job}/problems
 - gl://file/{proj}/{job}/{path}/errors
 - gl://error/{proj}/{job}/{err}/trace/{mode}
@@ -15,8 +15,7 @@ from urllib.parse import unquote
 from fastmcp import FastMCP
 
 from ...cache.mcp_cache import McpCache
-from ...webhook.processor import process_webhook_event
-from ..tools.utils import get_mcp_info, get_gitlab_analyzer
+from ..tools.utils import get_mcp_info
 
 
 logger = logging.getLogger(__name__)
@@ -271,99 +270,3 @@ def register_cache_resources(app: FastMCP):
         return await _resource_handler.handle_pipeline_failed_jobs_resource(
             project_id, pipeline_id
         )
-
-
-def register_webhook_tools(app: FastMCP):
-    """Register webhook processing tools"""
-
-    @app.tool()
-    async def trigger_pipeline_analysis(
-        project_id: str, pipeline_id: int
-    ) -> dict[str, Any]:
-        """
-        Trigger webhook-style analysis for a pipeline.
-
-        This processes the pipeline like a webhook would:
-        1. Fetch failed jobs
-        2. Parse traces
-        3. Cache results
-        4. Return processing summary
-        """
-        try:
-            gitlab_analyzer = get_gitlab_analyzer()
-            result = await process_webhook_event(
-                project_id, pipeline_id, gitlab_analyzer
-            )
-
-            # Add resource URIs for accessing cached data
-            if result.get("status") == "success":
-                resource_uris = []
-                for job_id in result.get("processed_job_ids", []):
-                    resource_uris.extend(
-                        [
-                            f"gl://job/{project_id}/{job_id}/problems",
-                            f"gl://error/{project_id}/{job_id}/*/trace/balanced",
-                        ]
-                    )
-
-                result["available_resources"] = resource_uris
-                result["cache_info"] = {
-                    "cache_type": "sqlite",
-                    "parser_version": _resource_handler.cache.parser_version,
-                    "immutable_records": True,
-                }
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Failed to trigger pipeline analysis: {e}")
-            return {
-                "status": "error",
-                "project_id": project_id,
-                "pipeline_id": pipeline_id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            }
-
-    @app.tool()
-    async def get_cache_status(project_id: str, pipeline_id: int) -> dict[str, Any]:
-        """
-        Get cache status for a pipeline.
-
-        Shows what's cached and what resources are available.
-        """
-        try:
-            failed_jobs = _resource_handler.cache.get_pipeline_failed_jobs(pipeline_id)
-
-            available_resources = []
-            for job in failed_jobs:
-                job_id = job["job_id"]
-                available_resources.extend(
-                    [
-                        f"gl://job/{project_id}/{job_id}/problems",
-                        f"gl://pipeline/{project_id}/{pipeline_id}/failed_jobs",
-                    ]
-                )
-
-            return {
-                "status": "success",
-                "project_id": project_id,
-                "pipeline_id": pipeline_id,
-                "cache_summary": {
-                    "failed_jobs_cached": len(failed_jobs),
-                    "parser_version": _resource_handler.cache.parser_version,
-                    "cache_type": "sqlite",
-                },
-                "available_resources": available_resources,
-                "mcp_info": get_mcp_info("cache_status"),
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get cache status: {e}")
-            return {
-                "status": "error",
-                "project_id": project_id,
-                "pipeline_id": pipeline_id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            }

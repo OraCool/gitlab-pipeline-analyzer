@@ -1,13 +1,5 @@
 """
-Webhook-triggered analysis proc        def __init__(
-        self, gitlab_analyzer: GitLabAnalyzer, cache: McpCache | None = None
-    ):
-        self.gitlab_analyzer = gitlab_analyzer
-        self.cache = cache or McpCache()_init__(
-        self, gitlab_analyzer: GitLabAnalyzer, cache: McpCache | None = None
-    ):
-        self.gitlab_analyzer = gitlab_analyzer
-        self.cache = cache or McpCache().
+Webhook-triggered analysis processor.
 
 This implements the ingestion phase:
 1. Receive {project_id, pipeline_id} from webhook
@@ -16,15 +8,14 @@ This implements the ingestion phase:
 4. Mark records immutable when jobs complete
 """
 
-import asyncio
 import logging
-from typing import Any
 from datetime import datetime
+from typing import Any
 
+from ..api.client import GitLabAnalyzer
 from ..cache.mcp_cache import McpCache
 from ..cache.models import JobRecord, PipelineRecord
 from ..parsers.log_parser import LogParser
-from ..api.client import GitLabAnalyzer
 
 
 logger = logging.getLogger(__name__)
@@ -255,7 +246,7 @@ class WebhookAnalysisProcessor:
                     "total_errors": len(errors),
                     "error_types": self._categorize_errors(errors),
                     "files_with_errors": len(
-                        set(e.get("file", "") for e in errors if e.get("file"))
+                        {e.get("file", "") for e in errors if e.get("file")}
                     ),
                     "parser_version": self.cache.parser_version,
                     "parsed_at": datetime.now().isoformat(),
