@@ -296,11 +296,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     }
                 )
 
-            # Prepare analysis results
-            failed_stages = list({job.stage for job in failed_jobs})
-            failure_reasons = list(
-                {job.failure_reason for job in failed_jobs if job.failure_reason}
-            )
+            # Prepare analysis results - store in resources for later access
+            # (failed_stages and failure_reasons are available in the stored data)
 
             # Build hierarchical resources structure with files and errors
             resources = {
@@ -382,39 +379,79 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             resources["files"] = all_files
             resources["errors"] = all_errors
 
-            result = {
-                "pipeline_info": pipeline_info,
-                "failed_jobs_count": len(failed_jobs),
-                "failed_jobs": [
-                    {
-                        "id": job.id,
-                        "name": job.name,
-                        "status": job.status,
-                        "stage": job.stage,
-                        "failure_reason": job.failure_reason,
-                        "web_url": job.web_url,
-                        "created_at": job.created_at,
-                        "started_at": job.started_at,
-                        "finished_at": job.finished_at,
-                    }
-                    for job in failed_jobs
-                ],
-                "summary": {
-                    "pipeline_id": pipeline_id,
-                    "pipeline_status": pipeline_info.get("status"),
-                    "pipeline_ref": pipeline_info.get("ref"),
-                    "pipeline_web_url": pipeline_info.get("web_url"),
-                    "failed_jobs_count": len(failed_jobs),
-                    "failed_stages": failed_stages,
-                    "failure_reasons": failure_reasons,
-                    "analysis_type": "failed_jobs_only",
-                    "efficiency_note": f"Analyzed only {len(failed_jobs)} failed jobs instead of all pipeline jobs",
-                },
-                "resources": resources,
-            }
+            # Extract key information for summary
+            source_branch = pipeline_info.get("source_branch") or pipeline_info.get(
+                "target_branch", "unknown"
+            )
+            pipeline_sha = (
+                pipeline_info.get("sha", "unknown")[:8]
+                if pipeline_info.get("sha")
+                else "unknown"
+            )
+            total_files = len(all_files)
+            total_errors = len(all_errors)
 
-            # Add MCP info
-            result["mcp_info"] = get_mcp_info("failed_pipeline_analysis")
+            # Create lightweight content-based response
+            content = [
+                {
+                    "type": "text",
+                    "text": f"Analyzed pipeline {pipeline_id} ({source_branch} @ {pipeline_sha}): {len(failed_jobs)} failed jobs, {total_files} files impacted, {total_errors} errors found.",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://pipeline/{project_id}/{pipeline_id}",
+                    "text": "Pipeline details & metadata",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://jobs/{project_id}/{pipeline_id}",
+                    "text": f"Failed jobs overview ({len(failed_jobs)} jobs)",
+                },
+            ]
+
+            # Add files resource if we have files with errors
+            if total_files > 0:
+                # Show pagination hint for large file sets
+                if total_files > 20:
+                    content.append(
+                        {
+                            "type": "resource_link",
+                            "resourceUri": f"gl://files/{project_id}/{pipeline_id}?page=1&limit=20",
+                            "text": f"Files with errors (page 1 of {(total_files + 19) // 20})",
+                        }
+                    )
+                else:
+                    content.append(
+                        {
+                            "type": "resource_link",
+                            "resourceUri": f"gl://files/{project_id}/{pipeline_id}",
+                            "text": f"Files with errors ({total_files} files)",
+                        }
+                    )
+
+            # Add errors resource if we have errors
+            if total_errors > 0:
+                content.append(
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://errors/{project_id}/{pipeline_id}?page=1&limit=50",
+                        "text": f"Error details (page 1 of {(total_errors + 49) // 50})",
+                    }
+                )
+
+            # Add analysis resource for comprehensive data
+            content.append(
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://analysis/{project_id}/{pipeline_id}",
+                    "text": "Complete analysis data",
+                }
+            )
+
+            result = {
+                "content": content,
+                "mcp_info": get_mcp_info("failed_pipeline_analysis"),
+            }
 
             print("✅ Failed pipeline analysis completed successfully")
             return result
@@ -422,8 +459,11 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
             print(f"❌ Error in failed pipeline analysis: {e}")
             return {
-                "error": str(e),
-                "pipeline_id": pipeline_id,
-                "project_id": project_id,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"❌ Failed to analyze pipeline {pipeline_id}: {str(e)}",
+                    }
+                ],
                 "mcp_info": get_mcp_info("failed_pipeline_analysis", error=True),
             }
