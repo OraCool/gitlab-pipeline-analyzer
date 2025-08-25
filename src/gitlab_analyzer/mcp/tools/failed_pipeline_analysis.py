@@ -108,10 +108,96 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     pipeline_info=pipeline_info,
                 )
 
+            # Step 4: For each failed job, get trace, select parser, extract/categorize/store errors/files
+            from .utils import (
+                _should_use_pytest_parser,
+                extract_file_path_from_message,
+                categorize_files_by_type,
+            )
+            from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+            from gitlab_analyzer.parsers.log_parser import LogParser
+
+            job_analysis_results = []
+            for job in failed_jobs:
+                print(f"🔎 Analyzing job {job.id} ({job.name})...")
+                trace = await analyzer.get_job_trace(project_id, job.id)
+                parser_type = (
+                    "pytest"
+                    if _should_use_pytest_parser(trace, job.name, job.stage)
+                    else "generic"
+                )
+                if parser_type == "pytest":
+                    parser = PytestLogParser()
+                    parsed = parser.parse_pytest_log(trace)
+                    # Convert PytestFailureDetail objects to error dict format
+                    errors = []
+                    for failure in parsed.detailed_failures:
+                        error_dict = {
+                            "exception_type": failure.exception_type,
+                            "exception_message": failure.exception_message,
+                            "file_path": failure.test_file,
+                            "line_number": None,  # Get from traceback if available
+                            "test_function": failure.test_function,
+                            "test_name": failure.test_name,
+                            "message": failure.exception_message,
+                        }
+                        # Try to get line number from traceback
+                        if failure.traceback:
+                            for tb in failure.traceback:
+                                if tb.line_number:
+                                    error_dict["line_number"] = tb.line_number
+                                    break
+                        errors.append(error_dict)
+                else:
+                    parser = LogParser()
+                    parsed = parser.parse(trace)
+                    errors = parsed.get("errors", [])
+
+                # Group errors by file
+                file_groups = {}
+                for error in errors:
+                    file_path = extract_file_path_from_message(
+                        error.get("exception_message", "") or error.get("message", "")
+                    )
+                    if not file_path:
+                        file_path = error.get("file_path", "unknown")
+                    if file_path not in file_groups:
+                        file_groups[file_path] = {
+                            "file_path": file_path,
+                            "error_count": 0,
+                            "errors": [],
+                        }
+                    file_groups[file_path]["error_count"] += 1
+                    file_groups[file_path]["errors"].append(error)
+
+                categorized = categorize_files_by_type(list(file_groups.values()))
+
+                # Store file and error info in DB (extend cache manager as needed)
+                if store_in_db:
+                    await cache_manager.store_job_file_errors(
+                        project_id=project_id,
+                        pipeline_id=pipeline_id,
+                        job_id=job.id,
+                        files=list(file_groups.values()),
+                        errors=errors,
+                        parser_type=parser_type,
+                    )
+
+                job_analysis_results.append(
+                    {
+                        "job_id": job.id,
+                        "job_name": job.name,
+                        "parser_type": parser_type,
+                        "file_groups": list(file_groups.values()),
+                        "categorized_files": categorized,
+                        "errors": errors,
+                    }
+                )
+
             # Prepare analysis results
-            failed_stages = list(set(job.stage for job in failed_jobs))
+            failed_stages = list({job.stage for job in failed_jobs})
             failure_reasons = list(
-                set(job.failure_reason for job in failed_jobs if job.failure_reason)
+                {job.failure_reason for job in failed_jobs if job.failure_reason}
             )
 
             result = {
@@ -131,6 +217,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     }
                     for job in failed_jobs
                 ],
+                "job_analysis": job_analysis_results,
                 "summary": {
                     "pipeline_id": pipeline_id,
                     "pipeline_status": pipeline_info.get("status"),

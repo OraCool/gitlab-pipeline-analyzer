@@ -5,10 +5,13 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+# --- Standard Library Imports ---
 import os
+import re
 import tempfile
 from typing import Any
 
+# --- Third Party Imports ---
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.version import get_version
 
@@ -181,6 +184,117 @@ DEFAULT_EXCLUDE_PATHS = [
     ".cache",
     tempfile.gettempdir(),  # Dynamic temp directory instead of hardcoded /tmp/
 ]
+
+
+# --- Moved from old.py for DRY/KISS ---
+def extract_file_path_from_message(message: str) -> str | None:
+    """Extract file path from error message - testable helper function"""
+
+    def _is_application_file(file_path: str) -> bool:
+        # Simple heuristic: not a system/lib path
+        return not any(p in file_path for p in DEFAULT_EXCLUDE_PATHS)
+
+    file_match = re.search(r"([\w\-/\.]+\.py):\d+", message)
+    if file_match:
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
+
+    file_match = re.search(r"File ['\"]([^'\"]+\.py)['\"]", message)
+    if file_match:
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
+
+    file_match = re.search(r"(?:for|in|at)\s+([\w\-/\.]+\.py)", message)
+    if file_match:
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
+
+    file_matches = re.findall(r"([\w\-/\.]+\.py)", message)
+    for file_path in file_matches:
+        if _is_application_file(file_path):
+            return file_path
+    return None
+
+
+def should_exclude_file_path(file_path: str, exclude_patterns: list[str]) -> bool:
+    """Check if a file path should be excluded based on patterns - testable helper function"""
+    if not exclude_patterns or not file_path or file_path == "unknown":
+        return False
+    return any(pattern in file_path for pattern in exclude_patterns)
+
+
+def combine_exclude_file_patterns(user_patterns: list[str] | None) -> list[str]:
+    """Combine default file exclude patterns with user-provided patterns - testable helper function"""
+    if user_patterns is None:
+        return list(DEFAULT_EXCLUDE_PATHS)
+    combined = list(DEFAULT_EXCLUDE_PATHS)
+    for pattern in user_patterns:
+        if pattern not in combined:
+            combined.append(pattern)
+    return combined
+
+
+def categorize_files_by_type(sorted_files: list[dict]) -> dict[str, dict]:
+    """Categorize files by type (test, source, unknown) - testable helper function"""
+    test_files = [
+        f
+        for f in sorted_files
+        if any(
+            ind in f["file_path"].lower()
+            for ind in ["test_", "tests/", "_test.", "/test/", "conftest"]
+        )
+    ]
+    unknown_files = [
+        f
+        for f in sorted_files
+        if f["file_path"] == "unknown" or f["file_path"].lower() == "unknown"
+    ]
+    source_files = [
+        f for f in sorted_files if f not in test_files and f not in unknown_files
+    ]
+    return {
+        "test_files": {
+            "count": len(test_files),
+            "total_errors": sum(f["error_count"] for f in test_files),
+            "files": [
+                {"file_path": f["file_path"], "error_count": f["error_count"]}
+                for f in test_files
+            ],
+        },
+        "source_files": {
+            "count": len(source_files),
+            "total_errors": sum(f["error_count"] for f in source_files),
+            "files": [
+                {"file_path": f["file_path"], "error_count": f["error_count"]}
+                for f in source_files
+            ],
+        },
+        "unknown_files": {
+            "count": len(unknown_files),
+            "total_errors": sum(f["error_count"] for f in unknown_files),
+            "files": [
+                {"file_path": f["file_path"], "error_count": f["error_count"]}
+                for f in unknown_files
+            ],
+        },
+    }
+
+
+def process_file_groups(
+    file_groups: dict[str, dict], max_files: int, max_errors_per_file: int
+) -> list[dict]:
+    """Process and limit file groups for response - testable helper function"""
+    sorted_files = sorted(
+        file_groups.values(), key=lambda x: x["error_count"], reverse=True
+    )[:max_files]
+    for file_group in sorted_files:
+        # Limit errors per file and convert sets to lists
+        if "errors" in file_group:
+            file_group["errors"] = list(file_group["errors"])[:max_errors_per_file]
+    return sorted_files
 
 
 # Response Optimization Utilities
