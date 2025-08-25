@@ -29,6 +29,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         pipeline_id: int,
         use_cache: bool = True,
         store_in_db: bool = True,
+        exclude_file_patterns: list[str] | None = None,
+        disable_file_filtering: bool = False,
     ) -> dict[str, Any]:
         """
         🚨 FAILED PIPELINE ANALYSIS: Efficient analysis focusing only on failed jobs.
@@ -65,6 +67,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             pipeline_id: The ID of the GitLab pipeline to analyze
             use_cache: Whether to use cached results if available
             store_in_db: Whether to store results in database for resources
+            exclude_file_patterns: Additional file path patterns to exclude beyond defaults.
+                                 Examples: ["migrations/", "node_modules/", "vendor/"]
+                                 These are combined with default system paths like .venv, site-packages, etc.
+            disable_file_filtering: If True, disables all file filtering including defaults.
+                                  When True, all errors from all files (including system files) are included.
+                                  Useful for comprehensive debugging or when you need to see everything.
 
         Returns:
             Failed pipeline analysis with efficient failed-job-only parsing and caching
@@ -121,10 +129,22 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             from gitlab_analyzer.parsers.log_parser import LogParser
 
             job_analysis_results = []
-            # Set up file path exclusion patterns
-            exclude_patterns = combine_exclude_file_patterns(
-                None
-            )  # Use default patterns
+            # Set up file path exclusion patterns (combine defaults with user-provided patterns)
+            if disable_file_filtering:
+                exclude_patterns = []  # No filtering at all
+                print(
+                    "🚫 File filtering disabled - processing ALL files including system files"
+                )
+            else:
+                exclude_patterns = combine_exclude_file_patterns(exclude_file_patterns)
+
+                if exclude_file_patterns:
+                    print(f"🔧 Using custom exclude patterns: {exclude_file_patterns}")
+                    print(
+                        f"📋 Total exclude patterns: {len(exclude_patterns)} (defaults + custom)"
+                    )
+                else:
+                    print(f"📋 Using {len(exclude_patterns)} default exclude patterns")
 
             for job in failed_jobs:
                 print(f"🔎 Analyzing job {job.id} ({job.name})...")
@@ -172,11 +192,13 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     if not file_path:
                         file_path = error.get("file_path", "unknown")
 
-                    # Filter out system/exclude paths
-                    if should_exclude_file_path(file_path, exclude_patterns):
+                    # Filter out system/exclude paths (only if filtering is enabled)
+                    if not disable_file_filtering and should_exclude_file_path(
+                        file_path, exclude_patterns
+                    ):
                         continue  # Skip this error if the file should be excluded
 
-                    # Keep this error since it's from an application file
+                    # Keep this error since it's from an application file (or filtering is disabled)
                     filtered_errors.append(error)
 
                     if file_path not in file_groups:
@@ -194,8 +216,17 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 filtered_out_count = original_error_count - filtered_error_count
 
                 if filtered_out_count > 0:
+                    if disable_file_filtering:
+                        print(
+                            f"ℹ️  No filtering applied - processed all {original_error_count} errors including system files"
+                        )
+                    else:
+                        print(
+                            f"🔽 Filtered out {filtered_out_count} errors from system files (kept {filtered_error_count}/{original_error_count})"
+                        )
+                elif disable_file_filtering:
                     print(
-                        f"🔽 Filtered out {filtered_out_count} errors from system files (kept {filtered_error_count}/{original_error_count})"
+                        f"ℹ️  No filtering applied - processed all {original_error_count} errors"
                     )
 
                 categorized = categorize_files_by_type(list(file_groups.values()))
