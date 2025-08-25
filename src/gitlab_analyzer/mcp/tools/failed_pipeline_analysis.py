@@ -19,7 +19,7 @@ from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import ErrorRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 
-from .utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
 def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
@@ -120,7 +120,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 )
 
             # Step 4: For each failed job, get trace, select parser, extract/categorize/store errors/files
-            from .utils import (
+            from gitlab_analyzer.utils.utils import (
                 _should_use_pytest_parser,
                 extract_file_path_from_message,
                 categorize_files_by_type,

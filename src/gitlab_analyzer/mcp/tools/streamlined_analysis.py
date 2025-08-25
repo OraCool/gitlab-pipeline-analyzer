@@ -18,7 +18,7 @@ from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.core.analysis import analyze_pipeline_jobs
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 
-from .utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
 async def store_pipeline_info_step(

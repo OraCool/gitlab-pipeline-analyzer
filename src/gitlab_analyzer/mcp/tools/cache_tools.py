@@ -11,7 +11,7 @@ from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
-from .utils import get_mcp_info
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 
 def register_cache_tools(mcp: FastMCP) -> None:

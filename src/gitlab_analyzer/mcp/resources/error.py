@@ -9,8 +9,8 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from ...cache.mcp_cache import get_cache_manager
-from ..tools.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ async def _get_error_analysis(
         }
 
         # Apply response mode optimization
-        from ..tools.utils import optimize_tool_response
+        from gitlab_analyzer.utils.utils import optimize_tool_response
 
         result = optimize_tool_response(result, response_mode)
 
