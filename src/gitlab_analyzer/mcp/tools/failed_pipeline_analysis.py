@@ -15,10 +15,19 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.utils.utils import (
+    _should_use_pytest_parser,
+    categorize_files_by_type,
+    combine_exclude_file_patterns,
+    extract_file_path_from_message,
+    should_exclude_file_path,
+)
+
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import ErrorRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
-
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
@@ -120,16 +129,6 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 )
 
             # Step 4: For each failed job, get trace, select parser, extract/categorize/store errors/files
-            from gitlab_analyzer.utils.utils import (
-                _should_use_pytest_parser,
-                extract_file_path_from_message,
-                categorize_files_by_type,
-                should_exclude_file_path,
-                combine_exclude_file_patterns,
-            )
-            from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
-            from gitlab_analyzer.parsers.log_parser import LogParser
-
             job_analysis_results = []
             # Set up file path exclusion patterns (combine defaults with user-provided patterns)
             if disable_file_filtering:

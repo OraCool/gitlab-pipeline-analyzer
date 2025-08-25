@@ -14,11 +14,12 @@ Licensed under the MIT License - see LICENSE file for details
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.utils.utils import get_gitlab_analyzer
+
 from .cache_tools import register_cache_tools
 from .failed_pipeline_analysis import register_failed_pipeline_analysis_tools
 from .search_tools import register_search_tools
 from .streamlined_analysis import register_streamlined_analysis_tools
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer
 
 
 def register_tools(mcp: FastMCP) -> None:

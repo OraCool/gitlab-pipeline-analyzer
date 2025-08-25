@@ -31,12 +31,14 @@ def get_version() -> str:
     # Fallback to package metadata for installed packages
     try:
         try:
-            from importlib.metadata import version
+            from importlib.metadata import (
+                version,
+            )  # pylint: disable=import-outside-toplevel
 
             return version("gitlab-pipeline-analyzer")
         except ImportError:
             # Python < 3.8 compatibility
-            import pkg_resources
+            import pkg_resources  # pylint: disable=import-outside-toplevel
 
             return pkg_resources.get_distribution("gitlab-pipeline-analyzer").version
     except Exception:  # nosec B110

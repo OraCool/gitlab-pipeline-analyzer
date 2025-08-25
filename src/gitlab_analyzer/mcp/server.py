@@ -13,9 +13,9 @@ from fastmcp import FastMCP
 
 from gitlab_analyzer.version import get_version
 
-from .tools import register_tools
-from .resources import register_all_resources
 from .prompts import register_all_prompts
+from .resources import register_all_resources
+from .tools import register_tools
 
 
 def create_server() -> FastMCP:

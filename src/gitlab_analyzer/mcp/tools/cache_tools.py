@@ -10,7 +10,6 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-
 from gitlab_analyzer.utils.utils import get_mcp_info
 
 

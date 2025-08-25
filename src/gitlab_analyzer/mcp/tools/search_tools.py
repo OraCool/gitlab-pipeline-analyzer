@@ -5,6 +5,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import json
 from typing import Any
 
 import httpx
@@ -82,8 +83,6 @@ def register_search_tools(mcp: FastMCP) -> None:
                 )
 
                 if output_format == "json":
-                    import json
-
                     return json.dumps(
                         {
                             "search_keywords": search_keywords,
@@ -108,8 +107,6 @@ def register_search_tools(mcp: FastMCP) -> None:
             limited_results = results[:max_results]
 
             if output_format == "json":
-                import json
-
                 # Structure results in JSON format
                 json_results = []
                 for result in limited_results:
@@ -270,8 +267,6 @@ def register_search_tools(mcp: FastMCP) -> None:
                 )
 
                 if output_format == "json":
-                    import json
-
                     return json.dumps(
                         {
                             "search_keywords": search_keywords,
@@ -291,8 +286,6 @@ def register_search_tools(mcp: FastMCP) -> None:
             limited_results = results[:max_results]
 
             if output_format == "json":
-                import json
-
                 # Return structured JSON format
                 json_result: dict[str, Any] = {
                     "search_query": search_keywords,

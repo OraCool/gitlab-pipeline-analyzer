@@ -8,16 +8,17 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import traceback
 from datetime import datetime
 from typing import Any
 
+import aiosqlite
 import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.core.analysis import analyze_pipeline_jobs
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
-
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
@@ -65,8 +66,6 @@ async def store_pipeline_info_step(
         )
 
         # Store in pipelines table
-        import aiosqlite
-
         async with aiosqlite.connect(cache_manager.db_path) as conn:
             data_to_store = (
                 pipeline_id,
@@ -84,7 +83,7 @@ async def store_pipeline_info_step(
 
             await conn.execute(
                 """
-                INSERT OR REPLACE INTO pipelines 
+                INSERT OR REPLACE INTO pipelines
                 (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at, source_branch, target_branch)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -102,8 +101,6 @@ async def store_pipeline_info_step(
         print("DEBUG: Pipeline info stored successfully")
     except Exception as e:
         print(f"DEBUG: Error storing pipeline info: {e}")
-        import traceback
-
         traceback.print_exc()
 
 

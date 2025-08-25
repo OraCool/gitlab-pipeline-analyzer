@@ -25,7 +25,7 @@ async def store_jobs_metadata_step(
             for job in jobs:
                 await conn.execute(
                     """
-                    INSERT OR REPLACE INTO jobs 
+                    INSERT OR REPLACE INTO jobs
                     (job_id, project_id, pipeline_id, ref, sha, status, trace_hash, parser_version, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
@@ -59,14 +59,15 @@ async def store_job_analysis_step(
 ) -> None:
     """Store job analysis data progressively as each job is processed"""
     try:
-        import aiosqlite
         import gzip
+
+        import aiosqlite
 
         async with aiosqlite.connect(cache_manager.db_path) as conn:
             # Step 1: Update job with trace hash (job metadata already stored)
             await conn.execute(
                 """
-                UPDATE jobs 
+                UPDATE jobs
                 SET trace_hash = ?, completed_at = datetime('now')
                 WHERE job_id = ?
                 """,
@@ -90,7 +91,7 @@ async def store_job_analysis_step(
 
                 await conn.execute(
                     """
-                    INSERT OR REPLACE INTO errors 
+                    INSERT OR REPLACE INTO errors
                     (job_id, error_id, fingerprint, exception, message, file, line, detail_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,

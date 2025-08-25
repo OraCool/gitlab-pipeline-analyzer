@@ -359,7 +359,6 @@ class McpCache:
 
         except Exception as e:
             print(f"DEBUG: Error storing pipeline info: {e}")
-            import traceback
 
     async def store_failed_jobs_basic(
         self,
@@ -529,8 +528,8 @@ class McpCache:
                     segment_gzip = gzip.compress(segment_text.encode("utf-8"))
 
                     await db.execute(
-                        """INSERT OR REPLACE INTO trace_segments 
-                        (job_id, error_id, error_fingerprint, trace_segment_gzip, 
+                        """INSERT OR REPLACE INTO trace_segments
+                        (job_id, error_id, error_fingerprint, trace_segment_gzip,
                          context_before, context_after, error_line_start, error_line_end,
                          original_trace_hash, parser_type, parser_version, segment_size)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",

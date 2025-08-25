@@ -11,9 +11,9 @@ Licensed under the MIT License - see LICENSE file for details
 
 from .api.client import GitLabAnalyzer
 from .mcp.servers.server import create_server
-from .utils.utils import get_gitlab_analyzer
 from .models import JobInfo, LogEntry, PipelineAnalysis
 from .parsers.log_parser import LogParser
+from .utils.utils import get_gitlab_analyzer
 
 __all__ = [
     "JobInfo",
