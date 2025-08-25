@@ -666,6 +666,34 @@ class McpCache:
                     continue
             return files
 
+    async def get_job_info_async(self, job_id: int) -> dict[str, Any] | None:
+        """Get job information from cache asynchronously"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                SELECT job_id, project_id, pipeline_id, ref, sha, status, 
+                       trace_hash, parser_version, created_at, completed_at
+                FROM jobs
+                WHERE job_id = ?
+                """,
+                (job_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "job_id": row[0],
+                    "project_id": row[1],
+                    "pipeline_id": row[2],
+                    "ref": row[3],
+                    "sha": row[4],
+                    "status": row[5],
+                    "trace_hash": row[6],
+                    "parser_version": row[7],
+                    "created_at": row[8],
+                    "completed_at": row[9],
+                }
+            return None
+
     def get_file_errors(self, job_id: int, file_path: str) -> list[dict[str, Any]]:
         """Get errors for a specific file (serving phase)"""
         with sqlite3.connect(self.db_path) as conn:

@@ -83,7 +83,7 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
             resource_links = [
                 {
                     "type": "resource_link",
-                    "resourceUri": f"gl://job/{project_id}/{job_id}",
+                    "resourceUri": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
                     "text": f"Job {job_id} ({job_status}) - View details and trace",
                 }
             ]
