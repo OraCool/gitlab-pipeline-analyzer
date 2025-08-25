@@ -142,7 +142,6 @@ dmypy.json
 
 # Additional cache directories
 .cache/
-cache/
 .npm/
 node_modules/
 .uv/

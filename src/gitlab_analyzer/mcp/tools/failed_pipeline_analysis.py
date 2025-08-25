@@ -10,6 +10,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import hashlib
 from typing import Any
 
 from fastmcp import FastMCP
@@ -233,10 +234,16 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Store file and error info in DB (using filtered data)
                 if store_in_db:
-                    # Store job trace
-                    await cache_manager.store_job_trace(
+                    # Calculate trace hash for consistency tracking
+                    trace_hash = hashlib.sha256(trace.encode('utf-8')).hexdigest()
+                    
+                    # Store trace segments per error with context
+                    await cache_manager.store_error_trace_segments(
                         job_id=job.id,
                         trace_text=trace,
+                        trace_hash=trace_hash,
+                        errors=filtered_errors,  # Use filtered errors
+                        parser_type=parser_type,
                     )
 
                     # Store file and error analysis
