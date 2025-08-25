@@ -21,6 +21,92 @@ from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 from .utils import get_gitlab_analyzer, get_mcp_info
 
 
+async def store_pipeline_info_step(
+    cache_manager, project_id: str | int, pipeline_id: int, pipeline_info: dict
+) -> None:
+    """Store pipeline information immediately after retrieval"""
+    try:
+        print(
+            f"DEBUG: store_pipeline_info_step called - Project: {project_id}, Pipeline: {pipeline_id}"
+        )
+        print(
+            f"DEBUG: Cache manager: {cache_manager}, DB path: {cache_manager.db_path}"
+        )
+
+        pipeline_data = pipeline_info.get("pipeline_info", {})
+        if not pipeline_data:
+            print("DEBUG: No pipeline_data found in pipeline_info")
+            return
+
+        print(f"DEBUG: Pipeline data keys: {list(pipeline_data.keys())}")
+
+        # Extract real branch information
+        pipeline_type = pipeline_info.get("pipeline_type", "branch")
+        target_branch = pipeline_info.get("target_branch")
+        source_branch = None
+
+        if pipeline_type == "merge_request":
+            merge_request_info = pipeline_info.get("merge_request_info", {})
+            if (
+                isinstance(merge_request_info, dict)
+                and "error" not in merge_request_info
+            ):
+                source_branch = merge_request_info.get("source_branch")
+                target_branch = merge_request_info.get("target_branch")
+            else:
+                source_branch = target_branch
+                target_branch = "unknown"
+        else:
+            source_branch = target_branch
+            target_branch = None
+
+        print(
+            f"DEBUG: About to store - Pipeline ID: {pipeline_id}, Source: {source_branch}, Target: {target_branch}"
+        )
+
+        # Store in pipelines table
+        import aiosqlite
+
+        async with aiosqlite.connect(cache_manager.db_path) as conn:
+            data_to_store = (
+                pipeline_id,
+                int(project_id),
+                pipeline_data.get("ref", ""),
+                pipeline_data.get("sha", ""),
+                pipeline_data.get("status", ""),
+                pipeline_data.get("web_url", ""),
+                pipeline_data.get("created_at", ""),
+                pipeline_data.get("updated_at", ""),
+                source_branch,
+                target_branch,
+            )
+            print(f"DEBUG: Data to store: {data_to_store}")
+
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO pipelines 
+                (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at, source_branch, target_branch)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                data_to_store,
+            )
+            await conn.commit()
+
+            # Verify storage
+            cursor = await conn.execute(
+                "SELECT COUNT(*) FROM pipelines WHERE pipeline_id = ?", (pipeline_id,)
+            )
+            count = await cursor.fetchone()
+            print(f"DEBUG: Pipeline {pipeline_id} stored - count in DB: {count[0]}")
+
+        print("DEBUG: Pipeline info stored successfully")
+    except Exception as e:
+        print(f"DEBUG: Error storing pipeline info: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
 def register_streamlined_analysis_tools(mcp: FastMCP) -> None:
     """Register streamlined analysis tools"""
 
@@ -74,21 +160,47 @@ def register_streamlined_analysis_tools(mcp: FastMCP) -> None:
         """
         try:
             analyzer = get_gitlab_analyzer()
-            cache_manager = get_cache_manager() if use_cache else None
+            cache_manager = get_cache_manager() if (use_cache or store_in_db) else None
 
             # Create cache key for the complete analysis
             cache_key = f"comprehensive_analysis_{project_id}_{pipeline_id}"
 
             async def compute_analysis():
-                # Get comprehensive pipeline info with branch resolution
+                # Step 1: Get comprehensive pipeline info with branch resolution
+                print(
+                    f"DEBUG: Step 1 - Getting pipeline info for {project_id}/{pipeline_id}"
+                )
                 pipeline_info = await get_comprehensive_pipeline_info(
                     analyzer, project_id, pipeline_id
                 )
 
-                # Analyze all jobs with intelligent parsing
+                # Store pipeline info immediately
+                if store_in_db and cache_manager:
+                    print("DEBUG: Storing pipeline info in database")
+                    await store_pipeline_info_step(
+                        cache_manager, project_id, pipeline_id, pipeline_info
+                    )
+
+                # Step 2: Analyze all jobs with intelligent parsing
+                print(f"DEBUG: Step 2 - Analyzing jobs for pipeline {pipeline_id}")
                 job_analysis = await analyze_pipeline_jobs(
-                    analyzer, project_id, pipeline_id, failed_jobs_only=True
+                    analyzer,
+                    project_id,
+                    pipeline_id,
+                    failed_jobs_only=True,
+                    cache_manager=cache_manager if store_in_db else None,
                 )
+
+                # If no failed jobs found, analyze all jobs to understand pipeline failure
+                if job_analysis.get("total_failed_jobs", 0) == 0:
+                    print("DEBUG: No failed jobs found, analyzing all jobs for context")
+                    job_analysis = await analyze_pipeline_jobs(
+                        analyzer,
+                        project_id,
+                        pipeline_id,
+                        failed_jobs_only=False,  # Analyze ALL jobs
+                        cache_manager=cache_manager if store_in_db else None,
+                    )
 
                 # Combine results
                 result = {
@@ -107,16 +219,7 @@ def register_streamlined_analysis_tools(mcp: FastMCP) -> None:
                     "stored_in_db": store_in_db,
                 }
 
-                # Store in database if requested
-                if store_in_db and cache_manager:
-                    print(
-                        f"DEBUG: About to store pipeline analysis for {project_id}/{pipeline_id}"
-                    )
-                    await cache_manager.store_pipeline_analysis(
-                        project_id, pipeline_id, result
-                    )
-                    print(f"DEBUG: Pipeline analysis storage completed")
-
+                print("DEBUG: Analysis completed successfully")
                 return result
 
             # Use cache if enabled

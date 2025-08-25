@@ -5,12 +5,128 @@ This module contains pure functions that were previously embedded in MCP tools.
 Following DRY and KISS principles, these functions can be reused across tools and resources.
 """
 
+import json
 import re
 from typing import Any
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+
+
+async def store_jobs_metadata_step(
+    cache_manager, project_id: str | int, pipeline_id: int, jobs
+) -> None:
+    """Store job metadata immediately after job list retrieval"""
+    try:
+        import aiosqlite
+
+        async with aiosqlite.connect(cache_manager.db_path) as conn:
+            for job in jobs:
+                await conn.execute(
+                    """
+                    INSERT OR REPLACE INTO jobs 
+                    (job_id, project_id, pipeline_id, ref, sha, status, trace_hash, parser_version, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (
+                        job.id,
+                        int(project_id),
+                        pipeline_id,
+                        getattr(job, "ref", ""),
+                        getattr(job, "sha", ""),
+                        job.status,
+                        f"pending_{job.id}",  # Placeholder until trace is analyzed
+                        cache_manager.parser_version,
+                    ),
+                )
+
+            await conn.commit()
+            print(f"DEBUG: Stored metadata for {len(jobs)} jobs")
+
+    except Exception as e:
+        print(f"DEBUG: Error storing job metadata: {e}")
+
+
+async def store_job_analysis_step(
+    cache_manager,
+    project_id: str | int,
+    pipeline_id: int,
+    job_id: int,
+    job,
+    trace_content: str,
+    analysis_data: dict,
+) -> None:
+    """Store job analysis data progressively as each job is processed"""
+    try:
+        import aiosqlite
+        import gzip
+
+        async with aiosqlite.connect(cache_manager.db_path) as conn:
+            # Step 1: Update job with trace hash (job metadata already stored)
+            await conn.execute(
+                """
+                UPDATE jobs 
+                SET trace_hash = ?, completed_at = datetime('now')
+                WHERE job_id = ?
+                """,
+                (f"trace_{job_id}", job_id),
+            )
+
+            # Step 2: Store compressed trace
+            if trace_content:
+                trace_gzip = gzip.compress(trace_content.encode("utf-8"))
+                await conn.execute(
+                    "INSERT OR REPLACE INTO traces (job_id, trace_gzip) VALUES (?, ?)",
+                    (job_id, trace_gzip),
+                )
+
+            # Step 3: Store individual errors
+            errors = analysis_data.get("errors", [])
+            file_errors = {}  # file_path -> [error_ids]
+
+            for i, error in enumerate(errors):
+                error_id = f"error_{job_id}_{i}"
+
+                await conn.execute(
+                    """
+                    INSERT OR REPLACE INTO errors 
+                    (job_id, error_id, fingerprint, exception, message, file, line, detail_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job_id,
+                        error_id,
+                        str(hash(str(error))),
+                        error.get("type", "unknown"),
+                        error.get("message", ""),
+                        error.get("file", ""),
+                        error.get("line", 0),
+                        json.dumps(error),
+                    ),
+                )
+
+                # Build file index
+                file_path = error.get("file", "")
+                if file_path:
+                    if file_path not in file_errors:
+                        file_errors[file_path] = []
+                    file_errors[file_path].append(error_id)
+
+            # Step 4: Store file index for fast file-based lookup
+            for file_path, error_ids in file_errors.items():
+                await conn.execute(
+                    "INSERT OR REPLACE INTO file_index (job_id, path, error_ids) VALUES (?, ?, ?)",
+                    (job_id, file_path, json.dumps(error_ids)),
+                )
+
+            await conn.commit()
+            print(
+                f"DEBUG: Stored analysis for job {job_id} - {len(errors)} errors, {len(file_errors)} files"
+            )
+
+    except Exception as e:
+        print(f"DEBUG: Error storing job analysis for {job_id}: {e}")
 
 
 def is_pytest_job(
@@ -187,13 +303,13 @@ def parse_pytest_logs(
         "warning_count": len(warnings),
         "test_summary": (
             {
-                "total_tests": pytest_result.total_tests,
-                "passed": pytest_result.passed_tests,
-                "failed": pytest_result.failed_tests,
-                "skipped": pytest_result.skipped_tests,
-                "duration": pytest_result.duration,
+                "total_tests": pytest_result.statistics.total_tests,
+                "passed": pytest_result.statistics.passed,
+                "failed": pytest_result.statistics.failed,
+                "skipped": pytest_result.statistics.skipped,
+                "duration": pytest_result.statistics.duration_formatted,
             }
-            if pytest_result.total_tests
+            if pytest_result.statistics.total_tests
             else None
         ),
     }
@@ -285,6 +401,7 @@ async def analyze_pipeline_jobs(
     project_id: str | int,
     pipeline_id: int,
     failed_jobs_only: bool = True,
+    cache_manager=None,
 ) -> dict[str, Any]:
     """
     Analyze all jobs in a pipeline, selecting optimal parsers.
@@ -294,6 +411,7 @@ async def analyze_pipeline_jobs(
         project_id: GitLab project ID
         pipeline_id: Pipeline ID to analyze
         failed_jobs_only: Only analyze failed jobs
+        cache_manager: Optional cache manager for progressive storage
 
     Returns:
         Comprehensive pipeline analysis with job-specific parsing
@@ -305,10 +423,16 @@ async def analyze_pipeline_jobs(
     if failed_jobs_only:
         jobs = [job for job in jobs if job.status == "failed"]
 
+    # Store job metadata immediately (Step 2A: Job List)
+    if cache_manager:
+        print(f"DEBUG: Storing metadata for {len(jobs)} jobs")
+        await store_jobs_metadata_step(cache_manager, project_id, pipeline_id, jobs)
+
     analyzed_jobs = []
     total_errors = 0
     total_warnings = 0
 
+    # Now process each job's trace and analysis (Step 2B: Job Analysis)
     for job in jobs:
         job_id = job.id
         job_name = job.name
@@ -329,20 +453,27 @@ async def analyze_pipeline_jobs(
             # Filter meaningless errors
             filtered_data = filter_unknown_errors(parsed_data)
 
-            analyzed_jobs.append(
-                {
-                    "job_id": job_id,
-                    "job_name": job_name,
-                    "job_stage": job_stage,
-                    "job_status": job.status,
-                    "analysis": filtered_data,
-                    "resource_uris": {
-                        "job": f"gl://job/{project_id}/{job_id}",
-                        "error": f"gl://error/{project_id}/{job_id}",
-                        "analysis": f"gl://analysis/{project_id}/job/{job_id}",
-                    },
-                }
-            )
+            job_analysis = {
+                "job_id": job_id,
+                "job_name": job_name,
+                "job_stage": job_stage,
+                "job_status": job.status,
+                "analysis": filtered_data,
+            }
+
+            analyzed_jobs.append(job_analysis)
+
+            # Progressive storage: Store job data immediately
+            if cache_manager:
+                await store_job_analysis_step(
+                    cache_manager,
+                    project_id,
+                    pipeline_id,
+                    job_id,
+                    job,
+                    trace,
+                    filtered_data,
+                )
 
             total_errors += filtered_data.get("error_count", 0)
             total_warnings += filtered_data.get("warning_count", 0)
