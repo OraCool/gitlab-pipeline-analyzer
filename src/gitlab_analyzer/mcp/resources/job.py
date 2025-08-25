@@ -62,7 +62,7 @@ async def get_job_resource(
             {
                 "type": "resource_link",
                 "resourceUri": f"gl://pipeline/{project_id}/{job_info['pipeline_id']}",
-                "text": f"Pipeline {job_info['pipeline_id']} - View all jobs and pipeline details",
+                "text": f"View pipeline {job_info['pipeline_id']} overview - all jobs, status, and branch information",
             }
         )
 
@@ -73,7 +73,7 @@ async def get_job_resource(
                 {
                     "type": "resource_link",
                     "resourceUri": f"gl://files/{project_id}/{job_id}?page=1&limit=20",
-                    "text": f"Files with errors (page 1 of {(total_files + 19) // 20}) - {total_files} files",
+                    "text": f"Investigate {total_files} files with errors - detailed error analysis, line numbers, and code context",
                 }
             )
 

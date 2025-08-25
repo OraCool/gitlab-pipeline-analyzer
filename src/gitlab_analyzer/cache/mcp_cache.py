@@ -694,6 +694,42 @@ class McpCache:
                 }
             return None
 
+    def get_job_errors(self, job_id: int) -> list[dict[str, Any]]:
+        """Get all errors for a specific job (serving phase)"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                SELECT error_id, fingerprint, exception, message, file, line, detail_json
+                FROM errors
+                WHERE job_id = ?
+                ORDER BY file, line
+                """,
+                (job_id,),
+            )
+
+            errors = []
+            for row in cursor:
+                error_data = {
+                    "id": row[0],
+                    "fingerprint": row[1],
+                    "exception": row[2],
+                    "message": row[3],
+                    "file_path": row[4],
+                    "line": row[5],
+                }
+
+                # Parse additional details if available
+                if row[6]:
+                    try:
+                        detail_data = json.loads(row[6])
+                        error_data.update(detail_data)
+                    except json.JSONDecodeError:
+                        pass
+
+                errors.append(error_data)
+
+            return errors
+
     def get_file_errors(self, job_id: int, file_path: str) -> list[dict[str, Any]]:
         """Get errors for a specific file (serving phase)"""
         with sqlite3.connect(self.db_path) as conn:

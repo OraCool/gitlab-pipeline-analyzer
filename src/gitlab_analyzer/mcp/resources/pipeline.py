@@ -9,7 +9,6 @@ Copyright (c) 2025 Siarhei Skurato        mcp_info = get_mcp_info(
 Licensed under the MIT License - see LICENSE file for details
 """
 
-import json
 import logging
 from typing import Any
 
@@ -84,7 +83,7 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
                 {
                     "type": "resource_link",
                     "resourceUri": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
-                    "text": f"Job {job_id} ({job_status}) - View details and trace",
+                    "text": f"Analyze job {job_id} details - status: {job_status}, trace logs, and error details",
                 }
             ]
 
@@ -102,7 +101,7 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
                         {
                             "type": "resource_link",
                             "resourceUri": f"gl://files/{project_id}/{job_id}?page=1&limit=20",
-                            "text": f"Files with errors (page 1 of {(total_files + 19) // 20}) - {total_files} files",
+                            "text": f"Browse {total_files} files with errors in job {job_id} - detailed error analysis and code locations",
                         }
                     )
                 else:
@@ -111,7 +110,7 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
                         {
                             "type": "resource_link",
                             "resourceUri": f"gl://analysis/{project_id}/job/{job_id}",
-                            "text": f"Job {job_id} analysis - Errors and warnings",
+                            "text": f"Get comprehensive analysis of job {job_id} failures - detailed error reports and recommendations",
                         }
                     )
 
