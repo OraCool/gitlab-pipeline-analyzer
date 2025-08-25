@@ -302,6 +302,86 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 {job.failure_reason for job in failed_jobs if job.failure_reason}
             )
 
+            # Build hierarchical resources structure with files and errors
+            resources = {
+                "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
+                "jobs": f"gl://jobs/{project_id}/{pipeline_id}",
+                "analysis": f"gl://analysis/{project_id}/{pipeline_id}",
+                "files": {},
+                "jobs_detail": {},
+                "errors": {},
+            }
+
+            # Create file hierarchy with error links
+            all_files = {}  # Global file registry across all jobs
+            all_errors = {}  # Global error registry with trace references
+
+            for job_result in job_analysis_results:
+                job_id = job_result["job_id"]
+                job_name = job_result["job_name"]
+
+                # Add job-specific resources
+                resources["jobs_detail"][str(job_id)] = {
+                    "job": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
+                    "trace": f"gl://trace/{project_id}/{pipeline_id}/{job_id}",
+                    "errors": f"gl://errors/{project_id}/{pipeline_id}/{job_id}",
+                    "files": {},
+                }
+
+                # Process file groups for this job
+                for file_group in job_result["file_groups"]:
+                    file_path = file_group["file_path"]
+                    error_count = file_group["error_count"]
+
+                    # Add individual error resources with trace references
+                    for i, error in enumerate(file_group["errors"]):
+                        error_id = f"{job_id}_{file_path}_{i}"
+                        error_resource_uri = (
+                            f"gl://error/{project_id}/{pipeline_id}/{job_id}/{i}"
+                        )
+                        trace_segment_uri = f"gl://trace-segment/{project_id}/{pipeline_id}/{job_id}/{i}"
+
+                        # Add to global errors registry
+                        all_errors[error_id] = {
+                            "error": error_resource_uri,
+                            "trace_segment": trace_segment_uri,
+                            "job_id": job_id,
+                            "file_path": file_path,
+                            "error_index": i,
+                            "message": error.get("message", ""),
+                            "line_number": error.get("line_number"),
+                            "level": error.get("level", "error"),
+                            "exception_type": error.get("exception_type"),
+                            "test_function": error.get("test_function"),
+                            "test_name": error.get("test_name"),
+                        }
+
+                    # Add to job-specific files
+                    resources["jobs_detail"][str(job_id)]["files"][file_path] = {
+                        "file": f"gl://file/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "error_count": error_count,
+                        "errors": f"gl://file-errors/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                    }
+
+                    # Add to global file registry (accumulate across jobs)
+                    if file_path not in all_files:
+                        all_files[file_path] = {
+                            "path": file_path,
+                            "total_error_count": 0,
+                            "jobs": {},
+                        }
+
+                    all_files[file_path]["total_error_count"] += error_count
+                    all_files[file_path]["jobs"][str(job_id)] = {
+                        "job_name": job_name,
+                        "error_count": error_count,
+                        "resource": f"gl://file/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                    }
+
+            # Add global file hierarchy and errors to resources
+            resources["files"] = all_files
+            resources["errors"] = all_errors
+
             result = {
                 "pipeline_info": pipeline_info,
                 "failed_jobs_count": len(failed_jobs),
@@ -319,7 +399,6 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     }
                     for job in failed_jobs
                 ],
-                "job_analysis": job_analysis_results,
                 "summary": {
                     "pipeline_id": pipeline_id,
                     "pipeline_status": pipeline_info.get("status"),
@@ -331,11 +410,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     "analysis_type": "failed_jobs_only",
                     "efficiency_note": f"Analyzed only {len(failed_jobs)} failed jobs instead of all pipeline jobs",
                 },
-                "resources": {
-                    "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
-                    "jobs": f"gl://jobs/{project_id}/{pipeline_id}",
-                    "analysis": f"gl://analysis/{project_id}/{pipeline_id}",
-                },
+                "resources": resources,
             }
 
             # Add MCP info
