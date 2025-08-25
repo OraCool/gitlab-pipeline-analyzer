@@ -516,11 +516,13 @@ class McpCache:
 
             async with aiosqlite.connect(self.db_path) as db:
                 for error in errors:
-                    # Extract trace segment with context
-                    segment_lines, start_line, end_line = (
-                        self._extract_error_trace_segment(
-                            trace_lines, error, context_lines
-                        )
+                    # Extract trace segment with context using utility function
+                    from gitlab_analyzer.utils.trace_utils import (
+                        extract_error_trace_segment,
+                    )
+
+                    segment_lines, start_line, end_line = extract_error_trace_segment(
+                        trace_lines, error, context_lines
                     )
 
                     segment_text = "\n".join(segment_lines)
@@ -554,9 +556,9 @@ class McpCache:
                 len(segment_text.encode())
                 for segment_text in [
                     "\n".join(
-                        self._extract_error_trace_segment(
-                            trace_lines, error, context_lines
-                        )[0]
+                        extract_error_trace_segment(trace_lines, error, context_lines)[
+                            0
+                        ]
                     )
                     for error in errors
                 ]
@@ -565,7 +567,7 @@ class McpCache:
                 len(
                     gzip.compress(
                         "\n".join(
-                            self._extract_error_trace_segment(
+                            extract_error_trace_segment(
                                 trace_lines, error, context_lines
                             )[0]
                         ).encode()
@@ -582,21 +584,6 @@ class McpCache:
             import traceback
 
             traceback.print_exc()
-
-    def _extract_error_trace_segment(
-        self, trace_lines: list[str], error: ErrorRecord, context_lines: int
-    ) -> tuple[list[str], int, int]:
-        """Extract trace segment for a specific error with context"""
-        error_line = error.line if hasattr(error, "line") and error.line else 0
-
-        # Calculate segment boundaries
-        start_line = max(0, error_line - context_lines)
-        end_line = min(len(trace_lines), error_line + context_lines + 1)
-
-        # Extract segment
-        segment_lines = trace_lines[start_line:end_line]
-
-        return segment_lines, start_line, end_line
 
     async def get_pipeline_jobs(self, pipeline_id: int) -> list[dict[str, Any]]:
         """Get all jobs for a pipeline"""

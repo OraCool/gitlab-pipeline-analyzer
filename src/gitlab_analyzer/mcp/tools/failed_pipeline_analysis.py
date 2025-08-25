@@ -16,6 +16,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.cache.models import ErrorRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 
 from .utils import get_gitlab_analyzer, get_mcp_info
@@ -237,12 +238,20 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     # Calculate trace hash for consistency tracking
                     trace_hash = hashlib.sha256(trace.encode("utf-8")).hexdigest()
 
+                    # Convert error dictionaries to ErrorRecord objects for trace storage
+                    error_records = []
+                    for i, error_dict in enumerate(filtered_errors):
+                        error_record = ErrorRecord.from_parsed_error(
+                            job_id=job.id, error_data=error_dict, error_index=i
+                        )
+                        error_records.append(error_record)
+
                     # Store trace segments per error with context
                     await cache_manager.store_error_trace_segments(
                         job_id=job.id,
                         trace_text=trace,
                         trace_hash=trace_hash,
-                        errors=filtered_errors,  # Use filtered errors
+                        errors=error_records,  # Use ErrorRecord objects
                         parser_type=parser_type,
                     )
 
