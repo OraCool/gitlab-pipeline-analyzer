@@ -156,8 +156,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     else "generic"
                 )
                 if parser_type == "pytest":
-                    parser = PytestLogParser()
-                    parsed = parser.parse_pytest_log(trace)
+                    pytest_parser = PytestLogParser()
+                    parsed = pytest_parser.parse_pytest_log(trace)
                     # Convert PytestFailureDetail objects to error dict format
                     errors = []
                     for failure in parsed.detailed_failures:
@@ -174,24 +174,32 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         if failure.traceback:
                             for tb in failure.traceback:
                                 if tb.line_number:
-                                    error_dict["line_number"] = tb.line_number
+                                    error_dict["line_number"] = str(tb.line_number)
                                     break
                         errors.append(error_dict)
                 else:
-                    parser = LogParser()
-                    parsed = parser.parse(trace)
-                    errors = parsed.get("errors", [])
+                    log_parser = LogParser()
+                    log_entries = log_parser.extract_log_entries(trace)
+                    errors = [
+                        {
+                            "message": entry.message,
+                            "level": entry.level,
+                            "line_number": str(entry.line_number) if entry.line_number is not None else None,
+                            "context": entry.context,
+                        }
+                        for entry in log_entries
+                        if entry.level == "error"
+                    ]
 
                 # Group errors by file and filter out system files
-                file_groups = {}
+                file_groups: dict[str, dict[str, Any]] = {}
                 filtered_errors = []  # Track errors after filtering system files
 
                 for error in errors:
-                    file_path = extract_file_path_from_message(
-                        error.get("exception_message", "") or error.get("message", "")
-                    )
+                    message = error.get("exception_message", "") or error.get("message", "") or ""
+                    file_path = extract_file_path_from_message(message)
                     if not file_path:
-                        file_path = error.get("file_path", "unknown")
+                        file_path = error.get("file_path", "unknown") or "unknown"
 
                     # Filter out system/exclude paths (only if filtering is enabled)
                     if not disable_file_filtering and should_exclude_file_path(

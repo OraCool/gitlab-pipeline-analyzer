@@ -114,7 +114,6 @@ async def _get_file_analysis(
             data_type="file_errors",
             project_id=project_id,
             job_id=int(job_id),
-            file_path=file_path,
         )
 
         return json.dumps(result, indent=2)

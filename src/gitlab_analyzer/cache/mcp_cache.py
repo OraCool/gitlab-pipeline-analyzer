@@ -352,8 +352,9 @@ class McpCache:
                     "SELECT COUNT(*) FROM pipelines WHERE pipeline_id = ?",
                     (pipeline_id,),
                 )
-                count = await cursor.fetchone()
-                print(f"DEBUG: Pipeline {pipeline_id} stored - count in DB: {count[0]}")
+                count_row = await cursor.fetchone()
+                count = count_row[0] if count_row else 0
+                print(f"DEBUG: Pipeline {pipeline_id} stored - count in DB: {count}")
 
             print("DEBUG: Pipeline info stored successfully")
 
@@ -862,7 +863,8 @@ class McpCache:
                     )
                     """
                 )
-                count = (await cursor.fetchone())[0]
+                count_row = await cursor.fetchone()
+                count = count_row[0] if count_row else 0
 
                 # Delete old entries
                 await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")
@@ -900,7 +902,8 @@ class McpCache:
                             str(project_id),
                         ),
                     )
-                    count = (await cursor.fetchone())[0]
+                    count_row = await cursor.fetchone()
+                    count = count_row[0] if count_row else 0
 
                     # Delete entries for specific project
                     await conn.execute(
@@ -926,7 +929,8 @@ class McpCache:
                         )
                         """
                     )
-                    count = (await cursor.fetchone())[0]
+                    count_row = await cursor.fetchone()
+                    count = count_row[0] if count_row else 0
 
                     # Delete all cache entries except pipelines
                     await conn.execute("DELETE FROM jobs")
@@ -959,13 +963,15 @@ class McpCache:
                         f"SELECT COUNT(*) FROM {table} WHERE project_id = ?",
                         (str(project_id),),
                     )
-                    count = (await cursor.fetchone())[0]
+                    count_row = await cursor.fetchone()
+                    count = count_row[0] if count_row else 0
                     await conn.execute(
                         f"DELETE FROM {table} WHERE project_id = ?", (str(project_id),)
                     )
                 else:
                     cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
-                    count = (await cursor.fetchone())[0]
+                    count_row = await cursor.fetchone()
+                    count = count_row[0] if count_row else 0
                     await conn.execute(f"DELETE FROM {table}")
 
                 await conn.commit()
@@ -993,7 +999,8 @@ class McpCache:
                 for table in tables:
                     try:
                         cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
-                        count = (await cursor.fetchone())[0]
+                        count_row = await cursor.fetchone()
+                        count = count_row[0] if count_row else 0
                         table_status[table] = {"status": "ok", "count": count}
                     except Exception as e:
                         table_status[table] = {"status": "error", "error": str(e)}

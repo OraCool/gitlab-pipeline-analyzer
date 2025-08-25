@@ -132,6 +132,10 @@ async def resolve_pipeline_branches(
         mr_iid = int(ref.split("/")[2])
         project_id = pipeline_data.get("project_id")
 
+        # Ensure project_id is valid
+        if project_id is None:
+            return "merge_request", None, None
+
         # Get merge request information
         mr_info = await analyzer.get_merge_request(project_id, mr_iid)
 

@@ -84,7 +84,7 @@ async def store_job_analysis_step(
 
             # Step 3: Store individual errors
             errors = analysis_data.get("errors", [])
-            file_errors = {}  # file_path -> [error_ids]
+            file_errors: dict[str, list[str]] = {}  # file_path -> [error_ids]
 
             for i, error in enumerate(errors):
                 error_id = f"error_{job_id}_{i}"
@@ -252,7 +252,7 @@ def parse_pytest_logs(
 
     # Convert to standardized format
     errors = []
-    warnings = []
+    warnings: list[dict[str, Any]] = []
 
     if pytest_result.detailed_failures:
         for failure in pytest_result.detailed_failures:
@@ -260,8 +260,8 @@ def parse_pytest_logs(
                 "test_file": failure.test_file or "unknown",
                 "test_function": failure.test_function or "unknown",
                 "exception_type": failure.exception_type or "Unknown",
-                "message": failure.message or "No message",
-                "line_number": failure.line_number,
+                "message": failure.exception_message or "No message",
+                "line_number": getattr(failure, 'line_number', None),
                 "has_traceback": bool(failure.traceback and include_traceback),
             }
 
@@ -280,7 +280,7 @@ def parse_pytest_logs(
                                     "file_path": tb.file_path,
                                     "line_number": tb.line_number,
                                     "function_name": tb.function_name,
-                                    "code_context": tb.code_context,
+                                    "code_context": tb.code_line,
                                 }
                             )
                     else:
@@ -289,7 +289,7 @@ def parse_pytest_logs(
                                 "file_path": tb.file_path,
                                 "line_number": tb.line_number,
                                 "function_name": tb.function_name,
-                                "code_context": tb.code_context,
+                                "code_context": tb.code_line,
                             }
                         )
                 error_data["traceback"] = filtered_traceback
@@ -335,7 +335,6 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
             "level": entry.level,
             "line_number": entry.line_number,
             "context": entry.context,
-            "category": entry.category,
         }
         for entry in log_entries
         if entry.level == "error"
@@ -347,7 +346,6 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
             "level": entry.level,
             "line_number": entry.line_number,
             "context": entry.context,
-            "category": entry.category,
         }
         for entry in log_entries
         if entry.level == "warning"
@@ -508,21 +506,21 @@ async def analyze_pipeline_jobs(
                 [
                     j
                     for j in analyzed_jobs
-                    if j["analysis"].get("parser_type") == "pytest"
+                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "pytest"
                 ]
             ),
             "generic_jobs": len(
                 [
                     j
                     for j in analyzed_jobs
-                    if j["analysis"].get("parser_type") == "generic"
+                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "generic"
                 ]
             ),
             "error_jobs": len(
                 [
                     j
                     for j in analyzed_jobs
-                    if j["analysis"].get("parser_type") == "error"
+                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "error"
                 ]
             ),
         },
