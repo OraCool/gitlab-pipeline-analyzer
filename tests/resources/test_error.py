@@ -28,13 +28,14 @@ class TestErrorResources:
         register_error_resources(mock_mcp)
 
         # Verify resource decorators were called
-        assert mock_mcp.resource.call_count == 2
+        assert mock_mcp.resource.call_count == 3
 
         # Check the resource URI patterns
         call_args = [call[0][0] for call in mock_mcp.resource.call_args_list]
         expected_patterns = [
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
+            "gl://error/{project_id}/{job_id}/{error_id}",
         ]
 
         for pattern in expected_patterns:
@@ -49,11 +50,12 @@ class TestErrorResources:
         expected_calls = [
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
+            "gl://error/{project_id}/{job_id}/{error_id}",
         ]
 
-        # Check that both expected patterns were used
+        # Check that all expected patterns were used
         actual_calls = [call[0][0] for call in mock_mcp.resource.call_args_list]
-        assert len(actual_calls) == 2
+        assert len(actual_calls) == 3
         for expected_call in expected_calls:
             assert expected_call in actual_calls
 
@@ -63,14 +65,15 @@ class TestErrorResources:
         register_error_resources(mock_mcp)
         register_error_resources(mock_mcp)
 
-        # Should have been called 4 times total (2 per registration)
-        assert mock_mcp.resource.call_count == 4
+        # Should have been called 6 times total (3 per registration)
+        assert mock_mcp.resource.call_count == 6
 
         # Check that patterns are consistent
         call_args_list = [call[0][0] for call in mock_mcp.resource.call_args_list]
         expected_patterns = [
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
+            "gl://error/{project_id}/{job_id}/{error_id}",
         ]
 
         # Each pattern should appear twice

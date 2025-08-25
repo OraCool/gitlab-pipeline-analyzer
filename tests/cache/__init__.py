@@ -1,6 +1,0 @@
-"""
-Tests for cache functionality
-
-Copyright (c) 2025 Siarhei Skuratovich
-Licensed under the MIT License - see LICENSE file for details
-"""

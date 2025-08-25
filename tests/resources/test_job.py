@@ -32,7 +32,7 @@ class TestJobResources:
 
         # Check the resource URI pattern
         call_args = mock_mcp.resource.call_args_list[0][0][0]
-        expected_pattern = "gl://job/{project_id}/{job_id}"
+        expected_pattern = "gl://job/{project_id}/{pipeline_id}/{job_id}"
         assert call_args == expected_pattern
 
     def test_register_job_resources_decorator_usage(self, mock_mcp):
@@ -41,7 +41,9 @@ class TestJobResources:
         register_job_resources(mock_mcp)
 
         # Verify the decorator was called with the right pattern
-        mock_mcp.resource.assert_called_once_with("gl://job/{project_id}/{job_id}")
+        mock_mcp.resource.assert_called_once_with(
+            "gl://job/{project_id}/{pipeline_id}/{job_id}"
+        )
 
         # Verify that the decorator was called (meaning a function was decorated)
         assert mock_mcp.resource.call_count == 1
@@ -57,4 +59,7 @@ class TestJobResources:
 
         # Both calls should have the same pattern
         call_args_list = [call[0][0] for call in mock_mcp.resource.call_args_list]
-        assert all(args == "gl://job/{project_id}/{job_id}" for args in call_args_list)
+        assert all(
+            args == "gl://job/{project_id}/{pipeline_id}/{job_id}"
+            for args in call_args_list
+        )
