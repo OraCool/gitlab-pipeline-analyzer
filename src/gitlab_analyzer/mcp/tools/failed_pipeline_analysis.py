@@ -15,6 +15,9 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.cache.models import ErrorRecord
+from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 from gitlab_analyzer.utils.utils import (
@@ -22,13 +25,10 @@ from gitlab_analyzer.utils.utils import (
     categorize_files_by_type,
     combine_exclude_file_patterns,
     extract_file_path_from_message,
+    get_gitlab_analyzer,
+    get_mcp_info,
     should_exclude_file_path,
 )
-
-from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.cache.models import ErrorRecord
-from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
 def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
@@ -38,7 +38,6 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
     async def failed_pipeline_analysis(
         project_id: str | int,
         pipeline_id: int,
-        use_cache: bool = True,
         store_in_db: bool = True,
         exclude_file_patterns: list[str] | None = None,
         disable_file_filtering: bool = False,
@@ -76,7 +75,6 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         Args:
             project_id: The GitLab project ID or path
             pipeline_id: The ID of the GitLab pipeline to analyze
-            use_cache: Whether to use cached results if available
             store_in_db: Whether to store results in database for resources
             exclude_file_patterns: Additional file path patterns to exclude beyond defaults.
                                  Examples: ["migrations/", "node_modules/", "vendor/"]
@@ -159,9 +157,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     pytest_parser = PytestLogParser()
                     parsed = pytest_parser.parse_pytest_log(trace)
                     # Convert PytestFailureDetail objects to error dict format
-                    errors = []
+                    errors: list[dict[str, Any]] = []
                     for failure in parsed.detailed_failures:
-                        error_dict = {
+                        error_dict: dict[str, Any] = {
                             "exception_type": failure.exception_type,
                             "exception_message": failure.exception_message,
                             "file_path": failure.test_file,
@@ -197,7 +195,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Group errors by file and filter out system files
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors = []  # Track errors after filtering system files
+                filtered_errors: list[dict[str, Any]] = (
+                    []
+                )  # Track errors after filtering system files
 
                 for error in errors:
                     message = (
@@ -344,7 +344,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             print("✅ Failed pipeline analysis completed successfully")
             return result
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, RuntimeError) as e:
             print(f"❌ Error in failed pipeline analysis: {e}")
             return {
                 "error": str(e),
