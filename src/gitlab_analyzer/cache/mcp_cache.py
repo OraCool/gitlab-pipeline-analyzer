@@ -640,6 +640,32 @@ class McpCache:
                 }
             return None
 
+    async def get_job_files_with_errors(self, job_id: int) -> list[dict[str, Any]]:
+        """Get all files with errors for a specific job"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(
+                "SELECT path, error_ids FROM file_index WHERE job_id = ? AND error_ids IS NOT NULL AND error_ids != '[]'",
+                (job_id,),
+            )
+            rows = await cursor.fetchall()
+            files = []
+            for row in rows:
+                path, error_ids_json = row
+                try:
+                    error_ids = json.loads(error_ids_json) if error_ids_json else []
+                    if error_ids:  # Only include files that actually have errors
+                        files.append(
+                            {
+                                "path": path,
+                                "error_count": len(error_ids),
+                                "error_ids": error_ids,
+                            }
+                        )
+                except json.JSONDecodeError:
+                    # Skip files with invalid JSON
+                    continue
+            return files
+
     def get_file_errors(self, job_id: int, file_path: str) -> list[dict[str, Any]]:
         """Get errors for a specific file (serving phase)"""
         with sqlite3.connect(self.db_path) as conn:

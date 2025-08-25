@@ -9,74 +9,131 @@ Copyright (c) 2025 Siarhei Skurato        mcp_info = get_mcp_info(
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import json
 import logging
 from typing import Any
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import generate_cache_key
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 logger = logging.getLogger(__name__)
 
 
 async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, Any]:
-    """Get pipeline resource data with caching"""
+    """Get pipeline resource data from database only"""
     cache_manager = get_cache_manager()
     cache_key = generate_cache_key("pipeline", project_id, int(pipeline_id))
 
     async def compute_pipeline_data() -> dict[str, Any]:
-        """Compute pipeline data from GitLab API"""
-        logger.info(f"Computing pipeline data for {project_id}/{pipeline_id}")
+        """Get pipeline data from database only"""
+        logger.info(
+            f"Getting pipeline data from database for {project_id}/{pipeline_id}"
+        )
 
-        analyzer = get_gitlab_analyzer()
+        # Get comprehensive pipeline data from database only
+        pipeline_db_data = await cache_manager.get_pipeline_info_async(int(pipeline_id))
 
-        # Get pipeline info
-        pipeline_info = await analyzer.get_pipeline(project_id, int(pipeline_id))
+        if not pipeline_db_data:
+            # Database is empty - analysis tool should be called first
+            return {
+                "error": "pipeline_not_analyzed",
+                "message": f"Pipeline {pipeline_id} has not been analyzed yet. Please run the 'failed_pipeline_analysis' tool first to populate the database with comprehensive pipeline information.",
+                "required_action": "Call failed_pipeline_analysis tool",
+                "pipeline_id": int(pipeline_id),
+                "project_id": project_id,
+                "metadata": {
+                    "resource_type": "pipeline",
+                    "data_source": "none",
+                    "status": "not_analyzed",
+                },
+                "mcp_info": get_mcp_info("pipeline_resource"),
+            }
 
-        # Get all jobs for the pipeline
-        jobs = await analyzer.get_pipeline_jobs(project_id, int(pipeline_id))
+        # Use database data with all fields including resolved branches
+        pipeline_info = {
+            "id": pipeline_db_data["pipeline_id"],
+            "project_id": pipeline_db_data["project_id"],
+            "ref": pipeline_db_data["ref"],
+            "sha": pipeline_db_data["sha"],
+            "status": pipeline_db_data["status"],
+            "web_url": pipeline_db_data["web_url"],
+            "created_at": pipeline_db_data["created_at"],
+            "updated_at": pipeline_db_data["updated_at"],
+            # Additional resolved fields from database
+            "source_branch": pipeline_db_data.get("source_branch"),
+            "target_branch": pipeline_db_data.get("target_branch"),
+            "pipeline_type": (
+                "merge_request"
+                if pipeline_db_data["ref"].startswith("refs/merge-requests/")
+                else "branch"
+            ),
+        }
 
-        # Transform jobs data for better readability
-        jobs_summary = []
-        for job in jobs:
-            jobs_summary.append(
+        # Get jobs data from database
+        jobs_summary = await cache_manager.get_pipeline_jobs(int(pipeline_id))
+
+        # Add resource links to each job
+        jobs_with_links = []
+        for job in jobs_summary:
+            job_id = job.get("job_id")
+            job_status = job.get("status", "unknown")
+
+            # Base resource links for all jobs
+            resource_links = [
                 {
-                    "id": job.id,
-                    "name": job.name,
-                    "stage": job.stage,
-                    "status": job.status,
-                    "duration": getattr(job, "duration", None),
-                    "created_at": job.created_at,
-                    "finished_at": job.finished_at,
-                    "web_url": job.web_url,
-                    "failure_reason": job.failure_reason,
+                    "type": "resource_link",
+                    "resourceUri": f"gl://job/{project_id}/{job_id}",
+                    "text": f"Job {job_id} ({job_status}) - View details and trace",
                 }
-            )
+            ]
 
-        # Get pipeline status and metadata
+            # Additional links for failed jobs - link to files with errors
+            if job_status == "failed":
+                # Get files with errors for this job from database
+                files_with_errors = await cache_manager.get_job_files_with_errors(
+                    job_id
+                )
+
+                if files_with_errors:
+                    # Add link to files resource with pagination
+                    total_files = len(files_with_errors)
+                    resource_links.append(
+                        {
+                            "type": "resource_link",
+                            "resourceUri": f"gl://files/{project_id}/{job_id}?page=1&limit=20",
+                            "text": f"Files with errors (page 1 of {(total_files + 19) // 20}) - {total_files} files",
+                        }
+                    )
+                else:
+                    # Fallback to analysis if no files with errors found
+                    resource_links.append(
+                        {
+                            "type": "resource_link",
+                            "resourceUri": f"gl://analysis/{project_id}/job/{job_id}",
+                            "text": f"Job {job_id} analysis - Errors and warnings",
+                        }
+                    )
+
+            job_data = {
+                **job,  # Copy all existing job data
+                "resource_links": resource_links,
+            }
+            jobs_with_links.append(job_data)
+
+        # Build complete result with comprehensive pipeline info
         result = {
-            "pipeline_info": {
-                "id": pipeline_info.get("id"),
-                "project_id": pipeline_info.get("project_id"),
-                "ref": pipeline_info.get("ref"),
-                "sha": pipeline_info.get("sha"),
-                "status": pipeline_info.get("status"),
-                "source": pipeline_info.get("source"),
-                "created_at": pipeline_info.get("created_at"),
-                "updated_at": pipeline_info.get("updated_at"),
-                "finished_at": pipeline_info.get("finished_at"),
-                "duration": pipeline_info.get("duration"),
-                "web_url": pipeline_info.get("web_url"),
-            },
-            "jobs": jobs_summary,
-            "jobs_count": len(jobs_summary),
+            "pipeline_info": pipeline_info,
+            "jobs": jobs_with_links,
+            "jobs_count": len(jobs_with_links),
             "failed_jobs_count": len(
-                [j for j in jobs_summary if j["status"] == "failed"]
+                [j for j in jobs_with_links if j.get("status") == "failed"]
             ),
             "metadata": {
                 "resource_type": "pipeline",
                 "project_id": project_id,
                 "pipeline_id": int(pipeline_id),
+                "data_source": "database",
                 "cached_at": None,  # TODO: Implement cache stats
             },
             "mcp_info": get_mcp_info("pipeline_resource"),
