@@ -235,8 +235,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 # Store file and error info in DB (using filtered data)
                 if store_in_db:
                     # Calculate trace hash for consistency tracking
-                    trace_hash = hashlib.sha256(trace.encode('utf-8')).hexdigest()
-                    
+                    trace_hash = hashlib.sha256(trace.encode("utf-8")).hexdigest()
+
                     # Store trace segments per error with context
                     await cache_manager.store_error_trace_segments(
                         job_id=job.id,

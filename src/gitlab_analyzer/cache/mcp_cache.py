@@ -512,18 +512,20 @@ class McpCache:
         try:
             print(f"💾 Storing {len(errors)} trace segments for job {job_id}...")
 
-            trace_lines = trace_text.split('\n')
-            
+            trace_lines = trace_text.split("\n")
+
             async with aiosqlite.connect(self.db_path) as db:
                 for error in errors:
                     # Extract trace segment with context
-                    segment_lines, start_line, end_line = self._extract_error_trace_segment(
-                        trace_lines, error, context_lines
+                    segment_lines, start_line, end_line = (
+                        self._extract_error_trace_segment(
+                            trace_lines, error, context_lines
+                        )
                     )
-                    
-                    segment_text = '\n'.join(segment_lines)
+
+                    segment_text = "\n".join(segment_lines)
                     segment_gzip = gzip.compress(segment_text.encode("utf-8"))
-                    
+
                     await db.execute(
                         """INSERT OR REPLACE INTO trace_segments 
                         (job_id, error_id, error_fingerprint, trace_segment_gzip, 
@@ -545,39 +547,55 @@ class McpCache:
                             len(segment_text),
                         ),
                     )
-                
+
                 await db.commit()
 
-            total_size = sum(len(segment_text.encode()) for segment_text in 
-                           ['\n'.join(self._extract_error_trace_segment(trace_lines, error, context_lines)[0]) 
-                            for error in errors])
-            compressed_size = sum(len(gzip.compress('\n'.join(self._extract_error_trace_segment(trace_lines, error, context_lines)[0]).encode())) 
-                                for error in errors)
-            
+            total_size = sum(
+                len(segment_text.encode())
+                for segment_text in [
+                    "\n".join(
+                        self._extract_error_trace_segment(
+                            trace_lines, error, context_lines
+                        )[0]
+                    )
+                    for error in errors
+                ]
+            )
+            compressed_size = sum(
+                len(
+                    gzip.compress(
+                        "\n".join(
+                            self._extract_error_trace_segment(
+                                trace_lines, error, context_lines
+                            )[0]
+                        ).encode()
+                    )
+                )
+                for error in errors
+            )
+
             print(f"✅ Stored {len(errors)} trace segments for job {job_id}")
             print(f"   Total: {total_size} chars -> {compressed_size} bytes compressed")
 
         except Exception as e:
             print(f"ERROR: Failed to store trace segments: {e}")
             import traceback
+
             traceback.print_exc()
 
     def _extract_error_trace_segment(
-        self, 
-        trace_lines: list[str], 
-        error: ErrorRecord, 
-        context_lines: int
+        self, trace_lines: list[str], error: ErrorRecord, context_lines: int
     ) -> tuple[list[str], int, int]:
         """Extract trace segment for a specific error with context"""
-        error_line = error.line if hasattr(error, 'line') and error.line else 0
-        
+        error_line = error.line if hasattr(error, "line") and error.line else 0
+
         # Calculate segment boundaries
         start_line = max(0, error_line - context_lines)
         end_line = min(len(trace_lines), error_line + context_lines + 1)
-        
+
         # Extract segment
         segment_lines = trace_lines[start_line:end_line]
-        
+
         return segment_lines, start_line, end_line
 
     async def get_pipeline_jobs(self, pipeline_id: int) -> list[dict[str, Any]]:
@@ -713,16 +731,16 @@ class McpCache:
 
             # Decompress segment - it already contains the relevant context
             segment_text = gzip.decompress(segment_row[0]).decode("utf-8")
-            
+
             # For backwards compatibility, we can still apply mode-based filtering
             # but the segment already has appropriate context
             if mode == "minimal":
                 # Return just a few lines around the error
-                lines = segment_text.split('\n')
+                lines = segment_text.split("\n")
                 mid = len(lines) // 2
                 start = max(0, mid - 3)
                 end = min(len(lines), mid + 4)
-                return '\n'.join(lines[start:end])
+                return "\n".join(lines[start:end])
             else:
                 # Return the full stored segment (already has balanced context)
                 return segment_text
