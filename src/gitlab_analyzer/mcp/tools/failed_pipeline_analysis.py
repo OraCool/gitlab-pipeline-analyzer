@@ -233,6 +233,13 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Store file and error info in DB (using filtered data)
                 if store_in_db:
+                    # Store job trace
+                    await cache_manager.store_job_trace(
+                        job_id=job.id,
+                        trace_text=trace,
+                    )
+
+                    # Store file and error analysis
                     await cache_manager.store_job_file_errors(
                         project_id=project_id,
                         pipeline_id=pipeline_id,
