@@ -114,11 +114,18 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 _should_use_pytest_parser,
                 extract_file_path_from_message,
                 categorize_files_by_type,
+                should_exclude_file_path,
+                combine_exclude_file_patterns,
             )
             from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
             from gitlab_analyzer.parsers.log_parser import LogParser
 
             job_analysis_results = []
+            # Set up file path exclusion patterns
+            exclude_patterns = combine_exclude_file_patterns(
+                None
+            )  # Use default patterns
+
             for job in failed_jobs:
                 print(f"🔎 Analyzing job {job.id} ({job.name})...")
                 trace = await analyzer.get_job_trace(project_id, job.id)
@@ -154,14 +161,24 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     parsed = parser.parse(trace)
                     errors = parsed.get("errors", [])
 
-                # Group errors by file
+                # Group errors by file and filter out system files
                 file_groups = {}
+                filtered_errors = []  # Track errors after filtering system files
+
                 for error in errors:
                     file_path = extract_file_path_from_message(
                         error.get("exception_message", "") or error.get("message", "")
                     )
                     if not file_path:
                         file_path = error.get("file_path", "unknown")
+
+                    # Filter out system/exclude paths
+                    if should_exclude_file_path(file_path, exclude_patterns):
+                        continue  # Skip this error if the file should be excluded
+
+                    # Keep this error since it's from an application file
+                    filtered_errors.append(error)
+
                     if file_path not in file_groups:
                         file_groups[file_path] = {
                             "file_path": file_path,
@@ -171,16 +188,26 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     file_groups[file_path]["error_count"] += 1
                     file_groups[file_path]["errors"].append(error)
 
+                # Print filtering results
+                original_error_count = len(errors)
+                filtered_error_count = len(filtered_errors)
+                filtered_out_count = original_error_count - filtered_error_count
+
+                if filtered_out_count > 0:
+                    print(
+                        f"🔽 Filtered out {filtered_out_count} errors from system files (kept {filtered_error_count}/{original_error_count})"
+                    )
+
                 categorized = categorize_files_by_type(list(file_groups.values()))
 
-                # Store file and error info in DB (extend cache manager as needed)
+                # Store file and error info in DB (using filtered data)
                 if store_in_db:
                     await cache_manager.store_job_file_errors(
                         project_id=project_id,
                         pipeline_id=pipeline_id,
                         job_id=job.id,
                         files=list(file_groups.values()),
-                        errors=errors,
+                        errors=filtered_errors,  # Use filtered errors instead of all errors
                         parser_type=parser_type,
                     )
 
@@ -191,7 +218,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         "parser_type": parser_type,
                         "file_groups": list(file_groups.values()),
                         "categorized_files": categorized,
-                        "errors": errors,
+                        "errors": filtered_errors,  # Use filtered errors
+                        "filtering_stats": {
+                            "original_errors": original_error_count,
+                            "filtered_errors": filtered_error_count,
+                            "excluded_errors": filtered_out_count,
+                        },
                     }
                 )
 
