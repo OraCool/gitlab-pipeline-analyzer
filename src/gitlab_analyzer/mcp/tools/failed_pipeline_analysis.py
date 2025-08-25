@@ -84,6 +84,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
             if store_in_db:
                 print("💾 Storing pipeline info in database...")
+                # Pass the full comprehensive pipeline info (the async method now handles extraction)
                 await cache_manager.store_pipeline_info_async(
                     project_id=project_id,
                     pipeline_id=pipeline_id,
