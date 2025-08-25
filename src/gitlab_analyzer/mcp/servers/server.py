@@ -94,8 +94,9 @@ def main() -> None:
         """Initialize cache when server starts"""
         from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
-        cache_manager = get_cache_manager()
-        await cache_manager.initialize()
+        # Cache is initialized in constructor, just ensure it's created
+        get_cache_manager()
+        # No need to call initialize() - it's done in __init__
 
     # Run server with proper cache initialization
     if args.transport == "stdio":

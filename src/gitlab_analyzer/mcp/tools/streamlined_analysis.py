@@ -109,9 +109,13 @@ def register_streamlined_analysis_tools(mcp: FastMCP) -> None:
 
                 # Store in database if requested
                 if store_in_db and cache_manager:
+                    print(
+                        f"DEBUG: About to store pipeline analysis for {project_id}/{pipeline_id}"
+                    )
                     await cache_manager.store_pipeline_analysis(
                         project_id, pipeline_id, result
                     )
+                    print(f"DEBUG: Pipeline analysis storage completed")
 
                 return result
 
@@ -131,9 +135,9 @@ def register_streamlined_analysis_tools(mcp: FastMCP) -> None:
             # Add resource URIs for further investigation
             result["resource_uris"] = {
                 "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
-                "jobs": f"gl://jobs/{project_id}/{pipeline_id}",
-                "errors": f"gl://errors/{project_id}/{pipeline_id}",
-                "analysis": f"gl://analysis/{project_id}/{pipeline_id}",
+                "analysis": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
+                # Note: job and error resources require specific job_id, not pipeline_id
+                # These will be available per job in the job_analysis section
             }
 
             # Add MCP metadata

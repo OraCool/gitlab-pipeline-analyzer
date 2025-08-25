@@ -303,16 +303,16 @@ async def analyze_pipeline_jobs(
     jobs = await analyzer.get_pipeline_jobs(project_id, pipeline_id)
 
     if failed_jobs_only:
-        jobs = [job for job in jobs if job.get("status") == "failed"]
+        jobs = [job for job in jobs if job.status == "failed"]
 
     analyzed_jobs = []
     total_errors = 0
     total_warnings = 0
 
     for job in jobs:
-        job_id = job["id"]
-        job_name = job.get("name", "")
-        job_stage = job.get("stage", "")
+        job_id = job.id
+        job_name = job.name
+        job_stage = job.stage
 
         try:
             # Get job trace
@@ -334,8 +334,13 @@ async def analyze_pipeline_jobs(
                     "job_id": job_id,
                     "job_name": job_name,
                     "job_stage": job_stage,
-                    "job_status": job.get("status"),
+                    "job_status": job.status,
                     "analysis": filtered_data,
+                    "resource_uris": {
+                        "job": f"gl://job/{project_id}/{job_id}",
+                        "error": f"gl://error/{project_id}/{job_id}",
+                        "analysis": f"gl://analysis/{project_id}/job/{job_id}",
+                    },
                 }
             )
 
@@ -348,7 +353,7 @@ async def analyze_pipeline_jobs(
                     "job_id": job_id,
                     "job_name": job_name,
                     "job_stage": job_stage,
-                    "job_status": job.get("status"),
+                    "job_status": job.status,
                     "analysis": {
                         "error": f"Failed to analyze job: {str(e)}",
                         "parser_type": "error",
