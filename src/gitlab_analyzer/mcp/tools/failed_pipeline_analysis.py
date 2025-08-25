@@ -184,7 +184,11 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         {
                             "message": entry.message,
                             "level": entry.level,
-                            "line_number": str(entry.line_number) if entry.line_number is not None else None,
+                            "line_number": (
+                                str(entry.line_number)
+                                if entry.line_number is not None
+                                else None
+                            ),
                             "context": entry.context,
                         }
                         for entry in log_entries
@@ -196,7 +200,11 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 filtered_errors = []  # Track errors after filtering system files
 
                 for error in errors:
-                    message = error.get("exception_message", "") or error.get("message", "") or ""
+                    message = (
+                        error.get("exception_message", "")
+                        or error.get("message", "")
+                        or ""
+                    )
                     file_path = extract_file_path_from_message(message)
                     if not file_path:
                         file_path = error.get("file_path", "unknown") or "unknown"

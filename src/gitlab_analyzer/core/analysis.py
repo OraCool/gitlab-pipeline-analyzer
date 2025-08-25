@@ -261,7 +261,7 @@ def parse_pytest_logs(
                 "test_function": failure.test_function or "unknown",
                 "exception_type": failure.exception_type or "Unknown",
                 "message": failure.exception_message or "No message",
-                "line_number": getattr(failure, 'line_number', None),
+                "line_number": getattr(failure, "line_number", None),
                 "has_traceback": bool(failure.traceback and include_traceback),
             }
 
@@ -506,21 +506,24 @@ async def analyze_pipeline_jobs(
                 [
                     j
                     for j in analyzed_jobs
-                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "pytest"
+                    if isinstance(j["analysis"], dict)
+                    and j["analysis"].get("parser_type") == "pytest"
                 ]
             ),
             "generic_jobs": len(
                 [
                     j
                     for j in analyzed_jobs
-                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "generic"
+                    if isinstance(j["analysis"], dict)
+                    and j["analysis"].get("parser_type") == "generic"
                 ]
             ),
             "error_jobs": len(
                 [
                     j
                     for j in analyzed_jobs
-                    if isinstance(j["analysis"], dict) and j["analysis"].get("parser_type") == "error"
+                    if isinstance(j["analysis"], dict)
+                    and j["analysis"].get("parser_type") == "error"
                 ]
             ),
         },
