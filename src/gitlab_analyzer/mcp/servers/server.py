@@ -11,6 +11,8 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.mcp.prompts import register_all_prompts
+from gitlab_analyzer.mcp.resources import register_all_resources
 from gitlab_analyzer.mcp.tools import register_tools
 from gitlab_analyzer.version import get_version
 
@@ -26,12 +28,21 @@ def create_server() -> FastMCP:
         instructions=f"""
         Analyze GitLab CI/CD pipelines for errors and warnings
 
+        This server provides comprehensive pipeline analysis with intelligent caching.
+        Available resources: pipelines, jobs, analysis results, and error details.
+        Use prompts for guided investigation workflows.
+
         GitLab Pipeline Analyzer v{version}
         """,
     )
 
-    # Register all tools
+    # Cache manager will be initialized when server starts
+    # Note: We don't initialize here to avoid event loop issues
+
+    # Register all tools, resources, and prompts
     register_tools(mcp)
+    register_all_resources(mcp)
+    register_all_prompts(mcp)
     return mcp
 
 
@@ -78,9 +89,37 @@ def main() -> None:
     load_env_file()
     mcp = create_server()
 
+    # Initialize cache before running server
+    async def startup():
+        """Initialize cache when server starts"""
+        from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+
+        # Cache is initialized in constructor, just ensure it's created
+        get_cache_manager()
+        # No need to call initialize() - it's done in __init__
+
+    # Run server with proper cache initialization
     if args.transport == "stdio":
-        mcp.run(transport="stdio")
+        import asyncio
+
+        async def run_stdio():
+            await startup()
+            await mcp.run_stdio_async()
+
+        asyncio.run(run_stdio())
     elif args.transport == "http":
-        mcp.run(transport="http", host=args.host, port=args.port, path=args.path)
+        import asyncio
+
+        async def run_http():
+            await startup()
+            await mcp.run_http_async(host=args.host, port=args.port, path=args.path)
+
+        asyncio.run(run_http())
     elif args.transport == "sse":
-        mcp.run(transport="sse", host=args.host, port=args.port)
+        import asyncio
+
+        async def run_sse():
+            await startup()
+            await mcp.run_sse_async(host=args.host, port=args.port)
+
+        asyncio.run(run_sse())

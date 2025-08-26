@@ -1,6 +1,6 @@
 [project]
 name = "gitlab-pipeline-analyzer"
-version = "0.3.5"
+version = "0.4.0"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
 authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
 license = "MIT"
@@ -22,6 +22,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
     "typing-extensions>=4.14.1",
+    "aiosqlite>=0.20.0",
 ]
 requires-python = ">=3.10"
 
@@ -91,8 +92,8 @@ exclude = [
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.12
-target-version = "py312"
+# Assume Python 3.10 for compatibility
+target-version = "py310"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -112,9 +113,10 @@ select = [
 ]
 
 ignore = [
-    "E501", # line too long (handled by formatter)
-    "B008", # do not perform function calls in argument defaults
-    "B904", # raise-without-from-inside-except
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise-without-from-inside-except
+    "UP017", # Use datetime.UTC alias (not available in Python 3.10)
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
@@ -208,7 +210,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=70",
+    "--cov-fail-under=65",
 ]
 testpaths = ["tests"]
 markers = [

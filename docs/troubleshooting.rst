@@ -463,6 +463,33 @@ Client Issues
 
    For browser clients, ensure CORS is handled by your reverse proxy or client configuration.
 
+Cache and Database Issues
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue: SQLite threading warnings**
+
+.. code-block:: text
+
+    Exception in thread Thread-1:
+    RuntimeError: Event loop is closed
+
+**These warnings are harmless!**
+
+These occur during application shutdown when:
+
+- The Python event loop closes while SQLite background threads are running
+- aiosqlite tries to communicate with the closed event loop
+- This is expected behavior with async SQLite libraries
+
+**Solutions:**
+
+✅ **Safe to ignore** - No data loss or corruption occurs
+✅ **Cosmetic only** - Doesn't affect server functionality
+✅ **Expected behavior** - Common with aiosqlite applications
+✅ **Cleanup related** - Only happens during shutdown
+
+The server includes improved cleanup to minimize these warnings, but they may still appear occasionally during testing or script termination.
+
 Debugging Tools
 ---------------
 

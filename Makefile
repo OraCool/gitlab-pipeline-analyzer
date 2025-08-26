@@ -59,9 +59,9 @@ test:
 # Clean up
 clean:
 	@echo "Cleaning up..."
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
-	find . -type d -name "*.egg-info" -exec rm -rf {} +
+	fd -tf "\.pyc$$" -x rm {}
+	fd -td "__pycache__" -x rm -rf {}
+	fd -td "\.egg-info$$" -x rm -rf {}
 	rm -rf build/
 	rm -rf dist/
 

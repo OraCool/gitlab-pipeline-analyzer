@@ -6,17 +6,14 @@ GitLab Pipeline Analyzer MCP Server Documentation
    :caption: Contents:
 
    installation
-   mcp_tools
-   tool_reference
    examples
    configuration
-   deployment
    troubleshooting
 
 Overview
 --------
 
-The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 21 specialized tools for extracting, parsing, and analyzing pipeline errors, job traces, and repository information.
+The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 6 streamlined tools following DRY and KISS principles for pipeline analysis, repository search, and cache management.
 
 Key Features
 ------------
@@ -54,14 +51,13 @@ Key Features
 Architecture
 ------------
 
-The MCP server is organized into six main tool categories:
+The MCP server follows a streamlined architecture with 6 focused tools:
 
-1. **Analysis Tools** - Core pipeline and job failure analysis
-2. **Info Tools** - Pipeline metadata and job information
-3. **Log Tools** - Raw log processing and error extraction
-4. **Pytest Tools** - Specialized pytest test failure analysis
-5. **Pagination Tools** - Large dataset management and file-based error grouping
-6. **Search Tools** - Repository code and commit search functionality
+1. **Pipeline Analysis** - Complete pipeline failure analysis with intelligent parsing
+2. **Repository Search** - Code and commit search functionality
+3. **Cache Management** - Cache operations and health monitoring
+
+All detailed data is accessed via resource URIs following DRY and KISS principles.
 
 Quick Start
 -----------
@@ -95,7 +91,7 @@ Basic usage with FastMCP client:
     async def analyze_pipeline():
         async with Client("http://localhost:8000/mcp") as client:
             # Analyze a failed pipeline
-            result = await client.call_tool("analyze_failed_pipeline", {
+            result = await client.call_tool("comprehensive_pipeline_analysis", {
                 "project_id": "123",
                 "pipeline_id": 456
             })
@@ -118,4 +114,4 @@ Requirements
 Getting Started
 ---------------
 
-Continue to the :doc:`installation` guide to set up the MCP server, or jump to :doc:`mcp_tools` for a complete overview of available tools.
+Continue to the :doc:`installation` guide to set up the MCP server, or check the ``streamlined_tools.md`` file for complete tool documentation.

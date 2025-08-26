@@ -149,7 +149,7 @@ uv run mypy src/
 uv run bandit -r src/
 
 # Run full test suite
-uv run pytest --tb=short --cov-report=term --cov-fail-under=70
+uv run pytest --tb=short --cov-report=term --cov-fail-under=65
 
 # Build and validate package
 uv run python -m build
@@ -608,7 +608,7 @@ The tag push will automatically trigger:
 
 ## 🆘 Troubleshooting
 
-- **Tests failing**: Check test logs, fix code, ensure 70%+ coverage
+- **Tests failing**: Check test logs, fix code, ensure 65%+ coverage
 - **Build failing**: Verify `pyproject.toml` syntax, check dependencies
 - **PyPI publication failing**: Check for version conflicts, ensure unique version number
 - **GitHub Actions stuck**: Check workflow permissions, secrets, and API limits

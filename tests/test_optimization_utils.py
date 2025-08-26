@@ -5,7 +5,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-from gitlab_analyzer.mcp.tools.utils import (
+from gitlab_analyzer.utils.utils import (
     _categorize_error_for_fixing,
     _create_balanced_error,
     _create_fixing_error,
