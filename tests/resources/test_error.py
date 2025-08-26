@@ -27,8 +27,8 @@ class TestErrorResources:
         # Execute registration
         register_error_resources(mock_mcp)
 
-        # Verify resource decorators were called
-        assert mock_mcp.resource.call_count == 3
+        # Verify resource decorators were called (4 error resources)
+        assert mock_mcp.resource.call_count == 4
 
         # Check the resource URI patterns
         call_args = [call[0][0] for call in mock_mcp.resource.call_args_list]
@@ -36,6 +36,7 @@ class TestErrorResources:
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
             "gl://error/{project_id}/{job_id}/{error_id}",
+            "gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
         ]
 
         for pattern in expected_patterns:
@@ -51,11 +52,12 @@ class TestErrorResources:
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
             "gl://error/{project_id}/{job_id}/{error_id}",
+            "gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
         ]
 
         # Check that all expected patterns were used
         actual_calls = [call[0][0] for call in mock_mcp.resource.call_args_list]
-        assert len(actual_calls) == 3
+        assert len(actual_calls) == 4
         for expected_call in expected_calls:
             assert expected_call in actual_calls
 
@@ -65,8 +67,8 @@ class TestErrorResources:
         register_error_resources(mock_mcp)
         register_error_resources(mock_mcp)
 
-        # Should have been called 6 times total (3 per registration)
-        assert mock_mcp.resource.call_count == 6
+        # Should have been called 8 times total (4 per registration)
+        assert mock_mcp.resource.call_count == 8
 
         # Check that patterns are consistent
         call_args_list = [call[0][0] for call in mock_mcp.resource.call_args_list]
@@ -74,6 +76,7 @@ class TestErrorResources:
             "gl://error/{project_id}/{job_id}",
             "gl://error/{project_id}/{job_id}?mode={mode}",
             "gl://error/{project_id}/{job_id}/{error_id}",
+            "gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
         ]
 
         # Each pattern should appear twice

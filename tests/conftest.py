@@ -164,6 +164,6 @@ def mcp_server():
 @pytest.fixture
 def clean_global_analyzer(monkeypatch):
     """Clean the global analyzer instance before tests"""
-    import gitlab_analyzer.mcp.tools.utils
+    import gitlab_analyzer.utils.utils
 
-    monkeypatch.setattr(gitlab_analyzer.mcp.tools.utils, "_GITLAB_ANALYZER", None)
+    monkeypatch.setattr(gitlab_analyzer.utils.utils, "_GITLAB_ANALYZER", None)

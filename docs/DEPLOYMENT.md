@@ -104,7 +104,7 @@ Find and update version references in README.md:
 #### 3.3 Verify Version Updates
 ```bash
 # Search for old version references
-grep -r "0.1.2" . --exclude-dir=.git --exclude-dir=.venv --exclude-dir=.tox
+rg "0.1.2" --type-not binary --exclude-dir .git --exclude-dir .venv --exclude-dir .tox
 ```
 
 ### 4. Commit and Push Changes
@@ -248,7 +248,7 @@ SKIP=mypy uv run pre-commit run --all-files
 #### 3. Version Conflicts
 ```bash
 # Find all version references
-find . -name "*.py" -o -name "*.md" -o -name "*.toml" | xargs grep -l "0\.1\.2"
+fd -e py -e md -e toml | xargs rg -l "0\.1\.2"
 
 # Update systematically
 sed -i 's/0\.1\.2/0\.1\.3/g' filename
