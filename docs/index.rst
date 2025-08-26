@@ -54,7 +54,7 @@ Architecture
 The MCP server follows a streamlined architecture with 6 focused tools:
 
 1. **Pipeline Analysis** - Complete pipeline failure analysis with intelligent parsing
-2. **Repository Search** - Code and commit search functionality  
+2. **Repository Search** - Code and commit search functionality
 3. **Cache Management** - Cache operations and health monitoring
 
 All detailed data is accessed via resource URIs following DRY and KISS principles.
