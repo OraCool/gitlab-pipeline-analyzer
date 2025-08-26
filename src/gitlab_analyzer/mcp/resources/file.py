@@ -10,7 +10,9 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from mcp.types import TextResourceContents
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ async def get_file_resource_with_trace(
     file_path: str,
     mode: str = "balanced",
     include_trace: str = "false",
-) -> str:
+) -> TextResourceContents:
     """Get file analysis using only database data - no live GitLab API calls."""
     try:
         cache_manager = get_cache_manager()
@@ -32,7 +34,10 @@ async def get_file_resource_with_trace(
         # Try cache first
         cached_data = await cache_manager.get(cache_key)
         if cached_data:
-            return json.dumps(cached_data, indent=2)
+            return create_text_resource(
+                f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+                cached_data,
+            )
 
         # Get file errors from database (pre-analyzed data)
         file_errors = cache_manager.get_file_errors(int(job_id), file_path)
@@ -95,7 +100,10 @@ async def get_file_resource_with_trace(
         # Cache the result
         await cache_manager.set(cache_key, result)
 
-        return json.dumps(result, indent=2)
+        return create_text_resource(
+            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+            result,
+        )
 
     except Exception as e:
         logger.error(
@@ -106,7 +114,10 @@ async def get_file_resource_with_trace(
             "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace}",
             "error_at": datetime.now(UTC).isoformat(),
         }
-        return json.dumps(error_result, indent=2)
+        return create_text_resource(
+            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+            error_result,
+        )
 
 
 async def get_file_resource(
@@ -165,13 +176,155 @@ async def get_files_resource(
     )
 
 
+async def get_pipeline_files_resource(
+    project_id: str, pipeline_id: str, page: int = 1, limit: int = 20
+) -> dict[str, Any]:
+    """Get all files with errors across all jobs in a pipeline from database."""
+    cache_manager = get_cache_manager()
+    cache_key = f"pipeline_files_{project_id}_{pipeline_id}_{page}_{limit}"
+
+    async def compute_pipeline_files_data() -> dict[str, Any]:
+        # Get all jobs for this pipeline
+        pipeline_jobs = await cache_manager.get_pipeline_jobs(int(pipeline_id))
+
+        if not pipeline_jobs:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "jobs_analyzed": 0,
+                "data_source": "database_only",
+            }
+
+        # Get files with errors from all jobs
+        all_files_with_errors = {}  # Use dict to deduplicate by file path
+        jobs_with_errors = 0
+
+        for job in pipeline_jobs:
+            job_id = job.get("job_id")
+            if not job_id:
+                continue
+
+            job_files = await cache_manager.get_job_files_with_errors(int(job_id))
+            if job_files:
+                jobs_with_errors += 1
+                for file_info in job_files:
+                    file_path = file_info.get("file_path")
+                    if file_path:
+                        if file_path not in all_files_with_errors:
+                            all_files_with_errors[file_path] = {
+                                "file_path": file_path,
+                                "total_errors": 0,
+                                "jobs_with_errors": [],
+                                "first_error": None,
+                            }
+
+                        # Aggregate error info
+                        file_errors = file_info.get("errors", [])
+                        all_files_with_errors[file_path]["total_errors"] += len(
+                            file_errors
+                        )
+                        all_files_with_errors[file_path]["jobs_with_errors"].append(
+                            {
+                                "job_id": job_id,
+                                "job_name": job.get("name"),
+                                "error_count": len(file_errors),
+                            }
+                        )
+
+                        # Store first error for reference
+                        if (
+                            not all_files_with_errors[file_path]["first_error"]
+                            and file_errors
+                        ):
+                            all_files_with_errors[file_path]["first_error"] = (
+                                file_errors[0]
+                            )
+
+        # Convert to list and sort by total errors (most problematic first)
+        files_list = list(all_files_with_errors.values())
+        files_list.sort(key=lambda x: x["total_errors"], reverse=True)
+
+        # Apply pagination
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_files = files_list[start_idx:end_idx]
+
+        return {
+            "files": paginated_files,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": len(files_list),
+                "total_pages": (len(files_list) + limit - 1) // limit,
+            },
+            "summary": {
+                "total_files_with_errors": len(files_list),
+                "total_jobs_in_pipeline": len(pipeline_jobs),
+                "jobs_with_errors": jobs_with_errors,
+                "total_errors": sum(f["total_errors"] for f in files_list),
+            },
+            "data_source": "database_only",
+        }
+
+    return await cache_manager.get_or_compute(
+        cache_key, compute_pipeline_files_data, ttl_seconds=300
+    )
+
+
 def register_file_resources(mcp) -> None:
     """Register file resources with MCP server"""
+
+    @mcp.resource("gl://files/{project_id}/pipeline/{pipeline_id}")
+    async def get_pipeline_files_resource_handler(
+        project_id: str, pipeline_id: str
+    ) -> TextResourceContents:
+        """
+        Get all files with errors across all jobs in a pipeline from database only.
+
+        Returns a comprehensive list of files that have errors in any job within the pipeline,
+        aggregated with error counts and job information.
+        Uses only pre-analyzed data from the database cache.
+        """
+        result = await get_pipeline_files_resource(project_id, pipeline_id)
+        return create_text_resource(
+            f"gl://files/{project_id}/pipeline/{pipeline_id}", result
+        )
+
+    @mcp.resource(
+        "gl://files/{project_id}/pipeline/{pipeline_id}/page/{page}/limit/{limit}"
+    )
+    async def get_pipeline_files_resource_paginated(
+        project_id: str, pipeline_id: str, page: str, limit: str
+    ) -> TextResourceContents:
+        """
+        Get paginated list of files with errors across all jobs in a pipeline from database only.
+        """
+        try:
+            page_num = int(page)
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://files/{project_id}/pipeline/{pipeline_id}/page/{page}/limit/{limit}",
+                {"error": "Invalid page or limit parameter"},
+            )
+
+        result = await get_pipeline_files_resource(
+            project_id, pipeline_id, page_num, limit_num
+        )
+        return create_text_resource(
+            f"gl://files/{project_id}/pipeline/{pipeline_id}/page/{page}/limit/{limit}",
+            result,
+        )
 
     @mcp.resource("gl://file/{project_id}/{job_id}/{file_path}")
     async def get_file_resource_handler(
         project_id: str, job_id: str, file_path: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get file analysis data from database only.
 
@@ -179,10 +332,14 @@ def register_file_resources(mcp) -> None:
         Uses only pre-analyzed data from the database cache.
         """
         result = await get_file_resource(project_id, job_id, file_path)
-        return json.dumps(result, indent=2)
+        return create_text_resource(
+            f"gl://file/{project_id}/{job_id}/{file_path}", result
+        )
 
     @mcp.resource("gl://files/{project_id}/{job_id}")
-    async def get_files_resource_handler(project_id: str, job_id: str) -> str:
+    async def get_files_resource_handler(
+        project_id: str, job_id: str
+    ) -> TextResourceContents:
         """
         Get list of files with errors for a job from database only.
 
@@ -190,12 +347,12 @@ def register_file_resources(mcp) -> None:
         Uses only pre-analyzed data from the database cache.
         """
         result = await get_files_resource(project_id, job_id)
-        return json.dumps(result, indent=2)
+        return create_text_resource(f"gl://files/{project_id}/{job_id}", result)
 
     @mcp.resource("gl://files/{project_id}/{job_id}/page/{page}/limit/{limit}")
     async def get_files_resource_paginated(
         project_id: str, job_id: str, page: str, limit: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get paginated list of files with errors for a job from database only.
         """
@@ -203,17 +360,22 @@ def register_file_resources(mcp) -> None:
             page_num = int(page)
             limit_num = int(limit)
         except ValueError:
-            return json.dumps({"error": "Invalid page or limit parameter"}, indent=2)
+            return create_text_resource(
+                f"gl://files/{project_id}/{job_id}/page/{page}/limit/{limit}",
+                {"error": "Invalid page or limit parameter"},
+            )
 
         result = await get_files_resource(project_id, job_id, page_num, limit_num)
-        return json.dumps(result, indent=2)
+        return create_text_resource(
+            f"gl://files/{project_id}/{job_id}/page/{page}/limit/{limit}", result
+        )
 
     @mcp.resource(
         "gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}"
     )
     async def get_file_resource_with_trace_handler(
         project_id: str, job_id: str, file_path: str, mode: str, include_trace: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get file analysis with enhanced error information from database only.
 
@@ -221,9 +383,10 @@ def register_file_resources(mcp) -> None:
             mode: Analysis mode (minimal, balanced, fixing, full)
             include_trace: Whether to include trace context (true/false) - Currently ignored as we use database only
         """
-        return await get_file_resource_with_trace(
+        result = await get_file_resource_with_trace(
             project_id, job_id, file_path, mode, include_trace
         )
+        return result
 
 
 def _classify_file_type(file_path: str) -> str:

@@ -8,9 +8,13 @@ Licensed under the MIT License - see LICENSE file for details
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
+
+from mcp.types import TextResourceContents
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.utils.utils import get_mcp_info
+from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
 
@@ -320,11 +324,61 @@ def _identify_pipeline_patterns(jobs):
     return patterns
 
 
+async def get_analysis_resource_data(
+    project_id: str,
+    pipeline_id: str | None = None,
+    job_id: str | None = None,
+    mode: str = "balanced",
+) -> dict[str, Any]:
+    """
+    Get analysis resource data (standalone function for resource access tool)
+
+    Args:
+        project_id: GitLab project ID
+        pipeline_id: Pipeline ID (optional)
+        job_id: Job ID (optional)
+        mode: Response mode (minimal, balanced, detailed, etc.)
+
+    Returns:
+        Analysis data as dict
+    """
+    try:
+        result_json = await _get_comprehensive_analysis(
+            project_id, pipeline_id, job_id, mode
+        )
+        return json.loads(result_json)
+    except Exception as e:
+        logger.error(
+            "Error getting analysis resource data %s/%s/%s: %s",
+            project_id,
+            pipeline_id,
+            job_id,
+            e,
+        )
+        uri_parts = [f"gl://analysis/{project_id}"]
+        if pipeline_id:
+            uri_parts.append(f"pipeline/{pipeline_id}")
+        if job_id:
+            uri_parts.append(f"job/{job_id}")
+
+        resource_uri = "/".join(uri_parts)
+        if mode != "balanced":
+            resource_uri += f"?mode={mode}"
+
+        return {
+            "error": f"Failed to get analysis resource: {str(e)}",
+            "project_id": project_id,
+            "pipeline_id": pipeline_id,
+            "job_id": job_id,
+            "resource_uri": resource_uri,
+        }
+
+
 def register_analysis_resources(mcp) -> None:
     """Register analysis resources with MCP server"""
 
     @mcp.resource("gl://analysis/{project_id}")
-    async def get_project_analysis_resource(project_id: str) -> str:
+    async def get_project_analysis_resource(project_id: str) -> TextResourceContents:
         """
         Get project-level analysis as a resource with caching.
 
@@ -336,12 +390,13 @@ def register_analysis_resources(mcp) -> None:
 
         Note: Resources provide "balanced" mode by default for optimal agent consumption.
         """
-        return await _get_comprehensive_analysis(project_id, response_mode="balanced")
+        result = await _get_comprehensive_analysis(project_id, response_mode="balanced")
+        return create_text_resource("gl://analysis/{project_id}", result)
 
     @mcp.resource("gl://analysis/{project_id}?mode={mode}")
     async def get_project_analysis_resource_with_mode(
         project_id: str, mode: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get project-level analysis as a resource with specific response mode.
 
@@ -352,10 +407,13 @@ def register_analysis_resources(mcp) -> None:
         Returns:
             Project-level analysis optimized for the specified mode
         """
-        return await _get_comprehensive_analysis(project_id, response_mode=mode)
+        result = await _get_comprehensive_analysis(project_id, response_mode=mode)
+        return create_text_resource("gl://analysis/{project_id}?mode={mode}", result)
 
     @mcp.resource("gl://analysis/{project_id}/pipeline/{pipeline_id}")
-    async def get_pipeline_analysis_resource(project_id: str, pipeline_id: str) -> str:
+    async def get_pipeline_analysis_resource(
+        project_id: str, pipeline_id: str
+    ) -> TextResourceContents:
         """
         Get pipeline-level analysis as a resource with caching.
 
@@ -366,14 +424,17 @@ def register_analysis_resources(mcp) -> None:
         Returns:
             Pipeline-level analysis with metadata
         """
-        return await _get_comprehensive_analysis(
+        result = await _get_comprehensive_analysis(
             project_id, pipeline_id, response_mode="balanced"
+        )
+        return create_text_resource(
+            "gl://analysis/{project_id}/pipeline/{pipeline_id}", result
         )
 
     @mcp.resource("gl://analysis/{project_id}/pipeline/{pipeline_id}?mode={mode}")
     async def get_pipeline_analysis_resource_with_mode(
         project_id: str, pipeline_id: str, mode: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get pipeline-level analysis as a resource with specific response mode.
 
@@ -385,12 +446,18 @@ def register_analysis_resources(mcp) -> None:
         Returns:
             Pipeline-level analysis optimized for the specified mode
         """
-        return await _get_comprehensive_analysis(
+        result = await _get_comprehensive_analysis(
             project_id, pipeline_id, response_mode=mode
+        )
+        return create_text_resource(
+            "gl://analysis/{project_id}/pipeline/{pipeline_id}?mode={mode}",
+            result,
         )
 
     @mcp.resource("gl://analysis/{project_id}/job/{job_id}")
-    async def get_job_analysis_resource(project_id: str, job_id: str) -> str:
+    async def get_job_analysis_resource(
+        project_id: str, job_id: str
+    ) -> TextResourceContents:
         """
         Get job-level analysis as a resource with caching.
 
@@ -401,14 +468,15 @@ def register_analysis_resources(mcp) -> None:
         Returns:
             Job-level analysis with metadata
         """
-        return await _get_comprehensive_analysis(
+        result = await _get_comprehensive_analysis(
             project_id, job_id=job_id, response_mode="balanced"
         )
+        return create_text_resource("gl://analysis/{project_id}/job/{job_id}", result)
 
     @mcp.resource("gl://analysis/{project_id}/job/{job_id}?mode={mode}")
     async def get_job_analysis_resource_with_mode(
         project_id: str, job_id: str, mode: str
-    ) -> str:
+    ) -> TextResourceContents:
         """
         Get job-level analysis as a resource with specific response mode.
 
@@ -420,8 +488,11 @@ def register_analysis_resources(mcp) -> None:
         Returns:
             Job-level analysis optimized for the specified mode
         """
-        return await _get_comprehensive_analysis(
+        result = await _get_comprehensive_analysis(
             project_id, job_id=job_id, response_mode=mode
+        )
+        return create_text_resource(
+            "gl://analysis/{project_id}/job/{job_id}?mode={mode}", result
         )
 
     logger.info("Analysis resources registered")

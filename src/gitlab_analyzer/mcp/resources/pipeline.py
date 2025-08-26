@@ -9,12 +9,16 @@ Copyright (c) 2025 Siarhei Skurato        mcp_info = get_mcp_info(
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import json
 import logging
 from typing import Any
+
+from mcp.types import TextResourceContents
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import generate_cache_key
 from gitlab_analyzer.utils.utils import get_mcp_info
+from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
 
@@ -153,8 +157,11 @@ def register_pipeline_resources(mcp) -> None:
     """Register pipeline resources with MCP server"""
 
     @mcp.resource("gl://pipeline/{project_id}/{pipeline_id}")
-    async def pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, Any]:
+    async def pipeline_resource(
+        project_id: str, pipeline_id: str
+    ) -> TextResourceContents:
         """Pipeline resource with comprehensive info and jobs list"""
-        return await get_pipeline_resource(project_id, pipeline_id)
+        result = await get_pipeline_resource(project_id, pipeline_id)
+        return create_text_resource(f"gl://pipeline/{project_id}/{pipeline_id}", result)
 
     logger.info("Pipeline resources registered")

@@ -18,6 +18,7 @@ from gitlab_analyzer.utils.utils import get_gitlab_analyzer
 
 from .cache_tools import register_cache_tools
 from .failed_pipeline_analysis import register_failed_pipeline_analysis_tools
+from .resource_access_tools import register_resource_access_tools
 from .search_tools import register_search_tools
 
 
@@ -26,6 +27,7 @@ def register_tools(mcp: FastMCP) -> None:
     register_failed_pipeline_analysis_tools(mcp)
     register_search_tools(mcp)
     register_cache_tools(mcp)
+    register_resource_access_tools(mcp)
 
 
 __all__ = [
@@ -33,5 +35,6 @@ __all__ = [
     "register_failed_pipeline_analysis_tools",
     "register_search_tools",
     "register_cache_tools",
+    "register_resource_access_tools",
     "get_gitlab_analyzer",
 ]
