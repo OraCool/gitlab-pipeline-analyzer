@@ -140,7 +140,11 @@ async def get_file_resource(
         }
 
     return await cache_manager.get_or_compute(
-        cache_key, compute_file_data, ttl_seconds=300
+        key=cache_key,
+        compute_func=compute_file_data,
+        data_type="file_analysis",
+        project_id=project_id,
+        job_id=int(job_id),
     )
 
 
@@ -152,6 +156,31 @@ async def get_files_resource(
     cache_key = f"files_{project_id}_{job_id}_{page}_{limit}"
 
     async def compute_files_data() -> dict[str, Any]:
+        # Check if job exists in database first
+        import aiosqlite
+
+        async with aiosqlite.connect(cache_manager.db_path) as db:
+            cursor = await db.execute(
+                "SELECT job_id, pipeline_id, status FROM jobs WHERE job_id = ?",
+                (int(job_id),),
+            )
+            job_row = await cursor.fetchone()
+
+            if not job_row:
+                return {
+                    "files": [],
+                    "pagination": {
+                        "page": page,
+                        "limit": limit,
+                        "total": 0,
+                        "total_pages": 0,
+                    },
+                    "error": f"Job {job_id} not found in database",
+                    "recommendation": f"Job {job_id} has not been analyzed. Run failed_pipeline_analysis for the pipeline containing this job.",
+                    "suggested_action": f"failed_pipeline_analysis(project_id={project_id}, pipeline_id=<pipeline_id>)",
+                    "data_source": "database_only",
+                }
+
         # Get all files with errors for this job
         files_with_errors = await cache_manager.get_job_files_with_errors(int(job_id))
 
@@ -172,7 +201,11 @@ async def get_files_resource(
         }
 
     return await cache_manager.get_or_compute(
-        cache_key, compute_files_data, ttl_seconds=300
+        key=cache_key,
+        compute_func=compute_files_data,
+        data_type="job_files",
+        project_id=project_id,
+        job_id=int(job_id),
     )
 
 
@@ -184,6 +217,57 @@ async def get_pipeline_files_resource(
     cache_key = f"pipeline_files_{project_id}_{pipeline_id}_{page}_{limit}"
 
     async def compute_pipeline_files_data() -> dict[str, Any]:
+        # Check pipeline analysis status first
+        analysis_status = await cache_manager.check_pipeline_analysis_status(
+            int(project_id), int(pipeline_id)
+        )
+
+        if not analysis_status["pipeline_exists"]:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "error": "Pipeline not found in database",
+                "recommendation": analysis_status["recommendation"],
+                "suggested_action": analysis_status["suggested_action"],
+                "data_source": "database_only",
+            }
+
+        if analysis_status["jobs_count"] == 0:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "warning": "No jobs found for this pipeline",
+                "recommendation": analysis_status["recommendation"],
+                "suggested_action": analysis_status["suggested_action"],
+                "analysis_status": analysis_status,
+                "data_source": "database_only",
+            }
+
+        if analysis_status["files_count"] == 0:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "info": f"Pipeline has {analysis_status['jobs_count']} jobs and {analysis_status['errors_count']} errors, but no files with errors found",
+                "recommendation": analysis_status["recommendation"],
+                "analysis_status": analysis_status,
+                "data_source": "database_only",
+            }
+
         # Get all jobs for this pipeline
         pipeline_jobs = await cache_manager.get_pipeline_jobs(int(pipeline_id))
 
@@ -272,7 +356,11 @@ async def get_pipeline_files_resource(
         }
 
     return await cache_manager.get_or_compute(
-        cache_key, compute_pipeline_files_data, ttl_seconds=300
+        key=cache_key,
+        compute_func=compute_pipeline_files_data,
+        data_type="pipeline_files",
+        project_id=project_id,
+        pipeline_id=int(pipeline_id),
     )
 
 

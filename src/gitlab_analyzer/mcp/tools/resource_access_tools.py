@@ -127,8 +127,11 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
             )
             if pipeline_files_match:
                 project_id, pipeline_id, page, limit = pipeline_files_match.groups()
-                # For now, ignore pagination parameters (could be enhanced later)
-                return await get_pipeline_files_resource(project_id, pipeline_id)
+                page = int(page) if page else 1
+                limit = int(limit) if limit else 20
+                return await get_pipeline_files_resource(
+                    project_id, pipeline_id, page, limit
+                )
 
             # Job files: gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]
             job_files_match = re.match(
@@ -171,7 +174,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
 
             # Job errors: gl://error/{project_id}/{job_id}[?mode={mode}] or gl://error/{project_id}/{job_id}/{error_id}
             error_match = re.match(
-                r"^error/(\w+)/(\d+)(?:/(\d+))?(?:\?mode=(\w+))?$", uri_path
+                r"^error/(\w+)/(\d+)(?:/([^/?]+))?(?:\?mode=(\w+))?$", uri_path
             )
             if error_match:
                 project_id, job_id, error_id, mode = error_match.groups()

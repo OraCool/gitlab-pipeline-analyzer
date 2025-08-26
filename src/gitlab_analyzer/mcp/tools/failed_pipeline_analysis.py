@@ -302,8 +302,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             # Build hierarchical resources structure with files and errors
             resources = {
                 "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
-                "jobs": f"gl://jobs/{project_id}/{pipeline_id}",
-                "analysis": f"gl://analysis/{project_id}/{pipeline_id}",
+                "jobs": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
+                "analysis": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
                 "files": {},
                 "jobs_detail": {},
                 "errors": {},
@@ -320,8 +320,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 # Add job-specific resources
                 resources["jobs_detail"][str(job_id)] = {
                     "job": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
-                    "trace": f"gl://trace/{project_id}/{pipeline_id}/{job_id}",
-                    "errors": f"gl://errors/{project_id}/{pipeline_id}/{job_id}",
+                    "errors": f"gl://errors/{project_id}/{job_id}",
                     "files": {},
                 }
 
@@ -332,16 +331,14 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     # Add individual error resources with trace references
                     for i, error in enumerate(file_group["errors"]):
-                        error_id = f"{job_id}_{file_path}_{i}"
+                        error_id = f"{job_id}_{i}"
                         error_resource_uri = (
-                            f"gl://error/{project_id}/{pipeline_id}/{job_id}/{i}"
+                            f"gl://error/{project_id}/{job_id}/{error_id}"
                         )
-                        trace_segment_uri = f"gl://trace-segment/{project_id}/{pipeline_id}/{job_id}/{i}"
 
                         # Add to global errors registry
                         all_errors[error_id] = {
                             "error": error_resource_uri,
-                            "trace_segment": trace_segment_uri,
                             "job_id": job_id,
                             "file_path": file_path,
                             "error_index": i,
@@ -355,9 +352,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     # Add to job-specific files
                     resources["jobs_detail"][str(job_id)]["files"][file_path] = {
-                        "file": f"gl://file/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "file": f"gl://file/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
                         "error_count": error_count,
-                        "errors": f"gl://file-errors/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "errors": f"gl://errors/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
                     }
 
                     # Add to global file registry (accumulate across jobs)
@@ -372,7 +369,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     all_files[file_path]["jobs"][str(job_id)] = {
                         "job_name": job_name,
                         "error_count": error_count,
-                        "resource": f"gl://file/{project_id}/{pipeline_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "resource": f"gl://file/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
                     }
 
             # Add global file hierarchy and errors to resources
@@ -404,7 +401,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 },
                 {
                     "type": "resource_link",
-                    "resourceUri": f"gl://jobs/{project_id}/{pipeline_id}",
+                    "resourceUri": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
                     "text": f"Failed jobs overview ({len(failed_jobs)} jobs)",
                 },
             ]
@@ -416,7 +413,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     content.append(
                         {
                             "type": "resource_link",
-                            "resourceUri": f"gl://files/{project_id}/{pipeline_id}?page=1&limit=20",
+                            "resourceUri": f"gl://files/{project_id}/pipeline/{pipeline_id}/page/1/limit/20",
                             "text": f"Files with errors (page 1 of {(total_files + 19) // 20})",
                         }
                     )
@@ -424,7 +421,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     content.append(
                         {
                             "type": "resource_link",
-                            "resourceUri": f"gl://files/{project_id}/{pipeline_id}",
+                            "resourceUri": f"gl://files/{project_id}/pipeline/{pipeline_id}",
                             "text": f"Files with errors ({total_files} files)",
                         }
                     )
@@ -434,7 +431,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 content.append(
                     {
                         "type": "resource_link",
-                        "resourceUri": f"gl://errors/{project_id}/{pipeline_id}?page=1&limit=50",
+                        "resourceUri": f"gl://errors/{project_id}/pipeline/{pipeline_id}",
                         "text": f"Error details (page 1 of {(total_errors + 49) // 50})",
                     }
                 )
@@ -443,7 +440,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             content.append(
                 {
                     "type": "resource_link",
-                    "resourceUri": f"gl://analysis/{project_id}/{pipeline_id}",
+                    "resourceUri": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
                     "text": "Complete analysis data",
                 }
             )

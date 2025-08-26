@@ -640,6 +640,90 @@ class McpCache:
                 }
             return None
 
+    async def check_pipeline_analysis_status(
+        self, project_id: int, pipeline_id: int
+    ) -> dict[str, Any]:
+        """Check if a pipeline has been analyzed and what data is available"""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Check if pipeline exists
+            pipeline_cursor = await db.execute(
+                "SELECT pipeline_id, status FROM pipelines WHERE pipeline_id = ?",
+                (pipeline_id,),
+            )
+            pipeline_row = await pipeline_cursor.fetchone()
+
+            if not pipeline_row:
+                return {
+                    "pipeline_exists": False,
+                    "jobs_count": 0,
+                    "errors_count": 0,
+                    "files_count": 0,
+                    "recommendation": f"Pipeline {pipeline_id} not found in database. Run failed_pipeline_analysis tool first.",
+                    "suggested_action": f"failed_pipeline_analysis(project_id={project_id}, pipeline_id={pipeline_id})",
+                }
+
+            # Count jobs
+            jobs_cursor = await db.execute(
+                "SELECT COUNT(*) FROM jobs WHERE pipeline_id = ?", (pipeline_id,)
+            )
+            jobs_count = (await jobs_cursor.fetchone())[0]
+
+            # Count errors
+            errors_cursor = await db.execute(
+                """
+                SELECT COUNT(*) FROM errors e
+                JOIN jobs j ON e.job_id = j.job_id
+                WHERE j.pipeline_id = ?
+                """,
+                (pipeline_id,),
+            )
+            errors_count = (await errors_cursor.fetchone())[0]
+
+            # Count files with errors
+            files_cursor = await db.execute(
+                """
+                SELECT COUNT(DISTINCT fi.path) FROM file_index fi
+                JOIN jobs j ON fi.job_id = j.job_id
+                WHERE j.pipeline_id = ? AND fi.error_ids IS NOT NULL AND fi.error_ids != '[]'
+                """,
+                (pipeline_id,),
+            )
+            files_count = (await files_cursor.fetchone())[0]
+
+            return {
+                "pipeline_exists": True,
+                "pipeline_status": pipeline_row[1],
+                "jobs_count": jobs_count,
+                "errors_count": errors_count,
+                "files_count": files_count,
+                "recommendation": self._get_analysis_recommendation(
+                    jobs_count, errors_count, files_count, project_id, pipeline_id
+                ),
+                "suggested_action": (
+                    None
+                    if jobs_count > 0
+                    else f"failed_pipeline_analysis(project_id={project_id}, pipeline_id={pipeline_id})"
+                ),
+            }
+
+    def _get_analysis_recommendation(
+        self,
+        jobs_count: int,
+        errors_count: int,
+        files_count: int,
+        project_id: int,
+        pipeline_id: int,
+    ) -> str:
+        """Generate recommendation based on analysis status"""
+        if jobs_count == 0:
+            return f"No jobs found for pipeline {pipeline_id}. Run failed_pipeline_analysis first."
+        elif errors_count == 0:
+            return f"Pipeline {pipeline_id} has {jobs_count} jobs but no errors found. Pipeline might have succeeded or analysis incomplete."
+        elif files_count == 0:
+            return f"Pipeline {pipeline_id} has {errors_count} errors but no files indexed. Analysis might be incomplete."
+        else:
+            return f"Pipeline {pipeline_id} analysis complete: {jobs_count} jobs, {errors_count} errors across {files_count} files."
+
     async def get_job_files_with_errors(self, job_id: int) -> list[dict[str, Any]]:
         """Get all files with errors for a specific job"""
         async with aiosqlite.connect(self.db_path) as conn:
@@ -654,11 +738,42 @@ class McpCache:
                 try:
                     error_ids = json.loads(error_ids_json) if error_ids_json else []
                     if error_ids:  # Only include files that actually have errors
+                        # Get the actual error details for this file
+                        error_cursor = await conn.execute(
+                            f"""
+                            SELECT error_id, fingerprint, exception, message, file, line, detail_json
+                            FROM errors
+                            WHERE job_id = ? AND error_id IN ({','.join('?' * len(error_ids))})
+                            ORDER BY line
+                            """,
+                            [job_id] + error_ids,
+                        )
+                        error_rows = await error_cursor.fetchall()
+
+                        errors = []
+                        for error_row in error_rows:
+                            error_data = {
+                                "error_id": error_row[0],
+                                "fingerprint": error_row[1],
+                                "exception": error_row[2],
+                                "message": error_row[3],
+                                "file_path": error_row[
+                                    4
+                                ],  # Use file_path instead of file
+                                "line": error_row[5],
+                            }
+                            if error_row[6]:  # detail_json
+                                try:
+                                    error_data["detail"] = json.loads(error_row[6])
+                                except json.JSONDecodeError:
+                                    pass
+                            errors.append(error_data)
+
                         files.append(
                             {
-                                "path": path,
+                                "file_path": path,  # Use file_path instead of path
                                 "error_count": len(error_ids),
-                                "error_ids": error_ids,
+                                "errors": errors,  # Include full error details
                             }
                         )
                 except json.JSONDecodeError:
@@ -1068,6 +1183,147 @@ class McpCache:
                 return count
         except Exception:
             return 0
+
+    async def clear_cache_by_pipeline(
+        self, project_id: str | int, pipeline_id: str | int
+    ) -> dict[str, int]:
+        """Clear all cache data for a specific pipeline"""
+        try:
+            async with aiosqlite.connect(self.db_path) as conn:
+                project_id_str = str(project_id)
+                pipeline_id_int = int(pipeline_id)
+
+                counts = {}
+
+                # Get all job IDs for this pipeline first
+                cursor = await conn.execute(
+                    "SELECT job_id FROM jobs WHERE project_id = ? AND pipeline_id = ?",
+                    (project_id_str, pipeline_id_int),
+                )
+                job_ids = [row[0] for row in await cursor.fetchall()]
+
+                if job_ids:
+                    job_ids_placeholders = ",".join("?" * len(job_ids))
+
+                    # Clear trace_segments for these jobs
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+                    count_row = await cursor.fetchone()
+                    counts["trace_segments"] = count_row[0] if count_row else 0
+                    await conn.execute(
+                        f"DELETE FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+
+                    # Clear errors for these jobs
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM errors WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+                    count_row = await cursor.fetchone()
+                    counts["errors"] = count_row[0] if count_row else 0
+                    await conn.execute(
+                        f"DELETE FROM errors WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+
+                    # Clear file_index for these jobs
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM file_index WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+                    count_row = await cursor.fetchone()
+                    counts["file_index"] = count_row[0] if count_row else 0
+                    await conn.execute(
+                        f"DELETE FROM file_index WHERE job_id IN ({job_ids_placeholders})",
+                        job_ids,
+                    )
+                else:
+                    counts["trace_segments"] = 0
+                    counts["errors"] = 0
+                    counts["file_index"] = 0
+
+                # Clear jobs for this pipeline
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM jobs WHERE project_id = ? AND pipeline_id = ?",
+                    (project_id_str, pipeline_id_int),
+                )
+                count_row = await cursor.fetchone()
+                counts["jobs"] = count_row[0] if count_row else 0
+                await conn.execute(
+                    "DELETE FROM jobs WHERE project_id = ? AND pipeline_id = ?",
+                    (project_id_str, pipeline_id_int),
+                )
+
+                # Clear pipeline record
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM pipelines WHERE project_id = ? AND pipeline_id = ?",
+                    (project_id_str, pipeline_id_int),
+                )
+                count_row = await cursor.fetchone()
+                counts["pipelines"] = count_row[0] if count_row else 0
+                await conn.execute(
+                    "DELETE FROM pipelines WHERE project_id = ? AND pipeline_id = ?",
+                    (project_id_str, pipeline_id_int),
+                )
+
+                await conn.commit()
+                return counts
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def clear_cache_by_job(
+        self, project_id: str | int, job_id: str | int
+    ) -> dict[str, int]:
+        """Clear all cache data for a specific job"""
+        try:
+            async with aiosqlite.connect(self.db_path) as conn:
+                job_id_int = int(job_id)
+                counts = {}
+
+                # Clear trace_segments for this job
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM trace_segments WHERE job_id = ?",
+                    (job_id_int,),
+                )
+                count_row = await cursor.fetchone()
+                counts["trace_segments"] = count_row[0] if count_row else 0
+                await conn.execute(
+                    "DELETE FROM trace_segments WHERE job_id = ?", (job_id_int,)
+                )
+
+                # Clear errors for this job
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM errors WHERE job_id = ?", (job_id_int,)
+                )
+                count_row = await cursor.fetchone()
+                counts["errors"] = count_row[0] if count_row else 0
+                await conn.execute("DELETE FROM errors WHERE job_id = ?", (job_id_int,))
+
+                # Clear file_index for this job
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM file_index WHERE job_id = ?", (job_id_int,)
+                )
+                count_row = await cursor.fetchone()
+                counts["file_index"] = count_row[0] if count_row else 0
+                await conn.execute(
+                    "DELETE FROM file_index WHERE job_id = ?", (job_id_int,)
+                )
+
+                # Clear job record
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM jobs WHERE job_id = ?", (job_id_int,)
+                )
+                count_row = await cursor.fetchone()
+                counts["jobs"] = count_row[0] if count_row else 0
+                await conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id_int,))
+
+                await conn.commit()
+                return counts
+        except Exception as e:
+            return {"error": str(e)}
 
     async def check_health(self) -> dict[str, Any]:
         """Check cache system health"""
