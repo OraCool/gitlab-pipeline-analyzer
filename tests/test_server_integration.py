@@ -44,11 +44,12 @@ class TestServerIntegration:
     async def test_cache_initialization(self):
         """Test that cache can be initialized"""
         # Test cache manager initialization directly
-        from gitlab_analyzer.mcp.cache import get_cache_manager
+        from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
         cache_manager = get_cache_manager()
 
-        # Should be able to initialize cache
-        await cache_manager.initialize()
+        # Should be able to initialize cache (cache auto-initializes in constructor)
+        assert cache_manager is not None
+        assert hasattr(cache_manager, "db_path")
 
         # This should not raise an exception

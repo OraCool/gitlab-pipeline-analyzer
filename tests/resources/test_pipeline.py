@@ -72,21 +72,65 @@ class TestPipelineResources:
         return cache_manager
 
     @patch("gitlab_analyzer.mcp.resources.pipeline.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_get_pipeline_resource_basic(
         self,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
     ):
         """Test basic pipeline resource functionality"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test", "timestamp": "2025-01-01"}
+
+        # Configure AsyncMock for cache manager methods
+        from unittest.mock import AsyncMock
+
+        mock_cache_manager.get_pipeline_info_async = AsyncMock(
+            return_value={
+                "pipeline_id": 456,
+                "project_id": "123",
+                "ref": "main",
+                "sha": "abc123",
+                "status": "failed",
+                "web_url": "https://gitlab.example.com/project/-/pipelines/456",
+                "created_at": "2025-01-01T00:00:00Z",
+                "updated_at": "2025-01-01T05:00:00Z",
+                "source_branch": None,
+                "target_branch": None,
+            }
+        )
+
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(
+            return_value=[
+                {
+                    "job_id": 123,
+                    "name": "test_job",
+                    "stage": "test",
+                    "status": "failed",
+                    "duration": 120,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "finished_at": "2025-01-01T00:02:00Z",
+                    "web_url": "https://gitlab.example.com/job/123",
+                    "failure_reason": "test_failure",
+                },
+                {
+                    "job_id": 124,
+                    "name": "build_job",
+                    "stage": "build",
+                    "status": "success",
+                    "duration": 90,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "finished_at": "2025-01-01T00:01:30Z",
+                    "web_url": "https://gitlab.example.com/job/124",
+                    "failure_reason": None,
+                },
+            ]
+        )
+
+        mock_cache_manager.get_job_files_with_errors = AsyncMock(return_value=[])
+        mock_cache_manager.get_or_compute = AsyncMock()
 
         # Mock cache to return computed data
         async def mock_compute_side_effect(key, compute_func, **kwargs):
@@ -134,12 +178,11 @@ class TestPipelineResources:
         assert metadata["project_id"] == project_id
         assert metadata["pipeline_id"] == int(pipeline_id)
 
-        # Verify calls
-        mock_analyzer.get_pipeline.assert_called_once_with(project_id, int(pipeline_id))
-        mock_analyzer.get_pipeline_jobs.assert_called_once_with(
-            project_id, int(pipeline_id)
-        )
+        # Verify database calls were made
         mock_cache_manager.get_or_compute.assert_called_once()
+        mock_cache_manager.get_pipeline_info_async.assert_called_once_with(456)
+        mock_cache_manager.get_pipeline_jobs.assert_called_once_with(456)
+        mock_cache_manager.get_job_files_with_errors.assert_called_once_with(123)
 
     @patch("gitlab_analyzer.mcp.resources.pipeline.get_cache_manager")
     async def test_get_pipeline_resource_cached(
@@ -173,17 +216,14 @@ class TestPipelineResources:
         mock_cache_manager.get_or_compute.assert_called_once()
 
     @patch("gitlab_analyzer.mcp.resources.pipeline.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_gitlab_analyzer")
     async def test_get_pipeline_resource_error_handling(
-        self, mock_get_analyzer, mock_get_cache, mock_cache_manager, mock_analyzer
+        self, mock_get_cache, mock_cache_manager, mock_analyzer
     ):
         """Test error handling in pipeline resource"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
 
         # Make analyzer raise an exception and cache propagate it
-        mock_analyzer.get_pipeline.side_effect = Exception("GitLab API error")
         mock_cache_manager.get_or_compute.side_effect = Exception("GitLab API error")
 
         # Execute and verify exception is raised
@@ -207,39 +247,57 @@ class TestPipelineResources:
         assert call_args == expected_pattern
 
     @patch("gitlab_analyzer.mcp.resources.pipeline.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_pipeline_status_calculation(
         self,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
     ):
         """Test pipeline status and statistics calculation"""
-        # Setup jobs with various statuses
-        mock_jobs = []
+        # Setup mocks
+        mock_get_cache.return_value = mock_cache_manager
+        mock_get_mcp_info.return_value = {"tool": "test"}
+
+        # Configure AsyncMock for cache manager methods
+        from unittest.mock import AsyncMock
+
+        # Setup jobs with various statuses - converted to dict format for database
+        job_data = []
         statuses = ["success", "failed", "success", "canceled"]
         for i, status in enumerate(statuses, 1):
-            job = Mock()
-            job.id = i
-            job.name = f"job_{i}"
-            job.stage = "test"
-            job.status = status
-            job.duration = 60
-            job.created_at = "2025-01-01T00:00:00Z"
-            job.finished_at = "2025-01-01T00:01:00Z"
-            job.web_url = f"https://gitlab.example.com/job/{i}"
-            job.failure_reason = "test_failure" if status == "failed" else None
-            mock_jobs.append(job)
+            job_data.append(
+                {
+                    "job_id": i,
+                    "name": f"job_{i}",
+                    "stage": "test",
+                    "status": status,
+                    "duration": 60,
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "finished_at": "2025-01-01T00:01:00Z",
+                    "web_url": f"https://gitlab.example.com/job/{i}",
+                    "failure_reason": "test_failure" if status == "failed" else None,
+                }
+            )
 
-        mock_analyzer.get_pipeline_jobs.return_value = mock_jobs
+        mock_cache_manager.get_pipeline_info_async = AsyncMock(
+            return_value={
+                "pipeline_id": 456,
+                "project_id": "123",
+                "ref": "main",
+                "sha": "abc123",
+                "status": "failed",
+                "web_url": "https://gitlab.example.com/project/-/pipelines/456",
+                "created_at": "2025-01-01T00:00:00Z",
+                "updated_at": "2025-01-01T05:00:00Z",
+                "source_branch": None,
+                "target_branch": None,
+            }
+        )
 
-        # Setup other mocks
-        mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {"tool": "test"}
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(return_value=job_data)
+        mock_cache_manager.get_job_files_with_errors = AsyncMock(return_value=[])
+        mock_cache_manager.get_or_compute = AsyncMock()
 
         # Mock cache to return computed data
         async def mock_compute_side_effect(key, compute_func, **kwargs):
@@ -266,33 +324,39 @@ class TestPipelineResources:
         assert len(canceled_jobs) == 1
 
     @patch("gitlab_analyzer.mcp.resources.pipeline.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.pipeline.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_pipeline_timing_info(
         self,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
     ):
         """Test pipeline timing information"""
-        # Setup pipeline with timing info
-        pipeline_info = {
-            "id": 456,
-            "project_id": "123",
-            "status": "failed",
-            "created_at": "2025-01-01T10:00:00Z",
-            "updated_at": "2025-01-01T10:15:00Z",
-            "duration": 900,  # 15 minutes
-            "queued_duration": 60,  # 1 minute
-        }
-        mock_analyzer.get_pipeline.return_value = pipeline_info
-
-        # Setup other mocks
+        # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test"}
+
+        # Configure AsyncMock for cache manager methods
+        from unittest.mock import AsyncMock
+
+        mock_cache_manager.get_pipeline_info_async = AsyncMock(
+            return_value={
+                "pipeline_id": 456,
+                "project_id": "123",
+                "ref": "main",
+                "sha": "abc123",
+                "status": "failed",
+                "web_url": "https://gitlab.example.com/project/-/pipelines/456",
+                "created_at": "2025-01-01T10:00:00Z",
+                "updated_at": "2025-01-01T10:15:00Z",
+                "source_branch": None,
+                "target_branch": None,
+            }
+        )
+
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(return_value=[])
+        mock_cache_manager.get_job_files_with_errors = AsyncMock(return_value=[])
+        mock_cache_manager.get_or_compute = AsyncMock()
 
         # Mock cache to return computed data
         async def mock_compute_side_effect(key, compute_func, **kwargs):
@@ -305,6 +369,5 @@ class TestPipelineResources:
 
         # Verify timing information
         pipeline_data = result["pipeline_info"]
-        assert pipeline_data["duration"] == 900
         assert pipeline_data["created_at"] == "2025-01-01T10:00:00Z"
         assert pipeline_data["updated_at"] == "2025-01-01T10:15:00Z"

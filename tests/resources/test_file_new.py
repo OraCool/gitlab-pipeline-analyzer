@@ -60,11 +60,9 @@ class TestFileResourcesNew:
         assert mock_mcp.resource.called
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.file.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.file.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_patterns(
         self,
-        mock_get_mcp_info,
         mock_get_analyzer,
         mock_get_cache_manager,
         mock_cache_manager,
@@ -75,7 +73,6 @@ class TestFileResourcesNew:
         # Setup mocks
         mock_get_cache_manager.return_value = mock_cache_manager
         mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {"tool": "test", "timestamp": "2025-01-01"}
 
         # Register file resources
         register_file_resources(mock_mcp)
@@ -94,13 +91,11 @@ class TestFileResourcesNew:
             ), f"Pattern {pattern} not found in {call_args}"
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.file.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.file.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     @patch("gitlab_analyzer.parsers.log_parser.LogParser")
     async def test_file_analysis_error_filtering(
         self,
         mock_parser_class,
-        mock_get_mcp_info,
         mock_get_analyzer,
         mock_get_cache_manager,
         mock_cache_manager,
@@ -137,7 +132,6 @@ class TestFileResourcesNew:
         # Setup other mocks
         mock_get_cache_manager.return_value = mock_cache_manager
         mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {"tool": "test", "timestamp": "2025-01-01"}
 
         # Register resources
         register_file_resources(mock_mcp)
@@ -169,11 +163,9 @@ class TestFileResourcesNew:
                 pass
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.file.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.file.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_caching(
         self,
-        mock_get_mcp_info,
         mock_get_analyzer,
         mock_get_cache_manager,
         mock_cache_manager,
@@ -197,7 +189,6 @@ class TestFileResourcesNew:
         mock_cache_manager.get.return_value = cached_data
         mock_get_cache_manager.return_value = mock_cache_manager
         mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {"tool": "test"}
 
         # Register resources
         register_file_resources(mock_mcp)
@@ -227,11 +218,9 @@ class TestFileResourcesNew:
             assert len(file_path) > 0
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.file.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.file.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_error_handling(
         self,
-        mock_get_mcp_info,
         mock_get_analyzer,
         mock_get_cache_manager,
         mock_cache_manager,
@@ -243,7 +232,6 @@ class TestFileResourcesNew:
         mock_cache_manager.get.side_effect = Exception("Cache error")
         mock_get_cache_manager.return_value = mock_cache_manager
         mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {"tool": "test", "error": True}
 
         # Register resources
         register_file_resources(mock_mcp)
@@ -285,11 +273,9 @@ class TestFileResourcesNew:
             assert isinstance(encoded, str)
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.file.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.file.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_metadata(
         self,
-        mock_get_mcp_info,
         mock_get_analyzer,
         mock_get_cache_manager,
         mock_cache_manager,
@@ -300,17 +286,11 @@ class TestFileResourcesNew:
         # Setup mocks
         mock_get_cache_manager.return_value = mock_cache_manager
         mock_get_analyzer.return_value = mock_analyzer
-        mock_get_mcp_info.return_value = {
-            "tool": "file_resource",
-            "timestamp": "2025-01-01T12:00:00Z",
-            "version": "1.0",
-        }
 
         # Register resources
         register_file_resources(mock_mcp)
 
         # Verify MCP info function is available for metadata
-        mock_get_mcp_info.assert_not_called()  # Not called until resource is accessed
 
         # Test that registration includes metadata support
         assert mock_mcp.resource.called

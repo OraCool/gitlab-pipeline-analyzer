@@ -99,38 +99,47 @@ class TestAnalysisResources:
         return entries
 
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_mcp_info")
-    @patch("gitlab_analyzer.parsers.log_parser.LogParser")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_get_comprehensive_analysis_pipeline(
         self,
-        mock_parser_class,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
         mock_log_entries,
     ):
         """Test comprehensive analysis for pipeline scope"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test", "timestamp": "2025-01-01"}
 
         # Mock cache manager to return None (no cached data)
         mock_cache_manager.get.return_value = None
 
-        # Mock pipeline info
-        mock_analyzer.get_pipeline.return_value = {"status": "failed"}
+        # Mock async database methods for pipeline analysis
+        from unittest.mock import AsyncMock
 
-        # Mock jobs - 3 jobs with 2 failed, 1 passed
-        mock_jobs = [
-            SimpleNamespace(id=1, status="failed", stage="test", name="test-job-1"),
-            SimpleNamespace(id=2, status="failed", stage="build", name="build-job"),
-            SimpleNamespace(id=3, status="success", stage="deploy", name="deploy-job"),
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(
+            return_value=[
+                {"id": 1, "status": "failed", "stage": "test", "name": "test-job-1"},
+                {"id": 2, "status": "failed", "stage": "build", "name": "build-job"},
+                {"id": 3, "status": "success", "stage": "deploy", "name": "deploy-job"},
+            ]
+        )
+        mock_cache_manager.set = AsyncMock()
+        mock_cache_manager.get_pipeline_info.return_value = {"status": "failed"}
+        mock_cache_manager.get_pipeline_failed_jobs.return_value = [
+            {"id": 1, "status": "failed", "stage": "test", "name": "test-job-1"},
+            {"id": 2, "status": "failed", "stage": "build", "name": "build-job"},
         ]
-        mock_analyzer.get_pipeline_jobs.return_value = mock_jobs
+        mock_cache_manager.get_job_errors.return_value = [
+            {
+                "job_id": 1,
+                "error_type": "test_failure",
+                "message": "Test failed",
+                "file_path": "test_file.py",
+                "line_number": 10,
+            }
+        ]
 
         # Test parameters
         project_id = "123"
@@ -168,15 +177,14 @@ class TestAnalysisResources:
 
         # Check job analysis
         job_analysis = analysis["job_analysis"]
-        assert "jobs_by_status" in job_analysis
-        assert "failed_job_details" in job_analysis
-        assert len(job_analysis["failed_job_details"]) == 2
+        assert "jobs" in job_analysis
+        assert "failed_jobs" in job_analysis
+        assert len(job_analysis["failed_jobs"]) == 2
 
         # Check metadata
         metadata = data["metadata"]
         assert metadata["response_mode"] == response_mode
         assert metadata["analysis_scope"] == "pipeline"
-        assert metadata["source"] == "multiple_endpoints"
 
         # Check resource URI
         expected_uri = (
@@ -184,35 +192,48 @@ class TestAnalysisResources:
         )
         assert data["resource_uri"] == expected_uri
 
-        # Verify calls
-        mock_analyzer.get_pipeline.assert_called_once_with(project_id, int(pipeline_id))
-        mock_analyzer.get_pipeline_jobs.assert_called_once_with(
-            project_id, int(pipeline_id)
-        )
+        # Verify cache calls
+        mock_cache_manager.get.assert_called_once()
+        mock_cache_manager.set.assert_called_once()
 
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_mcp_info")
-    @patch("gitlab_analyzer.parsers.log_parser.LogParser")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_get_comprehensive_analysis_job(
         self,
-        mock_parser_class,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
         mock_log_entries,
     ):
         """Test comprehensive analysis for job scope"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test"}
 
-        mock_parser = Mock()
-        mock_parser.extract_log_entries.return_value = mock_log_entries
-        mock_parser_class.return_value = mock_parser
+        # Mock cache manager to return None (no cached data)
+        mock_cache_manager.get.return_value = None
+
+        # Mock async database methods for job analysis
+        from unittest.mock import AsyncMock
+
+        mock_cache_manager.get_job_info_async = AsyncMock(
+            return_value={
+                "id": 789,
+                "status": "failed",
+                "stage": "test",
+                "name": "test-job",
+            }
+        )
+        mock_cache_manager.set = AsyncMock()
+        mock_cache_manager.get_job_errors.return_value = [
+            {
+                "job_id": 789,
+                "error_type": "test_failure",
+                "message": "Test failed",
+                "file_path": "test_file.py",
+                "line_number": 10,
+            }
+        ]
 
         # Test parameters
         project_id = "123"
@@ -237,16 +258,13 @@ class TestAnalysisResources:
         expected_uri = f"gl://analysis/{project_id}/job/{job_id}?mode={response_mode}"
         assert data["resource_uri"] == expected_uri
 
-        # For job scope, should not call pipeline methods
-        mock_analyzer.get_pipeline_info.assert_not_called()
-        mock_analyzer.get_pipeline_jobs.assert_not_called()
-        mock_analyzer.get_job_trace.assert_called_once_with(project_id, int(job_id))
+        # Verify cache calls
+        mock_cache_manager.get.assert_called_once()
+        mock_cache_manager.set.assert_called_once()
 
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
     async def test_get_comprehensive_analysis_cached(
         self,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
     ):
@@ -277,19 +295,14 @@ class TestAnalysisResources:
 
     @pytest.mark.parametrize("response_mode", ["minimal", "balanced", "fixing", "full"])
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.utils.optimize_tool_response")
-    @patch("gitlab_analyzer.parsers.log_parser.LogParser")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
+    @patch("gitlab_analyzer.utils.utils.optimize_tool_response")
     async def test_get_comprehensive_analysis_modes(
         self,
-        mock_parser_class,
         mock_optimize,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
         mock_log_entries,
         response_mode,
     ):
@@ -297,19 +310,22 @@ class TestAnalysisResources:
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
         mock_cache_manager.get.return_value = None  # No cached data
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test"}
 
-        # Mock pipeline and jobs data
-        mock_analyzer.get_pipeline.return_value = {"status": "failed"}
-        mock_analyzer.get_pipeline_jobs.return_value = [
-            SimpleNamespace(id=1, status="failed", stage="test", name="test-job"),
-            SimpleNamespace(id=2, status="success", stage="build", name="build-job"),
-        ]
+        # Mock async database methods for pipeline analysis
+        from unittest.mock import AsyncMock
 
-        mock_parser = Mock()
-        mock_parser.extract_log_entries.return_value = mock_log_entries
-        mock_parser_class.return_value = mock_parser
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(
+            return_value=[
+                {"id": 1, "status": "failed", "stage": "test", "name": "test-job"},
+                {"id": 2, "status": "success", "stage": "build", "name": "build-job"},
+            ]
+        )
+        mock_cache_manager.set = AsyncMock()
+        mock_cache_manager.get_pipeline_info.return_value = {"status": "failed"}
+        mock_cache_manager.get_pipeline_failed_jobs.return_value = [
+            {"id": 1, "status": "failed", "stage": "test", "name": "test-job"},
+        ]
 
         # Mock optimization to return the same data
         mock_optimize.side_effect = lambda x, mode: x
@@ -391,42 +407,39 @@ class TestAnalysisResources:
             assert pattern in call_args
 
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_mcp_info")
-    @patch("gitlab_analyzer.parsers.log_parser.LogParser")
+    @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_success_rate_calculation(
         self,
-        mock_parser_class,
         mock_get_mcp_info,
-        mock_get_analyzer,
         mock_get_cache,
         mock_cache_manager,
-        mock_analyzer,
     ):
         """Test success rate calculation"""
-        # Setup jobs with different statuses - use SimpleNamespace objects
-        job1 = SimpleNamespace(id=1, status="success", stage="test", name="test1")
-        job2 = SimpleNamespace(id=2, status="success", stage="build", name="build1")
-        job3 = SimpleNamespace(id=3, status="failed", stage="test", name="test2")
-        job4 = SimpleNamespace(id=4, status="canceled", stage="deploy", name="deploy1")
-        job5 = SimpleNamespace(id=5, status="success", stage="build", name="build2")
-
-        jobs = [job1, job2, job3, job4, job5]
-
-        mock_analyzer.get_pipeline_jobs.return_value = jobs
-        mock_analyzer.get_pipeline = AsyncMock(
-            return_value={"id": 456, "status": "failed"}
-        )
-
-        # Setup other mocks
+        # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
         mock_cache_manager.get.return_value = None  # No cached data
-        mock_get_analyzer.return_value = mock_analyzer
         mock_get_mcp_info.return_value = {"tool": "test"}
 
-        mock_parser = Mock()
-        mock_parser.extract_log_entries.return_value = []
-        mock_parser_class.return_value = mock_parser
+        # Mock async database methods with specific job data for success rate calculation
+        from unittest.mock import AsyncMock
+
+        jobs = [
+            {"id": 1, "status": "success", "stage": "test", "name": "test1"},
+            {"id": 2, "status": "success", "stage": "build", "name": "build1"},
+            {"id": 3, "status": "failed", "stage": "test", "name": "test2"},
+            {"id": 4, "status": "success", "stage": "deploy", "name": "deploy1"},
+            {"id": 5, "status": "success", "stage": "build", "name": "build2"},
+        ]
+
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(return_value=jobs)
+        mock_cache_manager.set = AsyncMock()
+        mock_cache_manager.get_pipeline_info.return_value = {
+            "id": 456,
+            "status": "failed",
+        }
+        mock_cache_manager.get_pipeline_failed_jobs.return_value = [
+            {"id": 3, "status": "failed", "stage": "test", "name": "test2"},
+        ]
 
         # Execute
         result = await _get_comprehensive_analysis("123", "456", None, "balanced")
@@ -441,17 +454,19 @@ class TestAnalysisResources:
         assert summary["success_rate"] == 0.8
 
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
-    @patch("gitlab_analyzer.mcp.resources.analysis.get_gitlab_analyzer")
     async def test_get_comprehensive_analysis_error_handling(
-        self, mock_get_analyzer, mock_get_cache, mock_cache_manager, mock_analyzer
+        self, mock_get_cache, mock_cache_manager
     ):
         """Test error handling in comprehensive analysis"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
-        mock_get_analyzer.return_value = mock_analyzer
 
-        # Make analyzer raise an exception
-        mock_analyzer.get_pipeline.side_effect = Exception("GitLab API error")
+        # Make cache manager raise an exception to simulate database error
+        from unittest.mock import AsyncMock
+
+        mock_cache_manager.get_pipeline_jobs = AsyncMock(
+            side_effect=Exception("Database error")
+        )
 
         # Execute
         result = await _get_comprehensive_analysis("123", "456", None, "balanced")

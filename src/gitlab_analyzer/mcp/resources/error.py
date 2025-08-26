@@ -10,7 +10,7 @@ import logging
 from datetime import UTC, datetime
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ async def _get_error_analysis(
     """Internal function to get error analysis with configurable response mode."""
     try:
         cache_manager = get_cache_manager()
-        analyzer = get_gitlab_analyzer()
 
         # Create cache key for error analysis (include response mode)
         cache_key = f"errors_{project_id}_{job_id}_{response_mode}"
@@ -31,41 +30,32 @@ async def _get_error_analysis(
         if cached_data:
             return json.dumps(cached_data, indent=2)
 
-        # Get job trace and extract all errors
-        trace = await analyzer.get_job_trace(project_id, int(job_id))
+        # Get errors from database (pre-analyzed data)
+        job_errors = cache_manager.get_job_errors(int(job_id))
 
-        # Extract errors from the trace using the log parser
-        from gitlab_analyzer.parsers.log_parser import LogParser
-
-        parser = LogParser()
-        log_entries = parser.extract_log_entries(trace)
-
-        # Process all errors
+        # Process errors from database
         all_errors = []
         error_files = set()
         error_types = set()
 
-        for entry in log_entries:
-            if entry.level == "error":
-                error_data = {
-                    "message": entry.message,
-                    "level": entry.level,
-                    "line_number": getattr(entry, "line_number", None),
-                    "test_file": getattr(entry, "test_file", None),
-                    "file_path": getattr(entry, "file_path", None),
-                    "exception_type": getattr(entry, "exception_type", None),
-                    "exception_message": getattr(entry, "exception_message", None),
-                    "context": getattr(entry, "context", []),
-                }
-                all_errors.append(error_data)
+        for db_error in job_errors:
+            error_data = {
+                "id": db_error["id"],
+                "message": db_error["message"],
+                "level": "error",  # All from get_job_errors are errors
+                "line_number": db_error.get("line"),
+                "file_path": db_error.get("file_path"),
+                "exception_type": db_error.get("exception"),
+                "fingerprint": db_error.get("fingerprint"),
+                "detail": db_error.get("detail", {}),
+            }
+            all_errors.append(error_data)
 
-                # Track error files and types for statistics
-                if error_data.get("file_path"):
-                    error_files.add(str(error_data["file_path"]))
-                if error_data.get("test_file"):
-                    error_files.add(str(error_data["test_file"]))
-                if error_data.get("exception_type"):
-                    error_types.add(error_data["exception_type"])
+            # Track error files and types for statistics
+            if error_data.get("file_path"):
+                error_files.add(str(error_data["file_path"]))
+            if error_data.get("exception_type"):
+                error_types.add(error_data["exception_type"])
 
         # Process the analysis data
         result = {

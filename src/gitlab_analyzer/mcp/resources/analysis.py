@@ -10,7 +10,7 @@ import logging
 from datetime import UTC, datetime
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,6 @@ async def _get_comprehensive_analysis(
     """Internal function to get comprehensive analysis with configurable response mode."""
     try:
         cache_manager = get_cache_manager()
-        analyzer = get_gitlab_analyzer()
 
         # Determine analysis scope and create appropriate cache key
         if job_id:
@@ -51,64 +50,56 @@ async def _get_comprehensive_analysis(
         analysis_data = {}
 
         if scope == "job":
-            # Single job analysis
+            # Single job analysis using database data
             if job_id is None:
                 raise ValueError("job_id is required for job scope")
-            trace = await analyzer.get_job_trace(project_id, int(job_id))
 
-            from gitlab_analyzer.parsers.log_parser import LogParser
-
-            parser = LogParser()
-            log_entries = parser.extract_log_entries(trace)
-
-            errors = [entry for entry in log_entries if entry.level == "error"]
-            warnings = [entry for entry in log_entries if entry.level == "warning"]
+            # Get job errors and job info from database
+            job_errors = cache_manager.get_job_errors(int(job_id))
+            job_info = await cache_manager.get_job_info_async(int(job_id))
 
             analysis_data = {
                 "scope": "job",
                 "job_id": int(job_id),
+                "job_info": job_info,
                 "summary": {
-                    "total_log_entries": len(log_entries),
-                    "error_count": len(errors),
-                    "warning_count": len(warnings),
-                    "success": len(errors) == 0,
+                    "error_count": len(job_errors),
+                    "success": len(job_errors) == 0,
+                    "data_source": "database_only",
                 },
-                "error_analysis": _analyze_errors(errors),
-                "warning_analysis": _analyze_warnings(warnings),
-                "patterns": _identify_patterns(log_entries),
+                "errors": job_errors,
+                "error_analysis": _analyze_database_errors(job_errors),
+                "patterns": _identify_error_patterns(job_errors),
             }
 
         elif scope == "pipeline":
-            # Pipeline-wide analysis
+            # Pipeline-wide analysis using database data
             if pipeline_id is None:
                 raise ValueError("pipeline_id is required for pipeline scope")
-            pipeline_info = await analyzer.get_pipeline(project_id, int(pipeline_id))
-            jobs = await analyzer.get_pipeline_jobs(project_id, int(pipeline_id))
 
-            failed_jobs = [job for job in jobs if job.status == "failed"]
+            # Get pipeline data from database
+            pipeline_info = cache_manager.get_pipeline_info(int(pipeline_id))
+            jobs = await cache_manager.get_pipeline_jobs(int(pipeline_id))
+            failed_jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
 
             analysis_data = {
                 "scope": "pipeline",
                 "pipeline_id": int(pipeline_id),
+                "pipeline_info": pipeline_info,
                 "summary": {
                     "total_jobs": len(jobs),
                     "failed_jobs": len(failed_jobs),
                     "success_rate": (
                         (len(jobs) - len(failed_jobs)) / len(jobs) if jobs else 0
                     ),
-                    "status": pipeline_info.get("status"),
+                    "status": (
+                        pipeline_info.get("status") if pipeline_info else "unknown"
+                    ),
+                    "data_source": "database_only",
                 },
                 "job_analysis": {
-                    "jobs_by_status": _group_jobs_by_status(jobs),
-                    "failed_job_details": [
-                        {
-                            "id": job.id,
-                            "name": job.name,
-                            "stage": job.stage,
-                            "failure_reason": getattr(job, "failure_reason", "unknown"),
-                        }
-                        for job in failed_jobs
-                    ],
+                    "jobs": jobs,
+                    "failed_jobs": failed_jobs,
                 },
                 "patterns": _identify_pipeline_patterns(jobs),
             }
@@ -173,6 +164,69 @@ async def _get_comprehensive_analysis(
             ),
         }
         return json.dumps(error_result, indent=2)
+
+
+def _analyze_database_errors(db_errors):
+    """Analyze error patterns from database error data"""
+    if not db_errors:
+        return {"message": "No errors found"}
+
+    error_types = {}
+    error_files = set()
+    total_errors = len(db_errors)
+
+    for error in db_errors:
+        # Count error types
+        exception_type = error.get("exception", "UnknownError")
+        error_types[exception_type] = error_types.get(exception_type, 0) + 1
+
+        # Track affected files
+        if error.get("file_path"):
+            error_files.add(error["file_path"])
+
+    return {
+        "total_errors": total_errors,
+        "unique_error_types": len(error_types),
+        "error_types": error_types,
+        "most_common_error": (
+            max(error_types.items(), key=lambda x: x[1])[0] if error_types else None
+        ),
+        "affected_files": list(error_files),
+        "affected_file_count": len(error_files),
+        "errors_per_file": total_errors / len(error_files) if error_files else 0,
+    }
+
+
+def _identify_error_patterns(db_errors):
+    """Identify common patterns in database error data"""
+    patterns = []
+
+    if not db_errors:
+        return patterns
+
+    # Check for common failure patterns based on exception types
+    exception_counts = {}
+    for error in db_errors:
+        exception_type = error.get("exception", "")
+        exception_counts[exception_type] = exception_counts.get(exception_type, 0) + 1
+
+    # Identify patterns
+    for exception_type, count in exception_counts.items():
+        if count > 1:
+            patterns.append(f"Multiple {exception_type} errors ({count} occurrences)")
+
+    # Check for file-specific patterns
+    file_errors = {}
+    for error in db_errors:
+        file_path = error.get("file_path", "")
+        if file_path:
+            file_errors[file_path] = file_errors.get(file_path, 0) + 1
+
+    for file_path, count in file_errors.items():
+        if count > 1:
+            patterns.append(f"Multiple errors in {file_path} ({count} errors)")
+
+    return patterns
 
 
 def _analyze_errors(errors):
