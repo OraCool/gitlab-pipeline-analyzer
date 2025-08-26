@@ -185,7 +185,7 @@ async def get_file_errors_resource_data(
                 "total_errors": len(enhanced_errors),
                 "file_path": file_path,
                 "error_types": list(
-                    set(e.get("exception_type", "unknown") for e in enhanced_errors)
+                    {e.get("exception_type", "unknown") for e in enhanced_errors}
                 ),
             },
             "resource_links": [
@@ -272,7 +272,7 @@ async def get_pipeline_errors_resource_data(
                             {
                                 "type": "resource_link",
                                 "resourceUri": f"gl://error/{project_id}/{job_id}/{error['id']}",
-                                "text": f"View detailed error with fixing recommendations",
+                                "text": "View detailed error with fixing recommendations",
                             },
                             {
                                 "type": "resource_link",
@@ -352,45 +352,252 @@ async def get_error_resource_data(
         }
 
 
+async def _get_individual_error_with_mode(
+    project_id: str, job_id: str, error_id: str, mode: str = "balanced"
+) -> TextResourceContents:
+    """Internal function to get individual error with specified mode."""
+    try:
+        cache_manager = get_cache_manager()
+
+        # Get all errors for the job from database
+        all_errors = cache_manager.get_job_errors(int(job_id))
+
+        # Find error by ID
+        target_error = None
+        for err in all_errors:
+            if (
+                str(err.get("error_id", "")) == error_id
+                or str(err.get("id", "")) == error_id
+            ):
+                target_error = err
+                break
+
+        if not target_error:
+            error_result = {
+                "error": "Error not found",
+                "message": f"Error {error_id} not found in job {job_id}",
+                "job_id": int(job_id),
+                "project_id": project_id,
+                "error_id": error_id,
+                "suggested_action": f"Use gl://error/{project_id}/{job_id} to view all errors",
+                "mcp_info": get_mcp_info("individual_error_resource"),
+            }
+            return create_text_resource(
+                f"gl://error/{project_id}/{job_id}/{error_id}",
+                json.dumps(error_result, indent=2),
+            )
+
+        # Parse error detail if it's JSON string
+        error_detail = target_error.get("detail", {})
+        if isinstance(error_detail, str):
+            try:
+                error_detail = json.loads(error_detail)
+            except json.JSONDecodeError:
+                error_detail = {"raw_detail": error_detail}
+
+        # Enhance error with fix guidance if mode supports it
+        enhanced_error = {
+            "error_id": target_error.get("error_id", error_id),
+            "fingerprint": target_error.get("fingerprint"),
+            "exception": target_error.get("exception"),
+            "message": target_error.get("message"),
+            "file": target_error.get("file_path"),
+            "line": target_error.get("line"),
+            "detail": error_detail,
+            "source": "database",
+        }
+
+        # Add fix guidance for fixing and detailed modes
+        if mode in ["fixing", "detailed"]:
+            try:
+                from gitlab_analyzer.utils.utils import _generate_fix_guidance
+
+                fix_guidance_error = {
+                    "exception_type": target_error.get("exception"),
+                    "exception_message": target_error.get("message"),
+                    "file_path": target_error.get("file_path"),
+                    "line_number": str(target_error.get("line", "")),
+                    "test_function": error_detail.get("test_function"),
+                    "test_name": error_detail.get("test_name"),
+                    "message": target_error.get("message"),
+                }
+                enhanced_error["fix_guidance"] = _generate_fix_guidance(
+                    fix_guidance_error
+                )
+            except Exception as fix_error:
+                logger.warning("Failed to generate fix guidance: %s", fix_error)
+                enhanced_error["fix_guidance"] = {
+                    "error": "Fix guidance generation failed",
+                    "message": str(fix_error),
+                }
+
+        # Get job info for context and navigation
+        job_info = await cache_manager.get_job_info_async(int(job_id))
+
+        # Add resource links for navigation
+        resource_links = []
+
+        # Link back to file containing this error
+        if target_error.get("file_path"):
+            resource_links.append(
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://file/{project_id}/{job_id}/{target_error['file_path']}",
+                    "text": f"View all errors in {target_error['file_path']} - complete file analysis and error context",
+                }
+            )
+
+            # Add file trace link for enhanced analysis
+            if mode in ["fixing", "detailed"]:
+                resource_links.append(
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://file/{project_id}/{job_id}/{target_error['file_path']}/trace?mode=fixing&include_trace=true",
+                        "text": "View enhanced file analysis with trace and fixing recommendations",
+                    }
+                )
+
+        # Link back to job
+        if job_info:
+            resource_links.append(
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://job/{project_id}/{job_info['pipeline_id']}/{job_id}",
+                    "text": f"Return to job {job_id} overview - view all files and job execution details",
+                }
+            )
+
+            # Link back to pipeline
+            resource_links.append(
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://pipeline/{project_id}/{job_info['pipeline_id']}",
+                    "text": f"Navigate to pipeline {job_info['pipeline_id']} - view all jobs and pipeline status",
+                }
+            )
+
+        # Link to all errors in this job
+        resource_links.append(
+            {
+                "type": "resource_link",
+                "resourceUri": f"gl://error/{project_id}/{job_id}",
+                "text": f"View all errors in job {job_id} - comprehensive error analysis and statistics",
+            }
+        )
+
+        # Build complete result with comprehensive error info
+        result = {
+            "individual_error_analysis": {
+                "project_id": project_id,
+                "job_id": int(job_id),
+                "error_id": error_id,
+                "error": enhanced_error,
+                "analysis_mode": mode,
+                "data_source": "database_only",
+            },
+            "job_context": {
+                "job_id": int(job_id),
+                "status": job_info.get("status") if job_info else "unknown",
+                "name": job_info.get("name") if job_info else None,
+            },
+            "resource_uri": f"gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
+            "cached_at": datetime.now(UTC).isoformat(),
+            "resource_links": resource_links,
+            "metadata": {
+                "resource_type": "individual_error",
+                "project_id": project_id,
+                "job_id": int(job_id),
+                "error_id": error_id,
+                "analysis_mode": mode,
+                "data_source": "database",
+                "include_fix_guidance": mode in ["fixing", "detailed"],
+            },
+            "mcp_info": get_mcp_info("individual_error_resource"),
+        }
+
+        return create_text_resource(
+            f"gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
+            json.dumps(result, indent=2),
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error getting individual error resource %s/%s/%s: %s",
+            project_id,
+            job_id,
+            error_id,
+            e,
+        )
+        error_result = {
+            "error": f"Failed to get individual error resource: {str(e)}",
+            "project_id": project_id,
+            "job_id": job_id,
+            "error_id": error_id,
+            "resource_uri": f"gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
+            "mcp_info": get_mcp_info("individual_error_resource"),
+        }
+        return create_text_resource(
+            f"gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
+            json.dumps(error_result, indent=2),
+        )
+
+
+async def get_individual_error_data(
+    project_id: str, job_id: str, error_id: str, mode: str = "balanced"
+) -> dict:
+    """
+    Public function to get individual error data for use by tools.
+
+    Args:
+        project_id: GitLab project ID
+        job_id: GitLab job ID
+        error_id: Error ID (e.g., "76474190_0")
+        mode: Analysis mode (minimal, balanced, fixing, detailed)
+
+    Returns:
+        Dictionary with individual error data
+    """
+    result = await _get_individual_error_with_mode(project_id, job_id, error_id, mode)
+    # Extract the content from TextResourceContents and parse as JSON
+    return json.loads(result.text)
+
+
 def register_error_resources(mcp) -> None:
     """Register error resources with MCP server"""
 
     @mcp.resource("gl://error/{project_id}/{job_id}")
     async def get_error_resource(project_id: str, job_id: str) -> TextResourceContents:
         """
-        Get comprehensive error analysis as a resource with caching.
+        Get error analysis for a specific job.
 
         Args:
             project_id: GitLab project ID
             job_id: GitLab job ID
 
         Returns:
-            Complete error analysis with statistics and metadata
-
-        Note: Resources provide "balanced" mode by default for optimal agent consumption.
-        For different detail levels, use error analysis tools with response_mode parameter.
+            Comprehensive error analysis for the job
         """
-        result = await _get_error_analysis(project_id, job_id, "balanced")
-        return create_text_resource("gl://error/{project_id}/{job_id}", result)
+        return await get_error_resource_with_mode(project_id, job_id, "balanced")
 
     @mcp.resource("gl://error/{project_id}/{job_id}?mode={mode}")
     async def get_error_resource_with_mode(
         project_id: str, job_id: str, mode: str
     ) -> TextResourceContents:
         """
-        Get comprehensive error analysis as a resource with specific response mode.
+        Get error analysis for a specific job with specified mode.
 
         Args:
             project_id: GitLab project ID
             job_id: GitLab job ID
-            mode: Response mode - "minimal", "balanced", "fixing", or "full"
+            mode: Analysis mode (minimal, balanced, fixing, detailed)
 
         Returns:
-            Error analysis optimized for the specified mode
+            Mode-specific error analysis for the job
         """
-        result = await _get_error_analysis(project_id, job_id, mode)
+        data = await get_error_resource_data(project_id, job_id, mode)
         return create_text_resource(
-            "gl://error/{project_id}/{job_id}?mode={mode}", result
+            f"gl://error/{project_id}/{job_id}?mode={mode}",
+            json.dumps(data, indent=2),
         )
 
     @mcp.resource("gl://error/{project_id}/{job_id}/{error_id}")
@@ -398,139 +605,36 @@ def register_error_resources(mcp) -> None:
         project_id: str, job_id: str, error_id: str
     ) -> TextResourceContents:
         """
-        Get individual error details from database.
+        Get individual error details with basic information.
 
         Args:
             project_id: GitLab project ID
             job_id: GitLab job ID
-            error_id: Error ID or index (e.g., "error_0", "error_1")
+            error_id: Error ID (e.g., "76474190_0")
 
         Returns:
-            Detailed information about a specific error with navigation links
+            Basic information about a specific error with navigation links
         """
-        try:
-            cache_manager = get_cache_manager()
+        return await _get_individual_error_with_mode(
+            project_id, job_id, error_id, "balanced"
+        )
 
-            # Get all errors for the job from database
-            all_errors = cache_manager.get_job_errors(int(job_id))
+    @mcp.resource("gl://error/{project_id}/{job_id}/{error_id}?mode={mode}")
+    async def get_individual_error_resource_with_mode(
+        project_id: str, job_id: str, error_id: str, mode: str
+    ) -> TextResourceContents:
+        """
+        Get individual error details with specified mode.
 
-            # Find error by ID or index
-            target_error = None
-            if error_id.startswith("error_"):
-                try:
-                    error_index = int(error_id.split("_")[1])
-                    if 0 <= error_index < len(all_errors):
-                        target_error = all_errors[error_index]
-                except (ValueError, IndexError):
-                    pass
-            else:
-                # Find by actual error ID
-                target_error = next(
-                    (err for err in all_errors if str(err.get("id", "")) == error_id),
-                    None,
-                )
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            error_id: Error ID (e.g., "76474190_0")
+            mode: Analysis mode (minimal, balanced, fixing, detailed)
 
-            if not target_error:
-                error_result = {
-                    "error": "Error not found",
-                    "message": f"Error {error_id} not found in job {job_id}",
-                    "job_id": int(job_id),
-                    "project_id": project_id,
-                    "error_id": error_id,
-                    "suggested_action": f"Use gl://error/{project_id}/{job_id} to view all errors",
-                    "mcp_info": get_mcp_info("individual_error_resource"),
-                }
-                return json.dumps(error_result, indent=2)
-
-            # Get job info for context and navigation
-            job_info = await cache_manager.get_job_info_async(int(job_id))
-
-            # Add resource links for navigation
-            resource_links = []
-
-            # Link back to file containing this error
-            if target_error.get("file_path"):
-                resource_links.append(
-                    {
-                        "type": "resource_link",
-                        "resourceUri": f"gl://file/{project_id}/{job_id}/{target_error['file_path']}",
-                        "text": f"View all errors in {target_error['file_path']} - complete file analysis and error context",
-                    }
-                )
-
-            # Link back to job
-            if job_info:
-                resource_links.append(
-                    {
-                        "type": "resource_link",
-                        "resourceUri": f"gl://job/{project_id}/{job_info['pipeline_id']}/{job_id}",
-                        "text": f"Return to job {job_id} overview - view all files and job execution details",
-                    }
-                )
-
-                # Link back to pipeline
-                resource_links.append(
-                    {
-                        "type": "resource_link",
-                        "resourceUri": f"gl://pipeline/{project_id}/{job_info['pipeline_id']}",
-                        "text": f"Navigate to pipeline {job_info['pipeline_id']} - view all jobs and pipeline status",
-                    }
-                )
-
-            # Link to all errors in this job
-            resource_links.append(
-                {
-                    "type": "resource_link",
-                    "resourceUri": f"gl://error/{project_id}/{job_id}",
-                    "text": f"View all errors in job {job_id} - comprehensive error analysis and statistics",
-                }
-            )
-
-            # Build complete result with comprehensive error info
-            result = {
-                "error_info": {
-                    "id": target_error.get("id", error_id),
-                    "job_id": int(job_id),
-                    "project_id": project_id,
-                    "file_path": target_error.get("file_path", "unknown"),
-                    "line": target_error.get("line", 0),
-                    "column": target_error.get("column", 0),
-                    "exception": target_error.get("exception", "Unknown"),
-                    "severity": target_error.get("severity", "error"),
-                },
-                "error_details": target_error,
-                "resource_links": resource_links,
-                "metadata": {
-                    "resource_type": "individual_error",
-                    "project_id": project_id,
-                    "job_id": int(job_id),
-                    "error_id": error_id,
-                    "data_source": "database",
-                    "cached_at": None,
-                },
-                "mcp_info": get_mcp_info("individual_error_resource"),
-            }
-
-            return create_text_resource(
-                "gl://error/{project_id}/{job_id}/{error_id}",
-                json.dumps(result, indent=2),
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Error getting individual error resource {project_id}/{job_id}/{error_id}: {e}"
-            )
-            error_result = {
-                "error": f"Failed to get individual error resource: {str(e)}",
-                "project_id": project_id,
-                "job_id": job_id,
-                "error_id": error_id,
-                "resource_uri": f"gl://error/{project_id}/{job_id}/{error_id}",
-                "mcp_info": get_mcp_info("individual_error_resource"),
-            }
-            return create_text_resource(
-                "gl://error/{project_id}/{job_id}/{error_id}",
-                json.dumps(error_result, indent=2),
-            )
+        Returns:
+            Mode-specific information about a specific error with enhanced details
+        """
+        return await _get_individual_error_with_mode(project_id, job_id, error_id, mode)
 
     logger.info("Error resources registered")

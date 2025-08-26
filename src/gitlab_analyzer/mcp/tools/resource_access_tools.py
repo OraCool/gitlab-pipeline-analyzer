@@ -18,6 +18,7 @@ from gitlab_analyzer.mcp.resources.analysis import get_analysis_resource_data
 from gitlab_analyzer.mcp.resources.error import (
     get_error_resource_data,
     get_file_errors_resource_data,
+    get_individual_error_data,
     get_pipeline_errors_resource_data,
 )
 from gitlab_analyzer.mcp.resources.file import (
@@ -181,14 +182,10 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
                 mode = mode or "balanced"
 
                 if error_id:
-                    # Individual error - would need separate function (not implemented yet)
-                    return {
-                        "error": "Individual error access not yet implemented",
-                        "resource_uri": resource_uri,
-                        "project_id": project_id,
-                        "job_id": job_id,
-                        "error_id": error_id,
-                    }
+                    # Individual error - use the dedicated function
+                    return await get_individual_error_data(
+                        project_id, job_id, error_id, mode
+                    )
                 else:
                     # All job errors
                     return await get_error_resource_data(project_id, job_id, mode)
