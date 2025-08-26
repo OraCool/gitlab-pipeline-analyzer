@@ -20,12 +20,12 @@ class TestCreateTextResource:
         """Test creating text resource with dictionary data."""
         uri = "gl://test/resource"
         data = {"key": "value", "number": 42, "nested": {"inner": "data"}}
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
-        
+
         # The text should be JSON serialized
         parsed_text = json.loads(result.text)
         assert parsed_text == data
@@ -34,9 +34,9 @@ class TestCreateTextResource:
         """Test creating text resource with string data."""
         uri = "gl://test/string"
         data = "This is a plain text resource"
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
         assert result.text == data
@@ -45,9 +45,9 @@ class TestCreateTextResource:
         """Test creating text resource with empty dictionary."""
         uri = "gl://test/empty"
         data = {}
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
         assert result.text == "{}"
@@ -56,9 +56,9 @@ class TestCreateTextResource:
         """Test creating text resource with empty string."""
         uri = "gl://test/empty-string"
         data = ""
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
         assert result.text == ""
@@ -72,23 +72,20 @@ class TestCreateTextResource:
                 "status": "failed",
                 "errors": [
                     {"file": "test.py", "line": 10, "message": "Error occurred"},
-                    {"file": "main.py", "line": 25, "message": "Another error"}
-                ]
+                    {"file": "main.py", "line": 25, "message": "Another error"},
+                ],
             },
-            "metadata": {
-                "timestamp": "2025-08-26T10:00:00Z",
-                "version": "1.0.0"
-            }
+            "metadata": {"timestamp": "2025-08-26T10:00:00Z", "version": "1.0.0"},
         }
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
-        
+
         # Verify the JSON is properly formatted with indentation
         assert "\n" in result.text  # Should have newlines due to indent=2
-        
+
         # Verify the data can be parsed back correctly
         parsed_text = json.loads(result.text)
         assert parsed_text == data
@@ -97,9 +94,9 @@ class TestCreateTextResource:
         """Test that URI is properly validated as AnyUrl."""
         uri = "gl://project/123/pipeline/456"
         data = {"test": "data"}
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result.uri, AnyUrl)
         assert str(result.uri) == uri
 
@@ -109,9 +106,9 @@ class TestCreateTextResource:
         data = """This is a multiline
 string with multiple
 lines of content."""
-        
+
         result = create_text_resource(uri, data)
-        
+
         assert isinstance(result, TextResourceContents)
         assert str(result.uri) == uri
         assert result.text == data

@@ -9,7 +9,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from gitlab_analyzer.mcp.tools.resource_access_tools import register_resource_access_tools
+from gitlab_analyzer.mcp.tools.resource_access_tools import (
+    register_resource_access_tools,
+)
 
 
 class TestResourceAccessTools:
@@ -43,7 +45,10 @@ class TestResourceAccessTools:
         # Find the get_mcp_resource function from the decorator calls
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -67,7 +72,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -91,7 +99,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -100,7 +111,9 @@ class TestResourceAccessTools:
         assert result["job_id"] == 456
         mock_get_job.assert_called_once_with("83", "123", "456")
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_files_resource")
+    @patch(
+        "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_files_resource"
+    )
     async def test_get_mcp_resource_pipeline_files(self, mock_get_files, mock_mcp):
         """Test accessing pipeline files resource"""
         mock_get_files.return_value = {"files": ["file1.py", "file2.py"]}
@@ -111,7 +124,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -135,7 +151,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -155,7 +174,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -164,8 +186,12 @@ class TestResourceAccessTools:
         assert result["file_path"] == "src/main.py"
         mock_get_file.assert_called_once_with("83", "456", "src/main.py")
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource_with_trace")
-    async def test_get_mcp_resource_file_with_trace(self, mock_get_file_trace, mock_mcp):
+    @patch(
+        "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource_with_trace"
+    )
+    async def test_get_mcp_resource_file_with_trace(
+        self, mock_get_file_trace, mock_mcp
+    ):
         """Test accessing file resource with trace"""
         mock_get_file_trace.return_value = {"file_path": "src/main.py", "trace": "..."}
 
@@ -175,7 +201,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -184,7 +213,9 @@ class TestResourceAccessTools:
             "gl://file/83/456/src/main.py/trace?mode=detailed&include_trace=true"
         )
         assert result["file_path"] == "src/main.py"
-        mock_get_file_trace.assert_called_once_with("83", "456", "src/main.py", "detailed", True)
+        mock_get_file_trace.assert_called_once_with(
+            "83", "456", "src/main.py", "detailed", True
+        )
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_error_resource_data")
     async def test_get_mcp_resource_job_errors(self, mock_get_errors, mock_mcp):
@@ -197,7 +228,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -221,7 +255,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -230,10 +267,14 @@ class TestResourceAccessTools:
         assert result["error_id"] == "123_0"
         mock_get_error.assert_called_once_with("83", "456", "123_0", "balanced")
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_errors_resource_data")
+    @patch(
+        "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_errors_resource_data"
+    )
     async def test_get_mcp_resource_pipeline_errors(self, mock_get_errors, mock_mcp):
         """Test accessing pipeline errors resource"""
-        mock_get_errors.return_value = {"pipeline_errors": [{"job_id": 1}, {"job_id": 2}]}
+        mock_get_errors.return_value = {
+            "pipeline_errors": [{"job_id": 1}, {"job_id": 2}]
+        }
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -241,7 +282,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -250,7 +294,9 @@ class TestResourceAccessTools:
         assert "pipeline_errors" in result
         mock_get_errors.assert_called_once_with("83", "123")
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_errors_resource_data")
+    @patch(
+        "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_errors_resource_data"
+    )
     async def test_get_mcp_resource_file_errors(self, mock_get_errors, mock_mcp):
         """Test accessing file errors resource"""
         mock_get_errors.return_value = {"file_errors": [{"line": 10}, {"line": 20}]}
@@ -261,7 +307,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -281,7 +330,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -306,7 +358,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -322,7 +377,9 @@ class TestResourceAccessTools:
         assert "available_patterns" in result
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_resource")
-    async def test_get_mcp_resource_exception_handling(self, mock_get_pipeline, mock_mcp):
+    async def test_get_mcp_resource_exception_handling(
+        self, mock_get_pipeline, mock_mcp
+    ):
         """Test exception handling in resource access"""
         mock_get_pipeline.side_effect = Exception("Database error")
 
@@ -332,7 +389,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 
@@ -350,7 +410,10 @@ class TestResourceAccessTools:
         # Find the function
         get_mcp_resource_func = None
         for call in mock_mcp.tool.call_args_list:
-            if hasattr(call[0][0], "__name__") and call[0][0].__name__ == "get_mcp_resource":
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
                 get_mcp_resource_func = call[0][0]
                 break
 

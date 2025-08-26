@@ -434,11 +434,15 @@ class TestFailedPipelineAnalysisTools:
         # Verify no job traces were retrieved
         mock_analyzer.get_job_trace.assert_not_called()
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis._should_use_pytest_parser")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis._should_use_pytest_parser"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.PytestLogParser")
     async def test_failed_pipeline_analysis_pytest_parser(
         self,
@@ -456,11 +460,11 @@ class TestFailedPipelineAnalysisTools:
         """Test failed pipeline analysis with pytest parser"""
         # Mock pytest parser selection
         mock_should_use_pytest.return_value = True
-        
+
         # Mock pytest parser instance
         mock_pytest_parser = Mock()
         mock_pytest_parser_class.return_value = mock_pytest_parser
-        
+
         # Mock failure detail
         mock_failure = Mock()
         mock_failure.exception_type = "AssertionError"
@@ -469,7 +473,7 @@ class TestFailedPipelineAnalysisTools:
         mock_failure.test_function = "test_example_function"
         mock_failure.test_name = "test_example_function"
         mock_failure.traceback = [Mock(line_number=42)]
-        
+
         mock_parsed_result = Mock()
         mock_parsed_result.detailed_failures = [mock_failure]
         mock_pytest_parser.parse_pytest_log.return_value = mock_parsed_result
@@ -499,16 +503,20 @@ class TestFailedPipelineAnalysisTools:
         # Verify pytest parser was used
         mock_should_use_pytest.assert_called()
         mock_pytest_parser.parse_pytest_log.assert_called()
-        
+
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis._should_use_pytest_parser")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis._should_use_pytest_parser"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.LogParser")
     async def test_failed_pipeline_analysis_generic_parser(
         self,
@@ -526,18 +534,18 @@ class TestFailedPipelineAnalysisTools:
         """Test failed pipeline analysis with generic log parser"""
         # Mock parser selection to use generic parser
         mock_should_use_pytest.return_value = False
-        
+
         # Mock log parser instance
         mock_log_parser = Mock()
         mock_log_parser_class.return_value = mock_log_parser
-        
+
         # Mock log entry
         mock_log_entry = Mock()
         mock_log_entry.message = "Build error occurred"
         mock_log_entry.level = "error"
         mock_log_entry.line_number = 15
         mock_log_entry.context = "compilation context"
-        
+
         mock_log_parser.extract_log_entries.return_value = [mock_log_entry]
 
         # Setup mocks
@@ -565,12 +573,14 @@ class TestFailedPipelineAnalysisTools:
         # Verify generic parser was used
         mock_should_use_pytest.assert_called()
         mock_log_parser.extract_log_entries.assert_called()
-        
+
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
@@ -618,12 +628,18 @@ class TestFailedPipelineAnalysisTools:
         mock_cache_manager.store_pipeline_info_async.assert_not_called()
         mock_cache_manager.store_failed_jobs_basic.assert_not_called()
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.combine_exclude_file_patterns")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.should_exclude_file_path")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.combine_exclude_file_patterns"
+    )
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.should_exclude_file_path"
+    )
     async def test_failed_pipeline_analysis_file_filtering(
         self,
         mock_should_exclude,
@@ -665,17 +681,19 @@ class TestFailedPipelineAnalysisTools:
         result = await analysis_func(
             project_id="test-project",
             pipeline_id=777,
-            exclude_file_patterns=["custom/"]
+            exclude_file_patterns=["custom/"],
         )
 
         # Verify file filtering was configured
         mock_combine_patterns.assert_called_once_with(["custom/"])
-        
+
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
@@ -712,16 +730,16 @@ class TestFailedPipelineAnalysisTools:
 
         # Test analysis with filtering disabled
         result = await analysis_func(
-            project_id="test-project",
-            pipeline_id=666,
-            disable_file_filtering=True
+            project_id="test-project", pipeline_id=666, disable_file_filtering=True
         )
 
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
@@ -738,7 +756,10 @@ class TestFailedPipelineAnalysisTools:
         mock_get_pipeline_info.side_effect = ValueError("Pipeline not found")
         mock_get_analyzer.return_value = Mock()
         mock_get_cache_manager.return_value = Mock()
-        mock_get_mcp_info.return_value = {"tool": "failed_pipeline_analysis", "error": True}
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "error": True,
+        }
 
         # Register tools
         register_failed_pipeline_analysis_tools(mock_mcp)
@@ -759,17 +780,21 @@ class TestFailedPipelineAnalysisTools:
         # Verify error response structure
         assert "content" in result
         assert "mcp_info" in result
-        
+
         # Check that error message is included
         first_content = result["content"][0]
         assert "❌ Failed to analyze pipeline" in first_content["text"]
         assert "Pipeline not found" in first_content["text"]
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.extract_file_path_from_message")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.extract_file_path_from_message"
+    )
     async def test_failed_pipeline_analysis_file_path_extraction(
         self,
         mock_extract_file_path,
@@ -810,16 +835,20 @@ class TestFailedPipelineAnalysisTools:
 
         # Verify file path extraction was called (it may not be called if no errors are processed)
         # mock_extract_file_path.assert_called()
-        
+
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
 
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
-    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.categorize_files_by_type")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.categorize_files_by_type"
+    )
     async def test_failed_pipeline_analysis_file_categorization(
         self,
         mock_categorize_files,
@@ -837,7 +866,7 @@ class TestFailedPipelineAnalysisTools:
         mock_categorize_files.return_value = {
             "python": ["file1.py", "file2.py"],
             "javascript": ["file3.js"],
-            "other": ["file4.txt"]
+            "other": ["file4.txt"],
         }
 
         # Setup mocks
@@ -864,7 +893,7 @@ class TestFailedPipelineAnalysisTools:
 
         # Verify file categorization was called
         mock_categorize_files.assert_called()
-        
+
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result

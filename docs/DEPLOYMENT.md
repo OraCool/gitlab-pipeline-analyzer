@@ -26,6 +26,7 @@ uv run tox
 **Common Issues and Fixes:**
 
 #### Type Annotation Errors (MyPy)
+
 ```bash
 # Check specific type errors
 uv run mypy src/
@@ -36,6 +37,7 @@ uv run mypy src/
 ```
 
 #### Test Coverage Below Threshold
+
 ```bash
 # Check current coverage
 uv run pytest --cov=src --cov-report=term-missing
@@ -46,6 +48,7 @@ uv run pytest --cov=src --cov-report=term-missing
 ```
 
 #### Linting Issues
+
 ```bash
 # Check and auto-fix linting issues
 uv run ruff check . --fix
@@ -57,6 +60,7 @@ uv run ruff format --check .
 ```
 
 #### Security Issues
+
 ```bash
 # Check for security vulnerabilities
 uv run bandit -r src/
@@ -75,6 +79,7 @@ uv run pre-commit run --all-files
 ```
 
 **Common Pre-commit Fixes:**
+
 - **Trailing whitespace**: Automatically fixed by the hook
 - **End of file fixes**: Automatically fixed by the hook
 - **YAML/TOML validation**: Check syntax in configuration files
@@ -85,6 +90,7 @@ uv run pre-commit run --all-files
 Update the version number in the appropriate files:
 
 #### 3.1 Update pyproject.toml
+
 ```toml
 [project]
 name = "gitlab-pipeline-analyzer"
@@ -92,16 +98,21 @@ version = "X.Y.Z"  # Update this line
 ```
 
 #### 3.2 Update README.md
+
 Find and update version references in README.md:
+
 ```markdown
 # Before
+
 "gitlab_pipeline_analyzer==0.1.2"
 
 # After
+
 "gitlab_pipeline_analyzer==0.1.3"
 ```
 
 #### 3.3 Verify Version Updates
+
 ```bash
 # Search for old version references
 rg "0.1.2" --type-not binary --exclude-dir .git --exclude-dir .venv --exclude-dir .tox
@@ -110,6 +121,7 @@ rg "0.1.2" --type-not binary --exclude-dir .git --exclude-dir .venv --exclude-di
 ### 4. Commit and Push Changes
 
 #### 4.1 Pre-Commit Verification
+
 Run the exact same checks as CI to catch issues early:
 
 ```bash
@@ -124,6 +136,7 @@ uv run pytest tests/ -v --cov=src/ --cov-report=term-missing
 ```
 
 #### 4.2 Review Changes
+
 ```bash
 # Check current status
 git status
@@ -133,6 +146,7 @@ git diff
 ```
 
 #### 4.3 Stage and Commit
+
 ```bash
 # Stage all changes
 git add .
@@ -147,6 +161,7 @@ git commit -m "Prepare for vX.Y.Z release
 ```
 
 #### 4.4 Push Changes
+
 ```bash
 # Push to remote repository
 git push origin main
@@ -155,6 +170,7 @@ git push origin main
 ### 5. Add Tag and Push
 
 #### 5.1 Create Git Tag
+
 ```bash
 # Create annotated tag
 git tag -a vX.Y.Z -m "Release version X.Y.Z"
@@ -164,6 +180,7 @@ git tag -a v0.1.3 -m "Release version 0.1.3"
 ```
 
 #### 5.2 Push Tag
+
 ```bash
 # Push the tag to remote
 git push origin vX.Y.Z
@@ -180,12 +197,14 @@ git push --tags
 After pushing the tag, GitHub Actions will automatically trigger:
 
 #### 6.1 Monitor Release Workflow
+
 1. Go to your GitHub repository
 2. Navigate to **Actions** tab
 3. Check the **Release** workflow status
 4. Verify all jobs complete successfully
 
 #### 6.2 Workflow Jobs Include:
+
 - **Build**: Package creation and validation
 - **Test**: Run test suite across Python versions
 - **Security**: Security scans and vulnerability checks
@@ -194,6 +213,7 @@ After pushing the tag, GitHub Actions will automatically trigger:
 ### 7. Post-Deployment Verification
 
 #### 7.1 Verify PyPI Publication
+
 ```bash
 # Check if package is available on PyPI
 pip index versions gitlab-pipeline-analyzer
@@ -203,6 +223,7 @@ pip install gitlab-pipeline-analyzer==X.Y.Z
 ```
 
 #### 7.2 Test Installation
+
 ```bash
 # Test the CLI entry point
 gitlab-analyzer --help
@@ -216,6 +237,7 @@ uvx --from gitlab-pipeline-analyzer==X.Y.Z gitlab-analyzer --help
 ### Common Deployment Issues
 
 #### 1. Tox Failures
+
 ```bash
 # Run specific tox environment
 uv run tox -e lint    # Only linting
@@ -227,6 +249,7 @@ rm -rf .tox/
 ```
 
 #### 2. Pre-commit Failures
+
 ```bash
 # Update pre-commit hooks
 uv run pre-commit autoupdate
@@ -246,6 +269,7 @@ SKIP=mypy uv run pre-commit run --all-files
 ```
 
 #### 3. Version Conflicts
+
 ```bash
 # Find all version references
 fd -e py -e md -e toml | xargs rg -l "0\.1\.2"
@@ -259,11 +283,14 @@ sed -i 's/0\.1\.2/0\.1\.3/g' filename
 ##### Common CI Errors and Fixes:
 
 **Ruff Formatting Error (Persistent CI Issue):**
+
 ```
 Error: Would reformat: tests/test_mcp_tools_coverage.py
 1 file would be reformatted, 31 files already formatted
 ```
+
 **Fix:**
+
 ```bash
 # Common cause: Version mismatch between pre-commit ruff and project ruff
 # or cached CI state with outdated file versions
@@ -292,10 +319,13 @@ touch .format-trigger && git add . && git commit -m "Force format refresh"
 ```
 
 **Type Checking Failures:**
+
 ```
 src/file.py:123: error: Need type annotation for "variable"
 ```
+
 **Fix:**
+
 ```bash
 # Run mypy locally to see all type errors
 uv run mypy src/
@@ -306,10 +336,13 @@ uv run mypy src/
 ```
 
 **Test Coverage Failures:**
+
 ```
 FAIL Required test coverage of 70% not reached. Total coverage: 68%
 ```
+
 **Fix:**
+
 ```bash
 # Check coverage details
 uv run pytest --cov=src --cov-report=term-missing
@@ -320,6 +353,7 @@ uv run pytest --cov=src --cov-report=term-missing
 ```
 
 **General Troubleshooting:**
+
 - Check the Actions tab for detailed error logs
 - Verify environment secrets are configured
 - Check PyPI trusted publishing setup
@@ -371,6 +405,7 @@ This project follows [Semantic Versioning](https://semver.org/):
 - **PATCH** (0.0.Z): Bug fixes, backward compatible
 
 Example progression:
+
 - `0.1.2` → `0.1.3` (patch: bug fixes)
 - `0.1.3` → `0.2.0` (minor: new features)
 - `0.2.0` → `1.0.0` (major: breaking changes)
@@ -385,7 +420,7 @@ name: Auto Release
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'pyproject.toml']
+    paths: ["src/**", "pyproject.toml"]
 
 jobs:
   auto-release:

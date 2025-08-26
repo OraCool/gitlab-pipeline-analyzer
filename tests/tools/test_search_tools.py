@@ -120,9 +120,7 @@ class TestSearchTools:
 
         # Test code search
         result = await search_code_func(
-            project_id="83",
-            search_keywords="process_data",
-            output_format="text"
+            project_id="83", search_keywords="process_data", output_format="text"
         )
 
         # Verify search was called correctly
@@ -177,7 +175,7 @@ class TestSearchTools:
             search_keywords="async def",
             branch="feature-branch",
             extension_filter="py",
-            output_format="json"
+            output_format="json",
         )
 
         # Verify result is valid JSON
@@ -227,9 +225,7 @@ class TestSearchTools:
 
         # Test code search with no results - text format
         result = await search_code_func(
-            project_id="83",
-            search_keywords="nonexistent",
-            output_format="text"
+            project_id="83", search_keywords="nonexistent", output_format="text"
         )
 
         assert "No code matches found" in result
@@ -237,9 +233,7 @@ class TestSearchTools:
 
         # Test code search with no results - JSON format
         result = await search_code_func(
-            project_id="83",
-            search_keywords="nonexistent",
-            output_format="json"
+            project_id="83", search_keywords="nonexistent", output_format="json"
         )
 
         result_data = json.loads(result)
@@ -258,7 +252,9 @@ class TestSearchTools:
         """Test code search error handling"""
         # Setup error
         mock_get_gitlab_analyzer.return_value = mock_gitlab_analyzer
-        mock_gitlab_analyzer.search_project_code.side_effect = Exception("Search failed")
+        mock_gitlab_analyzer.search_project_code.side_effect = Exception(
+            "Search failed"
+        )
 
         # Register tools
         register_search_tools(mock_mcp)
@@ -274,10 +270,7 @@ class TestSearchTools:
                 break
 
         # Test error handling
-        result = await search_code_func(
-            project_id="83",
-            search_keywords="test"
-        )
+        result = await search_code_func(project_id="83", search_keywords="test")
 
         assert "Error searching repository code" in result
         assert "Search failed" in result
@@ -319,7 +312,7 @@ class TestSearchTools:
             filename_filter="*.py",
             path_filter="src/*",
             extension_filter="py",
-            max_results=10
+            max_results=10,
         )
 
         # Verify search was called with filters
@@ -380,9 +373,7 @@ class TestSearchTools:
 
         # Test with max_results limit
         result = await search_code_func(
-            project_id="83",
-            search_keywords="function",
-            max_results=5
+            project_id="83", search_keywords="function", max_results=5
         )
 
         assert "Found 30 total matches (showing first 5)" in result
@@ -402,7 +393,9 @@ class TestSearchTools:
         # Setup mocks
         mock_get_gitlab_analyzer.return_value = mock_gitlab_analyzer
         mock_get_mcp_info.return_value = {"tool": "search_repository_commits"}
-        mock_gitlab_analyzer.search_project_commits.return_value = mock_commit_search_results
+        mock_gitlab_analyzer.search_project_commits.return_value = (
+            mock_commit_search_results
+        )
 
         # Register tools
         register_search_tools(mock_mcp)
@@ -421,9 +414,7 @@ class TestSearchTools:
 
         # Test commit search
         result = await search_commits_func(
-            project_id="83",
-            search_keywords="bug fix",
-            output_format="text"
+            project_id="83", search_keywords="bug fix", output_format="text"
         )
 
         # Verify search was called correctly
@@ -456,7 +447,9 @@ class TestSearchTools:
         # Setup mocks
         mock_get_gitlab_analyzer.return_value = mock_gitlab_analyzer
         mock_get_mcp_info.return_value = {"tool": "search_repository_commits"}
-        mock_gitlab_analyzer.search_project_commits.return_value = mock_commit_search_results
+        mock_gitlab_analyzer.search_project_commits.return_value = (
+            mock_commit_search_results
+        )
 
         # Register tools
         register_search_tools(mock_mcp)
@@ -476,7 +469,7 @@ class TestSearchTools:
             project_id="83",
             search_keywords="feature",
             branch="main",
-            output_format="json"
+            output_format="json",
         )
 
         # Verify result is valid JSON
@@ -527,9 +520,7 @@ class TestSearchTools:
 
         # Test commit search with no results - text format
         result = await search_commits_func(
-            project_id="83",
-            search_keywords="nonexistent",
-            output_format="text"
+            project_id="83", search_keywords="nonexistent", output_format="text"
         )
 
         assert "No commit matches found" in result
@@ -537,9 +528,7 @@ class TestSearchTools:
 
         # Test commit search with no results - JSON format
         result = await search_commits_func(
-            project_id="83",
-            search_keywords="nonexistent",
-            output_format="json"
+            project_id="83", search_keywords="nonexistent", output_format="json"
         )
 
         result_data = json.loads(result)
@@ -558,7 +547,9 @@ class TestSearchTools:
         """Test commit search error handling"""
         # Setup error
         mock_get_gitlab_analyzer.return_value = mock_gitlab_analyzer
-        mock_gitlab_analyzer.search_project_commits.side_effect = Exception("Commit search failed")
+        mock_gitlab_analyzer.search_project_commits.side_effect = Exception(
+            "Commit search failed"
+        )
 
         # Register tools
         register_search_tools(mock_mcp)
@@ -574,10 +565,7 @@ class TestSearchTools:
                 break
 
         # Test error handling
-        result = await search_commits_func(
-            project_id="83",
-            search_keywords="test"
-        )
+        result = await search_commits_func(project_id="83", search_keywords="test")
 
         assert "Error searching repository commits" in result
         assert "Commit search failed" in result
@@ -627,9 +615,7 @@ class TestSearchTools:
 
         # Test with max_results limit
         result = await search_commits_func(
-            project_id="83",
-            search_keywords="commit",
-            max_results=10
+            project_id="83", search_keywords="commit", max_results=10
         )
 
         assert "Found 25 total matches (showing first 10)" in result
@@ -649,7 +635,9 @@ class TestSearchTools:
         # Setup mocks
         mock_get_gitlab_analyzer.return_value = mock_gitlab_analyzer
         mock_get_mcp_info.return_value = {"tool": "search_repository_commits"}
-        mock_gitlab_analyzer.search_project_commits.return_value = mock_commit_search_results
+        mock_gitlab_analyzer.search_project_commits.return_value = (
+            mock_commit_search_results
+        )
 
         # Register tools
         register_search_tools(mock_mcp)
@@ -666,9 +654,7 @@ class TestSearchTools:
 
         # Test with specific branch
         result = await search_commits_func(
-            project_id="83",
-            search_keywords="fix",
-            branch="develop"
+            project_id="83", search_keywords="fix", branch="develop"
         )
 
         # Verify search was called with branch

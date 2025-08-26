@@ -352,7 +352,9 @@ class TestCacheTools:
                 clear_pipeline_cache_func = call[0][0]
                 break
 
-        assert clear_pipeline_cache_func is not None, "clear_pipeline_cache function not found"
+        assert (
+            clear_pipeline_cache_func is not None
+        ), "clear_pipeline_cache function not found"
 
         # Test clearing pipeline cache
         result = await clear_pipeline_cache_func("83", "1594344")
@@ -362,9 +364,16 @@ class TestCacheTools:
         assert result["pipeline_id"] == "1594344"
         assert result["status"] == "success"
         assert result["total_cleared"] == 36  # 1+5+10+20
-        assert result["cleared_counts"] == {"pipelines": 1, "jobs": 5, "errors": 10, "traces": 20}
+        assert result["cleared_counts"] == {
+            "pipelines": 1,
+            "jobs": 5,
+            "errors": 10,
+            "traces": 20,
+        }
 
-        mock_cache_manager.clear_cache_by_pipeline.assert_called_once_with("83", "1594344")
+        mock_cache_manager.clear_cache_by_pipeline.assert_called_once_with(
+            "83", "1594344"
+        )
 
     @patch("gitlab_analyzer.mcp.tools.cache_tools.get_cache_manager")
     @patch("gitlab_analyzer.mcp.tools.cache_tools.get_mcp_info")
@@ -405,7 +414,12 @@ class TestCacheTools:
         assert result["job_id"] == "76474172"
         assert result["status"] == "success"
         assert result["total_cleared"] == 14  # 1+3+8+2
-        assert result["cleared_counts"] == {"jobs": 1, "errors": 3, "traces": 8, "files": 2}
+        assert result["cleared_counts"] == {
+            "jobs": 1,
+            "errors": 3,
+            "traces": 8,
+            "files": 2,
+        }
 
         mock_cache_manager.clear_cache_by_job.assert_called_once_with("83", "76474172")
 

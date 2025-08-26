@@ -32,7 +32,7 @@ class TestMCPInfo:
     def test_get_mcp_info_basic(self):
         """Test basic MCP info generation."""
         result = get_mcp_info("test_tool")
-        
+
         assert result["name"] == "GitLab Pipeline Analyzer"
         assert "version" in result
         assert result["tool_used"] == "test_tool"
@@ -42,7 +42,7 @@ class TestMCPInfo:
     def test_get_mcp_info_with_error(self):
         """Test MCP info generation with error flag."""
         result = get_mcp_info("test_tool", error=True)
-        
+
         assert result["name"] == "GitLab Pipeline Analyzer"
         assert result["tool_used"] == "test_tool"
         assert result["error"] is True
@@ -50,7 +50,7 @@ class TestMCPInfo:
     def test_get_mcp_info_with_parser_type(self):
         """Test MCP info generation with parser type."""
         result = get_mcp_info("test_tool", parser_type="pytest")
-        
+
         assert result["name"] == "GitLab Pipeline Analyzer"
         assert result["tool_used"] == "test_tool"
         assert result["parser_type"] == "pytest"
@@ -58,7 +58,7 @@ class TestMCPInfo:
     def test_get_mcp_info_with_all_params(self):
         """Test MCP info generation with all parameters."""
         result = get_mcp_info("test_tool", error=True, parser_type="mixed")
-        
+
         assert result["name"] == "GitLab Pipeline Analyzer"
         assert result["tool_used"] == "test_tool"
         assert result["error"] is True
@@ -71,43 +71,55 @@ class TestGitLabAnalyzer:
     def setUp(self):
         """Reset the global analyzer instance."""
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
 
     def tearDown(self):
         """Clean up after tests."""
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
 
-    @patch.dict(os.environ, {"GITLAB_URL": "https://test.gitlab.com", "GITLAB_TOKEN": "test_token"})
+    @patch.dict(
+        os.environ,
+        {"GITLAB_URL": "https://test.gitlab.com", "GITLAB_TOKEN": "test_token"},
+    )
     @patch("gitlab_analyzer.utils.utils.GitLabAnalyzer")
     def test_get_gitlab_analyzer_creates_instance(self, mock_analyzer_class):
         """Test GitLab analyzer instance creation."""
         mock_instance = Mock()
         mock_analyzer_class.return_value = mock_instance
-        
+
         # Reset global instance
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
-        
+
         result = get_gitlab_analyzer()
-        
-        mock_analyzer_class.assert_called_once_with("https://test.gitlab.com", "test_token")
+
+        mock_analyzer_class.assert_called_once_with(
+            "https://test.gitlab.com", "test_token"
+        )
         assert result == mock_instance
 
-    @patch.dict(os.environ, {"GITLAB_URL": "https://test.gitlab.com", "GITLAB_TOKEN": "test_token"})
+    @patch.dict(
+        os.environ,
+        {"GITLAB_URL": "https://test.gitlab.com", "GITLAB_TOKEN": "test_token"},
+    )
     @patch("gitlab_analyzer.utils.utils.GitLabAnalyzer")
     def test_get_gitlab_analyzer_returns_singleton(self, mock_analyzer_class):
         """Test GitLab analyzer returns same instance."""
         mock_instance = Mock()
         mock_analyzer_class.return_value = mock_instance
-        
+
         # Reset global instance
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
-        
+
         result1 = get_gitlab_analyzer()
         result2 = get_gitlab_analyzer()
-        
+
         # Should only create once
         mock_analyzer_class.assert_called_once()
         assert result1 == result2 == mock_instance
@@ -117,9 +129,12 @@ class TestGitLabAnalyzer:
         """Test GitLab analyzer with missing token."""
         # Reset global instance
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
-        
-        with pytest.raises(ValueError, match="GITLAB_TOKEN environment variable is required"):
+
+        with pytest.raises(
+            ValueError, match="GITLAB_TOKEN environment variable is required"
+        ):
             get_gitlab_analyzer()
 
     @patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"})
@@ -128,13 +143,14 @@ class TestGitLabAnalyzer:
         """Test GitLab analyzer with default URL."""
         mock_instance = Mock()
         mock_analyzer_class.return_value = mock_instance
-        
+
         # Reset global instance
         import gitlab_analyzer.utils.utils
+
         gitlab_analyzer.utils.utils._GITLAB_ANALYZER = None
-        
+
         result = get_gitlab_analyzer()
-        
+
         mock_analyzer_class.assert_called_once_with("https://gitlab.com", "test_token")
         assert result == mock_instance
 
@@ -158,7 +174,7 @@ class TestJobDetection:
             "test_something",
             "run_tests",
         ]
-        
+
         for job_name in test_job_names:
             assert _is_test_job(job_name, "build"), f"Failed for job name: {job_name}"
 
@@ -175,7 +191,7 @@ class TestJobDetection:
             "unit-test",
             "integration-test",
         ]
-        
+
         for stage in test_stages:
             assert _is_test_job("build", stage), f"Failed for stage: {stage}"
 
@@ -191,7 +207,7 @@ class TestJobDetection:
             ("lint", "lint"),
             ("format", "format"),
         ]
-        
+
         for job_name, stage in non_test_jobs:
             assert not _is_test_job(job_name, stage), f"Failed for: {job_name}/{stage}"
 
@@ -216,7 +232,7 @@ class TestPytestLogDetection:
             "pytest-html plugin detected",
             "rootdir: /app",
         ]
-        
+
         for log_text in strong_pytest_logs:
             assert _is_pytest_log(log_text), f"Failed for: {log_text}"
 
@@ -226,7 +242,7 @@ class TestPytestLogDetection:
         assert _is_pytest_log("test_something.py failed, 1 passed")
         assert _is_pytest_log("PASSED test_user.py::test_creation")
         assert _is_pytest_log("ERROR in test_file.py::test_method")
-        
+
         # One weak indicator should not be sufficient
         assert not _is_pytest_log("failed")
         assert not _is_pytest_log("PASSED")
@@ -243,7 +259,7 @@ class TestPytestLogDetection:
             "Docker build in progress",
             "Uploading artifacts",
         ]
-        
+
         for log_text in non_pytest_logs:
             assert not _is_pytest_log(log_text), f"Failed for: {log_text}"
 
@@ -262,8 +278,8 @@ class TestPytestParserSelection:
         # Test job - should use pytest parser regardless of log content
         assert _should_use_pytest_parser("Build output", "test-job", "test")
         assert _should_use_pytest_parser("Random log", "unit-tests", "build")
-        
-        # Non-test job - should use generic parser regardless of log content  
+
+        # Non-test job - should use generic parser regardless of log content
         assert not _should_use_pytest_parser("=== FAILURES ===", "build", "build")
         assert not _should_use_pytest_parser("pytest output", "compile", "compile")
 
@@ -290,12 +306,12 @@ class TestFilePathExtraction:
         message1 = "Error in main.py:42: something went wrong"
         result1 = extract_file_path_from_message(message1)
         assert result1 == "main.py"
-        
+
         # Test pattern 2: File "path"
         message2 = 'File "src/utils.py" not found'
         result2 = extract_file_path_from_message(message2)
         assert result2 == "src/utils.py"
-        
+
         # Test pattern 3: in/for/at filename.py
         message3 = "Error in main.py while processing"
         result3 = extract_file_path_from_message(message3)
@@ -315,7 +331,7 @@ class TestFilePathExtraction:
             "Error in /opt/python/lib/something.py:456",
             "Error in /__pycache__/module.py:789",
         ]
-        
+
         for message in system_messages:
             result = extract_file_path_from_message(message)
             assert result is None, f"Should exclude system path: {message}"
@@ -328,7 +344,7 @@ class TestFilePathExtraction:
             "No file reference here",
             "Error in file.txt:42",  # Not .py file
         ]
-        
+
         for message in messages:
             result = extract_file_path_from_message(message)
             assert result is None, f"Should not match: {message}"
@@ -357,7 +373,7 @@ class TestDefaultExcludePaths:
             "/__pycache__/",
             ".cache",
         ]
-        
+
         for path in expected_paths:
             assert path in DEFAULT_EXCLUDE_PATHS, f"Missing expected path: {path}"
 
@@ -373,12 +389,14 @@ class TestFileExclusion:
     def test_should_exclude_file_path_basic(self):
         """Test basic file path exclusion."""
         exclude_patterns = [".venv", "site-packages", "__pycache__"]
-        
+
         # Should exclude
         assert should_exclude_file_path("/path/.venv/module.py", exclude_patterns)
-        assert should_exclude_file_path("/usr/lib/python3.9/site-packages/requests.py", exclude_patterns)
+        assert should_exclude_file_path(
+            "/usr/lib/python3.9/site-packages/requests.py", exclude_patterns
+        )
         assert should_exclude_file_path("/app/__pycache__/module.pyc", exclude_patterns)
-        
+
         # Should not exclude
         assert not should_exclude_file_path("/app/src/main.py", exclude_patterns)
         assert not should_exclude_file_path("main.py", exclude_patterns)
@@ -386,11 +404,11 @@ class TestFileExclusion:
     def test_should_exclude_file_path_edge_cases(self):
         """Test file path exclusion edge cases."""
         exclude_patterns = [".venv", "test"]
-        
+
         # Empty or None patterns
         assert not should_exclude_file_path("/app/main.py", [])
         assert not should_exclude_file_path("/app/main.py", None)
-        
+
         # Empty or special file paths
         assert not should_exclude_file_path("", exclude_patterns)
         assert not should_exclude_file_path("unknown", exclude_patterns)
@@ -400,17 +418,17 @@ class TestFileExclusion:
         # No user patterns
         result = combine_exclude_file_patterns(None)
         assert result == list(DEFAULT_EXCLUDE_PATHS)
-        
+
         # With user patterns
         user_patterns = ["custom_exclude", "another_pattern"]
         result = combine_exclude_file_patterns(user_patterns)
-        
+
         # Should contain all defaults plus user patterns
         for pattern in DEFAULT_EXCLUDE_PATHS:
             assert pattern in result
         for pattern in user_patterns:
             assert pattern in result
-        
+
         # Should not have duplicates
         assert len(result) == len(set(result))
 
@@ -419,7 +437,7 @@ class TestFileExclusion:
         # User patterns that overlap with defaults
         user_patterns = [".venv", "site-packages", "new_pattern"]
         result = combine_exclude_file_patterns(user_patterns)
-        
+
         # Should not have duplicates
         assert result.count(".venv") == 1
         assert result.count("site-packages") == 1
@@ -438,9 +456,9 @@ class TestFileCategorization:
             {"file_path": "unknown", "error_count": 1},
             {"file_path": "conftest.py", "error_count": 1},
         ]
-        
+
         result = categorize_files_by_type(files)
-        
+
         # Test files
         assert result["test_files"]["count"] == 3
         assert result["test_files"]["total_errors"] == 5  # 3 + 1 + 1
@@ -448,12 +466,12 @@ class TestFileCategorization:
         assert "test_user.py" in test_file_paths
         assert "tests/test_auth.py" in test_file_paths
         assert "conftest.py" in test_file_paths
-        
+
         # Source files
         assert result["source_files"]["count"] == 1
         assert result["source_files"]["total_errors"] == 2
         assert result["source_files"]["files"][0]["file_path"] == "src/main.py"
-        
+
         # Unknown files
         assert result["unknown_files"]["count"] == 1
         assert result["unknown_files"]["total_errors"] == 1
@@ -468,9 +486,9 @@ class TestFileCategorization:
             {"file_path": "src/test/helpers.py", "error_count": 1},
             {"file_path": "app/conftest.py", "error_count": 1},
         ]
-        
+
         result = categorize_files_by_type(files)
-        
+
         # All should be categorized as test files
         assert result["test_files"]["count"] == 5
         assert result["source_files"]["count"] == 0
@@ -483,24 +501,24 @@ class TestFileCategorization:
             {"file_path": "TESTS/unit.py", "error_count": 1},
             {"file_path": "src/Main.py", "error_count": 1},
         ]
-        
+
         result = categorize_files_by_type(files)
-        
+
         assert result["test_files"]["count"] == 2
         assert result["source_files"]["count"] == 1
 
     def test_categorize_files_by_type_empty(self):
         """Test file categorization with empty input."""
         result = categorize_files_by_type([])
-        
+
         assert result["test_files"]["count"] == 0
         assert result["test_files"]["total_errors"] == 0
         assert result["test_files"]["files"] == []
-        
+
         assert result["source_files"]["count"] == 0
         assert result["source_files"]["total_errors"] == 0
         assert result["source_files"]["files"] == []
-        
+
         assert result["unknown_files"]["count"] == 0
         assert result["unknown_files"]["total_errors"] == 0
         assert result["unknown_files"]["files"] == []
@@ -516,14 +534,14 @@ class TestFileGroupProcessing:
             "file2": {"error_count": 3, "errors": ["error4", "error5"]},
             "file3": {"error_count": 1, "errors": ["error6"]},
         }
-        
+
         result = process_file_groups(file_groups, max_files=2, max_errors_per_file=2)
-        
+
         # Should be sorted by error count (highest first)
         assert len(result) == 2
         assert result[0]["error_count"] == 5
         assert result[1]["error_count"] == 3
-        
+
         # Should limit errors per file
         assert len(result[0]["errors"]) == 2
         assert len(result[1]["errors"]) == 2
@@ -534,9 +552,9 @@ class TestFileGroupProcessing:
             "file1": {"error_count": 5},
             "file2": {"error_count": 3},
         }
-        
+
         result = process_file_groups(file_groups, max_files=2, max_errors_per_file=2)
-        
+
         assert len(result) == 2
         assert result[0]["error_count"] == 5
         assert result[1]["error_count"] == 3
@@ -547,9 +565,9 @@ class TestFileGroupProcessing:
         file_groups = {
             "file1": {"error_count": 3, "errors": {"error1", "error2", "error3"}},
         }
-        
+
         result = process_file_groups(file_groups, max_files=1, max_errors_per_file=2)
-        
+
         assert len(result) == 1
         assert isinstance(result[0]["errors"], list)
         assert len(result[0]["errors"]) == 2
@@ -564,16 +582,16 @@ class TestFileGroupProcessing:
         file_groups = {
             f"file{i}": {
                 "error_count": 10 - i,
-                "errors": [f"error{j}" for j in range(10)]
+                "errors": [f"error{j}" for j in range(10)],
             }
             for i in range(5)
         }
-        
+
         result = process_file_groups(file_groups, max_files=3, max_errors_per_file=2)
-        
+
         # Should limit files
         assert len(result) == 3
-        
+
         # Should limit errors per file
         for file_group in result:
             assert len(file_group["errors"]) == 2
