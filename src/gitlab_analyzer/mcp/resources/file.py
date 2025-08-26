@@ -6,7 +6,7 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from mcp.types import TextResourceContents
@@ -92,7 +92,7 @@ async def get_file_resource_with_trace(
                 "name": job_info.get("name") if job_info else None,
             },
             "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace_str}",
-            "cached_at": datetime.now(UTC).isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
             "metadata": {
                 "total_errors": len(all_errors),
                 "analysis_scope": "file",
@@ -116,7 +116,7 @@ async def get_file_resource_with_trace(
         error_result = {
             "error": str(e),
             "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace_str}",
-            "error_at": datetime.now(UTC).isoformat(),
+            "error_at": datetime.now(timezone.utc).isoformat(),
         }
         return create_text_resource(
             f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace_str}",

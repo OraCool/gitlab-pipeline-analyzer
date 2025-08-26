@@ -7,7 +7,7 @@ Licensed under the MIT License - see LICENSE file for details
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from mcp.types import TextResourceContents
@@ -126,7 +126,7 @@ async def _get_comprehensive_analysis(
                 **analysis_data,
             },
             "resource_uri": resource_uri,
-            "cached_at": datetime.now(UTC).isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
             "metadata": {
                 "analysis_scope": scope,
                 "source": "multiple_endpoints",

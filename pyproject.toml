@@ -92,8 +92,8 @@ exclude = [
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.12
-target-version = "py312"
+# Assume Python 3.10 for compatibility
+target-version = "py310"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -116,6 +116,7 @@ ignore = [
     "E501", # line too long (handled by formatter)
     "B008", # do not perform function calls in argument defaults
     "B904", # raise-without-from-inside-except
+    "UP017", # Use datetime.UTC alias (not available in Python 3.10)
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

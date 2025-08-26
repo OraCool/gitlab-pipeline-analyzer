@@ -7,7 +7,7 @@ Licensed under the MIT License - see LICENSE file for details
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from mcp.types import TextResourceContents
@@ -86,7 +86,7 @@ async def _get_error_analysis(
                 },
             },
             "resource_uri": f"gl://error/{project_id}/{job_id}?mode={response_mode}",
-            "cached_at": datetime.now(UTC).isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
             "metadata": {
                 "analysis_scope": "all-errors",
                 "source": "job_trace",
@@ -502,7 +502,7 @@ async def _get_individual_error_with_mode(
                 "name": job_info.get("name") if job_info else None,
             },
             "resource_uri": f"gl://error/{project_id}/{job_id}/{error_id}?mode={mode}",
-            "cached_at": datetime.now(UTC).isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
             "resource_links": resource_links,
             "metadata": {
                 "resource_type": "individual_error",
