@@ -9,6 +9,7 @@ This implements the cache-first architecture where:
 Enhanced with async operations, TTL management, and statistics.
 """
 
+import contextlib
 import gzip
 import json
 import sqlite3
@@ -285,17 +286,9 @@ class McpCache:
     ) -> None:
         """Store pipeline information asynchronously from dict data"""
         try:
-            print(
-                f"DEBUG: store_pipeline_info_async called - Project: {project_id}, Pipeline: {pipeline_id}"
-            )
-            print(f"DEBUG: Cache manager DB path: {self.db_path}")
-
             pipeline_data = pipeline_info.get("pipeline_info", {})
             if not pipeline_data:
-                print("DEBUG: No pipeline_data found in pipeline_info")
                 return
-
-            print(f"DEBUG: Pipeline data keys: {list(pipeline_data.keys())}")
 
             # Extract real branch information
             pipeline_type = pipeline_info.get("pipeline_type", "branch")
@@ -317,10 +310,6 @@ class McpCache:
                 source_branch = target_branch
                 target_branch = None
 
-            print(
-                f"DEBUG: About to store - Pipeline ID: {pipeline_id}, Source: {source_branch}, Target: {target_branch}"
-            )
-
             # Store in pipelines table
             async with aiosqlite.connect(self.db_path) as db:
                 data_to_store = (
@@ -335,7 +324,6 @@ class McpCache:
                     source_branch,
                     target_branch,
                 )
-                print(f"DEBUG: Data to store: {data_to_store}")
 
                 await db.execute(
                     """
@@ -354,12 +342,11 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 count = count_row[0] if count_row else 0
-                print(f"DEBUG: Pipeline {pipeline_id} stored - count in DB: {count}")
 
-            print("DEBUG: Pipeline info stored successfully")
+            print(f"Pipeline {pipeline_id} stored - count in DB: {count}")
 
         except Exception as e:
-            print(f"DEBUG: Error storing pipeline info: {e}")
+            print(f"Error storing pipeline info: {e}")
 
     async def store_failed_jobs_basic(
         self,
@@ -380,7 +367,7 @@ class McpCache:
             ref = pipeline_data.get("ref", "unknown")
             sha = pipeline_data.get("sha", "unknown")
 
-            print(f"DEBUG: Using ref='{ref}', sha='{sha}' for jobs")
+            # Using ref='{ref}', sha='{sha}' for jobs
 
             async with aiosqlite.connect(self.db_path) as db:
                 for job in failed_jobs:
@@ -666,7 +653,8 @@ class McpCache:
             jobs_cursor = await db.execute(
                 "SELECT COUNT(*) FROM jobs WHERE pipeline_id = ?", (pipeline_id,)
             )
-            jobs_count = (await jobs_cursor.fetchone())[0]
+            jobs_row = await jobs_cursor.fetchone()
+            jobs_count = jobs_row[0] if jobs_row else 0
 
             # Count errors
             errors_cursor = await db.execute(
@@ -677,7 +665,8 @@ class McpCache:
                 """,
                 (pipeline_id,),
             )
-            errors_count = (await errors_cursor.fetchone())[0]
+            errors_row = await errors_cursor.fetchone()
+            errors_count = errors_row[0] if errors_row else 0
 
             # Count files with errors
             files_cursor = await db.execute(
@@ -688,7 +677,8 @@ class McpCache:
                 """,
                 (pipeline_id,),
             )
-            files_count = (await files_cursor.fetchone())[0]
+            files_row = await files_cursor.fetchone()
+            files_count = files_row[0] if files_row else 0
 
             return {
                 "pipeline_exists": True,
@@ -743,9 +733,9 @@ class McpCache:
                             f"""
                             SELECT error_id, fingerprint, exception, message, file, line, detail_json
                             FROM errors
-                            WHERE job_id = ? AND error_id IN ({','.join('?' * len(error_ids))})
+                            WHERE job_id = ? AND error_id IN ({",".join("?" * len(error_ids))})
                             ORDER BY line
-                            """,
+                            """,  # nosec B608
                             [job_id] + error_ids,
                         )
                         error_rows = await error_cursor.fetchall()
@@ -763,10 +753,8 @@ class McpCache:
                                 "line": error_row[5],
                             }
                             if error_row[6]:  # detail_json
-                                try:
+                                with contextlib.suppress(json.JSONDecodeError):
                                     error_data["detail"] = json.loads(error_row[6])
-                                except json.JSONDecodeError:
-                                    pass
                             errors.append(error_data)
 
                         files.append(
@@ -786,7 +774,7 @@ class McpCache:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
                 """
-                SELECT job_id, project_id, pipeline_id, ref, sha, status, 
+                SELECT job_id, project_id, pipeline_id, ref, sha, status,
                        trace_hash, parser_version, created_at, completed_at
                 FROM jobs
                 WHERE job_id = ?
@@ -864,7 +852,7 @@ class McpCache:
                 FROM errors
                 WHERE job_id = ? AND error_id IN ({placeholders})
                 ORDER BY line
-            """,
+            """,  # nosec B608
                 [job_id] + error_ids,
             )
 
@@ -1072,18 +1060,18 @@ class McpCache:
                         UNION ALL
                         SELECT 1 FROM file_index WHERE created_at < {cutoff_sql}
                     )
-                    """
+                    """  # nosec B608
                 )
                 count_row = await cursor.fetchone()
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")
+                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
                 await conn.execute(
-                    f"DELETE FROM errors WHERE created_at < {cutoff_sql}"
+                    f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
                 await conn.execute(
-                    f"DELETE FROM file_index WHERE created_at < {cutoff_sql}"
+                    f"DELETE FROM file_index WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
                 await conn.commit()
 
@@ -1171,19 +1159,20 @@ class McpCache:
 
                 if project_id:
                     cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM {table} WHERE project_id = ?",
+                        f"SELECT COUNT(*) FROM {table} WHERE project_id = ?",  # nosec B608
                         (str(project_id),),
                     )
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     await conn.execute(
-                        f"DELETE FROM {table} WHERE project_id = ?", (str(project_id),)
+                        f"DELETE FROM {table} WHERE project_id = ?",  # nosec B608
+                        (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
-                    await conn.execute(f"DELETE FROM {table}")
+                    await conn.execute(f"DELETE FROM {table}")  # nosec B608
 
                 await conn.commit()
                 return count
@@ -1192,7 +1181,7 @@ class McpCache:
 
     async def clear_cache_by_pipeline(
         self, project_id: str | int, pipeline_id: str | int
-    ) -> dict[str, int]:
+    ) -> dict[str, int | str]:
         """Clear all cache data for a specific pipeline"""
         try:
             async with aiosqlite.connect(self.db_path) as conn:
@@ -1213,37 +1202,37 @@ class McpCache:
 
                     # Clear trace_segments for these jobs
                     cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",
+                        f"SELECT COUNT(*) FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
                     count_row = await cursor.fetchone()
                     counts["trace_segments"] = count_row[0] if count_row else 0
                     await conn.execute(
-                        f"DELETE FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",
+                        f"DELETE FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
 
                     # Clear errors for these jobs
                     cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM errors WHERE job_id IN ({job_ids_placeholders})",
+                        f"SELECT COUNT(*) FROM errors WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
                     count_row = await cursor.fetchone()
                     counts["errors"] = count_row[0] if count_row else 0
                     await conn.execute(
-                        f"DELETE FROM errors WHERE job_id IN ({job_ids_placeholders})",
+                        f"DELETE FROM errors WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
 
                     # Clear file_index for these jobs
                     cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM file_index WHERE job_id IN ({job_ids_placeholders})",
+                        f"SELECT COUNT(*) FROM file_index WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
                     count_row = await cursor.fetchone()
                     counts["file_index"] = count_row[0] if count_row else 0
                     await conn.execute(
-                        f"DELETE FROM file_index WHERE job_id IN ({job_ids_placeholders})",
+                        f"DELETE FROM file_index WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
                 else:
@@ -1278,11 +1267,11 @@ class McpCache:
                 await conn.commit()
                 return counts
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": -1, "message": str(e)}
 
     async def clear_cache_by_job(
         self, project_id: str | int, job_id: str | int
-    ) -> dict[str, int]:
+    ) -> dict[str, int | str]:
         """Clear all cache data for a specific job"""
         try:
             async with aiosqlite.connect(self.db_path) as conn:
@@ -1329,7 +1318,7 @@ class McpCache:
                 await conn.commit()
                 return counts
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": -1, "message": str(e)}
 
     async def check_health(self) -> dict[str, Any]:
         """Check cache system health"""
@@ -1350,7 +1339,7 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
                         table_status[table] = {"status": "ok", "count": count}

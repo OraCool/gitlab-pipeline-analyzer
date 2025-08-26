@@ -716,48 +716,33 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **21 comprehensive tools** for GitLab CI/CD pipeline analysis:
+The MCP server provides **6 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.4.0):
 
-#### 🔍 Pipeline Analysis Tools
+#### 🎯 Core Analysis Tool
 
-1. **analyze_failed_pipeline(project_id, pipeline_id)** - Complete failed pipeline analysis with error extraction
-2. **analyze_failed_pipeline_summary(project_id, pipeline_id)** - Lightweight pipeline overview with error counts
-3. **analyze_single_job(project_id, job_id)** - Deep analysis of individual job failures
-4. **analyze_single_job_limited(project_id, job_id, max_errors, include_traceback)** - Controlled job analysis
-
-#### 📊 Pipeline Information Tools
-
-5. **get_pipeline_info(project_id, pipeline_id)** - Comprehensive pipeline metadata with MR branch resolution
-6. **get_pipeline_status(project_id, pipeline_id)** - Basic pipeline status and timing information
-7. **get_pipeline_jobs(project_id, pipeline_id)** - Complete list of all jobs in a pipeline
-8. **get_failed_jobs(project_id, pipeline_id)** - Filtered list of only failed jobs
-
-#### 📋 Job Trace and Log Tools
-
-9. **get_job_trace(project_id, job_id)** - Raw job trace logs with ANSI formatting
-10. **get_cleaned_job_trace(project_id, job_id)** - Cleaned job traces without ANSI codes
-11. **extract_log_errors(log_text)** - Extract structured errors from any log text
-
-#### 🧪 File-Based Error Analysis Tools (Response Mode Optimized)
-
-12. **get_file_errors(project_id, job_id, file_path, response_mode, ...)** - Errors for specific files with response optimization
-13. **get_files_with_errors(project_id, pipeline_id/job_id, response_mode, ...)** - List files containing errors with detail control
-14. **group_errors_by_file(project_id, pipeline_id/job_id, ...)** - Group errors by file for systematic fixing
-15. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
-
-#### � Repository Search Tools
-
-16. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
-17. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
-18. **get_files_with_errors(project_id, pipeline_id/job_id, ...)** - List files containing errors
-19. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
+1. **failed_pipeline_analysis(project_id, pipeline_id)** - Comprehensive pipeline analysis with intelligent parsing, caching, and resource generation
 
 #### 🔍 Repository Search Tools
 
-20. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
-21. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
+2. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path/filename
+3. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
 
-### Error Filtering and Traceback Management
+#### � Cache Management Tools
+
+4. **cache_stats()** - Get cache statistics and storage information
+5. **cache_health()** - Check cache system health and performance
+6. **clear_cache(cache_type, project_id, max_age_hours)** - Clear cached data with flexible options
+
+#### 🗑️ Specialized Cache Cleanup Tools
+
+7. **clear_pipeline_cache(project_id, pipeline_id)** - Clear all cached data for a specific pipeline
+8. **clear_job_cache(project_id, job_id)** - Clear all cached data for a specific job
+
+#### � Resource Access Tool
+
+9. **get_mcp_resource(resource_uri)** - Access data from MCP resource URIs without re-running analysis
+
+### Resource-Based Architecture
 
 The error analysis tools support advanced filtering to reduce noise in large traceback responses:
 

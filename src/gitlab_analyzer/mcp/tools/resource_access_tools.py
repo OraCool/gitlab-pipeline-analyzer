@@ -162,12 +162,16 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
                                 params_dict[key] = value
 
                         mode = params_dict.get("mode", "balanced")
-                        include_trace = (
-                            params_dict.get("include_trace", "true").lower() == "true"
-                        )
+                        include_trace_str = params_dict.get(
+                            "include_trace", "true"
+                        ).lower()
 
-                        return await get_file_resource_with_trace(
-                            project_id, job_id, actual_file_path, mode, include_trace
+                        return await get_file_resource_with_trace(  # type: ignore
+                            project_id,
+                            job_id,
+                            actual_file_path,
+                            mode,
+                            include_trace_str,
                         )
 
                 # Regular file request

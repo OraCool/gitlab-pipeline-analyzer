@@ -9,7 +9,6 @@ Copyright (c) 2025 Siarhei Skurato        mcp_info = get_mcp_info(
 Licensed under the MIT License - see LICENSE file for details
 """
 
-import json
 import logging
 from typing import Any
 
@@ -18,6 +17,7 @@ from mcp.types import TextResourceContents
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import generate_cache_key
 from gitlab_analyzer.utils.utils import get_mcp_info
+
 from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
@@ -92,10 +92,10 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
             ]
 
             # Additional links for failed jobs - link to files with errors
-            if job_status == "failed":
+            if job_status == "failed" and job_id is not None:
                 # Get files with errors for this job from database
                 files_with_errors = await cache_manager.get_job_files_with_errors(
-                    job_id
+                    int(job_id)
                 )
 
                 if files_with_errors:

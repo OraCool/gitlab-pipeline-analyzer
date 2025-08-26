@@ -10,9 +10,11 @@ import logging
 from typing import Any
 
 from mcp.types import TextResourceContents
+
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import generate_cache_key
 from gitlab_analyzer.utils.utils import get_mcp_info
+
 from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)

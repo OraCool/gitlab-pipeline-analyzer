@@ -5,13 +5,14 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from mcp.types import TextResourceContents
+
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+
 from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
@@ -28,11 +29,8 @@ async def get_file_resource_with_trace(
     try:
         cache_manager = get_cache_manager()
 
-        # Handle include_trace parameter - it might be a string or boolean
-        if isinstance(include_trace, bool):
-            include_trace_str = "true" if include_trace else "false"
-        else:
-            include_trace_str = str(include_trace).lower()
+        # Handle include_trace parameter
+        include_trace_str = str(include_trace).lower()
 
         # Create cache key
         cache_key = f"file_{project_id}_{job_id}_{file_path}_{mode}"

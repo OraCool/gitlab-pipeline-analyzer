@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-08-26
+
+### 🎯 **Major Architecture Streamlining** - Breaking Changes
+
+- **Streamlined Tools**: Reduced from 21 tools to 6 essential tools following DRY/KISS principles
+
+  - `failed_pipeline_analysis`: Comprehensive pipeline analysis with intelligent parsing
+  - `search_repository_code` & `search_repository_commits`: Repository search functionality
+  - `cache_stats`, `cache_health`, `clear_cache`: Cache management
+  - `get_mcp_resource`: Unified resource access tool
+
+- **Resource-Based Architecture**: All data access now through MCP resources
+  - 50+ resource patterns for granular data access
+  - Efficient caching and navigation between related resources
+  - Standardized URI patterns (e.g., `gl://pipeline/83/1594344`)
+
+### ✨ **Enhanced Features**
+
+- **Intelligent Parser Selection**: Automatic pytest vs generic parser based on job name/stage
+- **Comprehensive Caching System**: SQLite-based caching with health monitoring
+- **Response Optimization**: Multiple response modes (`minimal`, `balanced`, `fixing`, `full`)
+- **Advanced Error Analysis**: Detailed fix guidance with priority scoring
+- **Pipeline & Job Specific Cache**: Targeted cache management for pipelines and jobs
+
+### 🔧 **Technical Improvements**
+
+- **Performance**: Streamlined API calls and efficient resource-based data access
+- **Maintainability**: Consolidated logic, reduced code duplication
+- **Testing**: 333 comprehensive tests with 66.47% coverage
+- **Type Safety**: Enhanced type annotations and validation
+
+### 🗑️ **Removed (Breaking Changes)**
+
+- Legacy pagination tools (replaced by resource-based access)
+- Redundant analysis tools (consolidated into `failed_pipeline_analysis`)
+- Individual error/file retrieval tools (replaced by `get_mcp_resource`)
+
+### 📊 **Migration Guide**
+
+- Replace pagination tool calls with resource URIs via `get_mcp_resource`
+- Use `failed_pipeline_analysis` for comprehensive pipeline investigation
+- Access specific data through resource patterns instead of individual tools
+
 ## [0.3.5] - 2025-08-22
 
 ### Added 🚀

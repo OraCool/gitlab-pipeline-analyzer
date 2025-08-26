@@ -6,12 +6,15 @@ Following DRY and KISS principles, these functions can be reused across tools an
 """
 
 import json
+import logging
 import re
 from typing import Any
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+
+logger = logging.getLogger(__name__)
 
 
 async def store_jobs_metadata_step(
@@ -42,10 +45,10 @@ async def store_jobs_metadata_step(
                 )
 
             await conn.commit()
-            print(f"DEBUG: Stored metadata for {len(jobs)} jobs")
+            # Metadata stored for {len(jobs)} jobs
 
     except Exception as e:
-        print(f"DEBUG: Error storing job metadata: {e}")
+        logger.error(f"Error storing job metadata: {e}")
 
 
 async def store_job_analysis_step(

@@ -86,9 +86,9 @@ class TestFileResourcesNew:
         ]
 
         for pattern in expected_patterns:
-            assert any(
-                pattern in arg for arg in call_args
-            ), f"Pattern {pattern} not found in {call_args}"
+            assert any(pattern in arg for arg in call_args), (
+                f"Pattern {pattern} not found in {call_args}"
+            )
 
     @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")

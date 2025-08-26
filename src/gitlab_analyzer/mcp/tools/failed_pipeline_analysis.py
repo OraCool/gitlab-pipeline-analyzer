@@ -4,14 +4,27 @@ Failed Pipeline Analysis Tool - Focused on analyzing only failed pipeline jobs
 This module provides efficient analysis by focusing specifically on failed jobs:
 1. Gets pipeline info and stores in database
 2. Gets only failed jobs using get_failed_pipeline_jobs (more efficient)
-3. Stores failed job data for further analysis
+3. Stores failed job data for fu            for job_result in job_analysis_results:
+                job_result_typed = cast("dict[str, Any]", job_result)
+                job_id = job_result_typed["job_id"]
+                job_name = job_result_typed["job_name"]
 
+                # Add job-specific resources
+                resources["jobs_detail"][str(job_id)] = {
+                    "job": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
+                    "errors": f"gl://errors/{project_id}/{job_id}",
+                    "files": {},
+                }
+
+                # Process file groups for this job
+                file_groups = cast("list[dict[str, Any]]", job_result_typed.get("file_groups", []))
+                for file_group in file_groups:
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
 import hashlib
-from typing import Any
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
@@ -195,9 +208,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Group errors by file and filter out system files
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[dict[str, Any]] = (
-                    []
-                )  # Track errors after filtering system files
+                filtered_errors: list[
+                    dict[str, Any]
+                ] = []  # Track errors after filtering system files
 
                 for error in errors:
                     message = (
@@ -300,7 +313,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             # (failed_stages and failure_reasons are available in the stored data)
 
             # Build hierarchical resources structure with files and errors
-            resources = {
+            resources: dict[str, Any] = {
                 "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
                 "jobs": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
                 "analysis": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
@@ -310,12 +323,17 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files = {}  # Global file registry across all jobs
-            all_errors = {}  # Global error registry with trace references
+            all_files: dict[
+                str, dict[str, Any]
+            ] = {}  # Global file registry across all jobs
+            all_errors: dict[
+                str, dict[str, Any]
+            ] = {}  # Global error registry with trace references
 
             for job_result in job_analysis_results:
-                job_id = job_result["job_id"]
-                job_name = job_result["job_name"]
+                job_result_typed = cast("dict[str, Any]", job_result)
+                job_id = job_result_typed["job_id"]
+                job_name = job_result_typed["job_name"]
 
                 # Add job-specific resources
                 resources["jobs_detail"][str(job_id)] = {
@@ -325,12 +343,16 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 }
 
                 # Process file groups for this job
-                for file_group in job_result["file_groups"]:
+                file_groups_data = cast(
+                    "list[dict[str, Any]]", job_result_typed.get("file_groups", [])
+                )
+                for file_group in file_groups_data:
                     file_path = file_group["file_path"]
                     error_count = file_group["error_count"]
 
                     # Add individual error resources with trace references
-                    for i, error in enumerate(file_group["errors"]):
+                    errors_list = cast("list[dict[str, Any]]", file_group["errors"])
+                    for i, error in enumerate(errors_list):
                         error_id = f"{job_id}_{i}"
                         error_resource_uri = (
                             f"gl://error/{project_id}/{job_id}/{error_id}"

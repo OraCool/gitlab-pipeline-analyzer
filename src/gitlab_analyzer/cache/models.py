@@ -211,8 +211,8 @@ class ErrorRecord:
             "file": error_data.get("file", ""),
             "line": error_data.get("line", 0),
         }
-        fingerprint = hashlib.md5(
-            json.dumps(fingerprint_data, sort_keys=True).encode()
+        fingerprint = hashlib.md5(  # nosec B324
+            json.dumps(fingerprint_data, sort_keys=True).encode(), usedforsecurity=False
         ).hexdigest()
 
         return cls(

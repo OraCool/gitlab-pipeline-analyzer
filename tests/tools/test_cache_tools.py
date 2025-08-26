@@ -352,9 +352,9 @@ class TestCacheTools:
                 clear_pipeline_cache_func = call[0][0]
                 break
 
-        assert (
-            clear_pipeline_cache_func is not None
-        ), "clear_pipeline_cache function not found"
+        assert clear_pipeline_cache_func is not None, (
+            "clear_pipeline_cache function not found"
+        )
 
         # Test clearing pipeline cache
         result = await clear_pipeline_cache_func("83", "1594344")

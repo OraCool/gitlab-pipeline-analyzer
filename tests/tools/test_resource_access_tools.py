@@ -214,7 +214,7 @@ class TestResourceAccessTools:
         )
         assert result["file_path"] == "src/main.py"
         mock_get_file_trace.assert_called_once_with(
-            "83", "456", "src/main.py", "detailed", True
+            "83", "456", "src/main.py", "detailed", "true"
         )
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_error_resource_data")

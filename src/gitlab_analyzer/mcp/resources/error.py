@@ -14,6 +14,7 @@ from mcp.types import TextResourceContents
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.utils.utils import get_mcp_info
+
 from .utils import create_text_resource
 
 logger = logging.getLogger(__name__)
@@ -236,7 +237,7 @@ async def get_pipeline_errors_resource_data(
         failed_jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
 
         all_errors = []
-        error_summary = {
+        error_summary: dict[str, Any] = {
             "total_errors": 0,
             "failed_jobs": len(failed_jobs),
             "jobs_with_errors": [],
