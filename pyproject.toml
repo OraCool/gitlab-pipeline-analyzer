@@ -113,9 +113,9 @@ select = [
 ]
 
 ignore = [
-    "E501", # line too long (handled by formatter)
-    "B008", # do not perform function calls in argument defaults
-    "B904", # raise-without-from-inside-except
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise-without-from-inside-except
     "UP017", # Use datetime.UTC alias (not available in Python 3.10)
 ]
 
