@@ -868,18 +868,24 @@ class McpCache:
                 [job_id] + error_ids,
             )
 
-            return [
-                {
+            results = []
+            for row in cursor.fetchall():
+                error_data = {
                     "error_id": row[0],
                     "fingerprint": row[1],
                     "exception": row[2],
                     "message": row[3],
                     "file": row[4],
                     "line": row[5],
-                    "detail": json.loads(row[6]),
                 }
-                for row in cursor.fetchall()
-            ]
+                # Parse detail JSON safely
+                try:
+                    error_data["detail"] = json.loads(row[6]) if row[6] else {}
+                except (json.JSONDecodeError, TypeError):
+                    error_data["detail"] = {}
+                results.append(error_data)
+
+            return results
 
     def get_pipeline_failed_jobs(self, pipeline_id: int) -> list[dict[str, Any]]:
         """Get failed jobs for a pipeline (serving phase)"""

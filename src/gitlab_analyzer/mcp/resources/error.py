@@ -150,10 +150,10 @@ async def get_file_errors_resource_data(
         enhanced_errors = []
         for error in file_errors:
             enhanced_error = {
-                "id": error["id"],
+                "id": error["error_id"],  # Use error_id instead of id
                 "message": error["message"],
                 "line_number": error.get("line"),
-                "file_path": error.get("file_path"),
+                "file_path": error.get("file"),  # Use file instead of file_path
                 "exception_type": error.get("exception"),
                 "severity": "error",
                 "context": {
@@ -169,7 +169,7 @@ async def get_file_errors_resource_data(
                     },
                     {
                         "type": "resource_link",
-                        "resourceUri": f"gl://error/{project_id}/{job_id}/{error['id']}",
+                        "resourceUri": f"gl://error/{project_id}/{job_id}/{error['error_id']}",  # Use error_id
                         "text": "View detailed error analysis with fixing recommendations",
                     },
                 ],

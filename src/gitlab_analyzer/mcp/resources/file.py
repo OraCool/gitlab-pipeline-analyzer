@@ -28,6 +28,12 @@ async def get_file_resource_with_trace(
     try:
         cache_manager = get_cache_manager()
 
+        # Handle include_trace parameter - it might be a string or boolean
+        if isinstance(include_trace, bool):
+            include_trace_str = "true" if include_trace else "false"
+        else:
+            include_trace_str = str(include_trace).lower()
+
         # Create cache key
         cache_key = f"file_{project_id}_{job_id}_{file_path}_{mode}"
 
@@ -35,7 +41,7 @@ async def get_file_resource_with_trace(
         cached_data = await cache_manager.get(cache_key)
         if cached_data:
             return create_text_resource(
-                f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+                f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace_str}",
                 cached_data,
             )
 
@@ -79,7 +85,7 @@ async def get_file_resource_with_trace(
                 "errors": all_errors,
                 "error_count": len(all_errors),
                 "analysis_mode": mode,
-                "include_trace": include_trace.lower() == "true",
+                "include_trace": include_trace_str == "true",
                 "data_source": "database_only",  # Clearly indicate data source
             },
             "job_context": {
@@ -87,7 +93,7 @@ async def get_file_resource_with_trace(
                 "status": job_info.get("status") if job_info else "unknown",
                 "name": job_info.get("name") if job_info else None,
             },
-            "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace}",
+            "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace_str}",
             "cached_at": datetime.now(UTC).isoformat(),
             "metadata": {
                 "total_errors": len(all_errors),
@@ -101,7 +107,7 @@ async def get_file_resource_with_trace(
         await cache_manager.set(cache_key, result)
 
         return create_text_resource(
-            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace_str}",
             result,
         )
 
@@ -111,11 +117,11 @@ async def get_file_resource_with_trace(
         )
         error_result = {
             "error": str(e),
-            "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace}",
+            "resource_uri": f"gl://file/{project_id}/{job_id}/{file_path}?mode={mode}&include_trace={include_trace_str}",
             "error_at": datetime.now(UTC).isoformat(),
         }
         return create_text_resource(
-            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+            f"gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={include_trace_str}",
             error_result,
         )
 
