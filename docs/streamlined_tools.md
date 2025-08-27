@@ -2,13 +2,13 @@
 
 ## Overview
 
-The GitLab Pipeline Analyzer MCP Server provides **6 focused tools** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow.
+The GitLab Pipeline Analyzer MCP Server provides **9 focused tools** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow.
 
 ## Tool Categories
 
-### 🔍 Pipeline Analysis (1 tool)
+### 🎯 Pipeline Analysis (1 tool)
 
-#### comprehensive_pipeline_analysis
+#### failed_pipeline_analysis
 
 **Purpose**: Complete pipeline failure analysis with intelligent parsing
 **When to use**: Pipeline shows "failed" status and you need comprehensive analysis
@@ -24,7 +24,7 @@ The GitLab Pipeline Analyzer MCP Server provides **6 focused tools** following D
 **Example**:
 
 ```python
-result = await client.call_tool("comprehensive_pipeline_analysis", {
+result = await client.call_tool("failed_pipeline_analysis", {
     "project_id": "12345",
     "pipeline_id": 67890
 })
@@ -135,12 +135,76 @@ result = await client.call_tool("cache_stats", {})
 result = await client.call_tool("cache_health", {})
 ```
 
+### 🗑️ Specialized Cache Cleanup (2 tools)
+
+#### clear_pipeline_cache
+
+**Purpose**: Clear all cached data for a specific pipeline
+**When to use**: Remove stale pipeline data or force fresh analysis
+
+**Features**:
+
+- Removes all pipeline-related cache entries
+- Cleans associated job and error data
+- Maintains data integrity during cleanup
+
+**Example**:
+
+```python
+result = await client.call_tool("clear_pipeline_cache", {
+    "project_id": "12345",
+    "pipeline_id": 67890
+})
+```
+
+#### clear_job_cache
+
+**Purpose**: Clear all cached data for a specific job
+**When to use**: Remove stale job data or force fresh trace analysis
+
+**Features**:
+
+- Removes all job-related cache entries
+- Cleans associated error and trace data
+- Fast targeted cleanup
+
+**Example**:
+
+```python
+result = await client.call_tool("clear_job_cache", {
+    "project_id": "12345",
+    "job_id": 54321
+})
+```
+
+### 🔗 Resource Access (1 tool)
+
+#### get_mcp_resource
+
+**Purpose**: Access data from MCP resource URIs without re-running analysis
+**When to use**: Navigate to specific data or access previously analyzed results
+
+**Features**:
+
+- Access cached analysis results
+- Navigate between related resources
+- Efficient data retrieval without API calls
+- Support for all resource URI patterns
+
+**Example**:
+
+```python
+result = await client.call_tool("get_mcp_resource", {
+    "resource_uri": "gl://jobs/12345/pipeline/67890/failed"
+})
+```
+
 ## Workflow Patterns
 
 ### Basic Pipeline Analysis
 
-1. **comprehensive_pipeline_analysis** → get complete failure analysis
-2. Use resource URIs for detailed data access
+1. **failed_pipeline_analysis** → get complete failure analysis
+2. **get_mcp_resource** → access detailed data via resource URIs
 3. **search_repository_code** → find related code if needed
 
 ### Cache Maintenance
@@ -148,14 +212,17 @@ result = await client.call_tool("cache_health", {})
 1. **cache_health** → check system status
 2. **cache_stats** → review usage patterns
 3. **clear_cache** → clean up old data as needed
+4. **clear_pipeline_cache** → clean specific pipeline data
+5. **clear_job_cache** → clean specific job data
 
 ## Migration from Legacy Tools
 
-The streamlined architecture replaces 15+ legacy tools with 6 focused tools:
+The streamlined architecture replaces 15+ legacy tools with 9 focused tools:
 
-- **All analysis tools** → `comprehensive_pipeline_analysis`
+- **All analysis tools** → `failed_pipeline_analysis`
 - **All search functionality** → `search_repository_code` and `search_repository_commits`
-- **All cache operations** → `clear_cache`, `cache_stats`, `cache_health`
+- **All cache operations** → `clear_cache`, `cache_stats`, `cache_health`, `clear_pipeline_cache`, `clear_job_cache`
+- **All resource access** → `get_mcp_resource`
 
 ## Resource-Based Data Access
 

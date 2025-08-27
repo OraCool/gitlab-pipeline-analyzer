@@ -5,28 +5,33 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 ## ✨ Key Features
 
 ### 🔍 **Comprehensive Analysis**
+
 - Deep pipeline failure analysis with error extraction
 - Intelligent error categorization and pattern detection
 - Support for pytest, build, and general CI/CD failures
 
 ### 💾 **Intelligent Caching**
+
 - SQLite-based caching for faster analysis
 - Automatic cache invalidation and cleanup
 - Significant performance improvements (90% reduction in API calls)
 
 ### 📦 **MCP Resources**
+
 - `gl://pipeline/{project_id}/{pipeline_id}` - Pipeline overview and jobs
 - `gl://job/{project_id}/{job_id}` - Job details and traces
 - `gl://analysis/{project_id}/{target_id}` - Structured error analysis
 - `gl://error/{project_id}/{error_id}` - Individual error deep-dive
 
 ### 🎯 **Guided Prompts**
+
 - `pipeline-investigation` - Systematic pipeline failure analysis
 - `error-analysis` - Error pattern investigation
 - `test-failure-debugging` - Python/pytest specific debugging
 - `build-failure-debugging` - Build system troubleshooting
 
 ### 🚀 **Multiple Transport Protocols**
+
 - STDIO (default) - For local tools and integrations
 - HTTP - For web deployments and remote access
 - SSE - For real-time streaming connections
@@ -65,22 +70,20 @@ pip install -e .
 
 ## Configuration
 
-Set the following environment variables:15. **get_error_batch(project_id, job_id, start_index, batch_size, ...)** - Paginated error retrieval
+Set the following environment variables:
 
-#### 🔍 Repository Search Tools
-
-16. **search_repository_code(project_id, search_keywords, ...)** - Search code with filtering by extension/path
-17. **search_repository_commits(project_id, search_keywords, ...)** - Search commit messages with branch filtering
-
-### Error Filtering and Traceback Managementt GITLAB_URL="https://gitlab.com" # Your GitLab instance URL
-
+```bash
+export GITLAB_URL="https://gitlab.com" # Your GitLab instance URL
 export GITLAB_TOKEN="your-access-token" # Your GitLab personal access token
 
-# Optional: Configure transport settings
+# Optional: Configure database storage location
+export MCP_DATABASE_PATH="analysis_cache.db" # Path to SQLite database (default: analysis_cache.db)
 
+# Optional: Configure transport settings
 export MCP_HOST="127.0.0.1" # Host for HTTP/SSE transport (default: 127.0.0.1)
 export MCP_PORT="8000" # Port for HTTP/SSE transport (default: 8000)
 export MCP_PATH="/mcp" # Path for HTTP transport (default: /mcp)
+```
 
 `````
 
@@ -716,7 +719,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **6 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.4.0):
+The MCP server provides **9 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.4.0):
 
 #### 🎯 Core Analysis Tool
 
