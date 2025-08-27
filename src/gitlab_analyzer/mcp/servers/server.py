@@ -94,8 +94,11 @@ def main() -> None:
         """Initialize cache when server starts"""
         from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
+        # Get database path from environment variable or use default
+        db_path = os.environ.get("MCP_DATABASE_PATH")
+
         # Cache is initialized in constructor, just ensure it's created
-        get_cache_manager()
+        get_cache_manager(db_path)
         # No need to call initialize() - it's done in __init__
 
     # Run server with proper cache initialization

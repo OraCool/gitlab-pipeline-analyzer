@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-08-27
+
+### ✨ **Added**
+
+- **Configurable Database Storage**: Added `MCP_DATABASE_PATH` environment variable support
+  - Allows custom database location via environment variable
+  - Maintains backward compatibility with default `analysis_cache.db` location
+  - Supports development, testing, and production environment configurations
+  - Updated tasks configuration to include new environment variable
+
+### 📚 **Documentation**
+
+- Added comprehensive database configuration documentation (`docs/DATABASE_CONFIGURATION.md`)
+- Updated `.env.example` with all MCP server configuration options
+- Added test coverage for environment variable functionality
+
 ## [0.4.0] - 2025-08-26
 
 ### 🎯 **Major Architecture Streamlining** - Breaking Changes

@@ -12,6 +12,7 @@ Enhanced with async operations, TTL management, and statistics.
 import contextlib
 import gzip
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,11 @@ class McpCache:
     - Invalidation: Based on job_id + trace_hash + parser_version
     """
 
-    def __init__(self, db_path: str = "analysis_cache.db"):
+    def __init__(self, db_path: str | None = None):
+        # Use environment variable or default to "analysis_cache.db"
+        if db_path is None:
+            db_path = os.environ.get("MCP_DATABASE_PATH", "analysis_cache.db")
+
         self.db_path = Path(db_path)
         self.parser_version = 1  # Bump when parser logic changes
 
@@ -1402,10 +1407,14 @@ class McpCache:
 _global_cache: McpCache | None = None
 
 
-def get_cache_manager(db_path: str = "analysis_cache.db") -> McpCache:
+def get_cache_manager(db_path: str | None = None) -> McpCache:
     """
     Compatibility function for old CacheManager usage.
     Returns the global McpCache instance.
+
+    Args:
+        db_path: Optional database path. If None, uses MCP_DATABASE_PATH environment
+                variable or defaults to "analysis_cache.db"
     """
     global _global_cache
     if _global_cache is None:
