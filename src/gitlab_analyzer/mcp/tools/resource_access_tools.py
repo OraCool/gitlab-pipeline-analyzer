@@ -90,8 +90,19 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://file/83/76474172/src/main.py") - Specific file analysis
         """
 
+        # Store cleanup status to add to final response
+        cleanup_status = {}
+        
         try:
+            # Trigger automatic cache cleanup if needed (runs in background)
+            from gitlab_analyzer.cache.auto_cleanup import get_auto_cleanup_manager
+            
+            auto_cleanup = get_auto_cleanup_manager()
+            cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
+            
             logger.info(f"Accessing MCP resource: {resource_uri}")
+            if cleanup_status["cleanup_triggered"]:
+                logger.info(f"🧹 Background cache cleanup triggered (max_age: {cleanup_status['max_age_hours']}h)")
 
             # Parse the resource URI
             if not resource_uri.startswith("gl://"):
@@ -99,11 +110,18 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
 
             uri_path = resource_uri[5:]  # Remove "gl://" prefix
 
+            # Store the result to add cleanup status later
+            result = None
+
             # Pipeline analysis: gl://pipeline/{project_id}/{pipeline_id}
             pipeline_match = re.match(r"^pipeline/(\w+)/(\d+)$", uri_path)
             if pipeline_match:
                 project_id, pipeline_id = pipeline_match.groups()
-                return await get_pipeline_resource(project_id, pipeline_id)
+                result = await get_pipeline_resource(project_id, pipeline_id)
+                # Add auto-cleanup status to result
+                if isinstance(result, dict):
+                    result["auto_cleanup"] = cleanup_status
+                return result
 
             # Pipeline jobs: gl://jobs/{project_id}/pipeline/{pipeline_id}[/status]
             jobs_match = re.match(
@@ -112,9 +130,13 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
             if jobs_match:
                 project_id, pipeline_id, status_filter = jobs_match.groups()
                 status_filter = status_filter or "all"
-                return await get_pipeline_jobs_resource(
+                result = await get_pipeline_jobs_resource(
                     project_id, pipeline_id, status_filter
                 )
+                # Add auto-cleanup status to result
+                if isinstance(result, dict):
+                    result["auto_cleanup"] = cleanup_status
+                return result
 
             # Individual job: gl://job/{project_id}/{pipeline_id}/{job_id}
             job_match = re.match(r"^job/(\w+)/(\d+)/(\d+)$", uri_path)
