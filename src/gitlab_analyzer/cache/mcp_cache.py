@@ -19,7 +19,7 @@ from typing import Any
 
 import aiosqlite
 
-from .models import ErrorRecord, JobRecord, PipelineRecord
+from .models import ErrorRecord, JobRecord, PipelineRecord, generate_standard_error_id
 
 
 class McpCache:
@@ -174,12 +174,9 @@ class McpCache:
                 ),
             )
 
-            # Store compressed trace
-            trace_gzip = gzip.compress(trace_text.encode("utf-8"))
-            conn.execute(
-                "INSERT OR REPLACE INTO traces (job_id, trace_gzip) VALUES (?, ?)",
-                (job_record.job_id, trace_gzip),
-            )
+            # Note: Trace storage is handled by store_error_trace_segments method
+            # which stores trace segments per error with context
+            # The raw trace is not stored in this method to avoid duplication
 
             # Store individual errors and build file index
             self._store_errors_and_file_index(conn, job_record.job_id, parsed_data)
@@ -340,16 +337,6 @@ class McpCache:
                 )
                 await db.commit()
 
-                # Verify storage
-                cursor = await db.execute(
-                    "SELECT COUNT(*) FROM pipelines WHERE pipeline_id = ?",
-                    (pipeline_id,),
-                )
-                count_row = await cursor.fetchone()
-                count = count_row[0] if count_row else 0
-
-            print(f"Pipeline {pipeline_id} stored - count in DB: {count}")
-
         except Exception as e:
             print(f"Error storing pipeline info: {e}")
 
@@ -364,8 +351,6 @@ class McpCache:
         try:
             if not failed_jobs:
                 return
-
-            print(f"💾 Storing {len(failed_jobs)} failed jobs in database...")
 
             # Extract pipeline data correctly from nested structure
             pipeline_data = pipeline_info.get("pipeline_info", {})
@@ -404,7 +389,6 @@ class McpCache:
                         ),
                     )
                 await db.commit()
-            print(f"✅ Stored {len(failed_jobs)} failed jobs with correct data")
 
         except Exception as e:
             print(f"ERROR: Failed to store failed jobs: {e}")
@@ -424,14 +408,10 @@ class McpCache:
     ) -> None:
         """Store file and error information for a job asynchronously"""
         try:
-            print(
-                f"💾 Storing {len(files)} files and {len(errors)} errors for job {job_id}..."
-            )
-
             async with aiosqlite.connect(self.db_path) as db:
                 # Store individual errors
                 for i, error in enumerate(errors):
-                    error_id = f"{job_id}_{i}"
+                    error_id = generate_standard_error_id(job_id, i)
                     fingerprint = f"{error.get('exception_type', 'unknown')}_{error.get('file_path', 'unknown')}_{error.get('line_number', 0)}"
 
                     await db.execute(
@@ -462,7 +442,7 @@ class McpCache:
                         if error_file == file_path or (
                             error_file == "unknown" and file_path == "unknown"
                         ):
-                            error_ids.append(f"{job_id}_{i}")
+                            error_ids.append(generate_standard_error_id(job_id, i))
 
                     if error_ids:  # Only store if there are errors for this file
                         await db.execute(
@@ -479,10 +459,6 @@ class McpCache:
                         )
 
                 await db.commit()
-
-            print(
-                f"✅ Stored {len(files)} files and {len(errors)} errors for job {job_id}"
-            )
 
         except Exception as e:
             print(f"ERROR: Failed to store job file errors: {e}")
@@ -502,8 +478,6 @@ class McpCache:
     ) -> None:
         """Store trace segments for each error with context"""
         try:
-            print(f"💾 Storing {len(errors)} trace segments for job {job_id}...")
-
             trace_lines = trace_text.split("\n")
 
             async with aiosqlite.connect(self.db_path) as db:
@@ -543,33 +517,6 @@ class McpCache:
                     )
 
                 await db.commit()
-
-            total_size = sum(
-                len(segment_text.encode())
-                for segment_text in [
-                    "\n".join(
-                        extract_error_trace_segment(trace_lines, error, context_lines)[
-                            0
-                        ]
-                    )
-                    for error in errors
-                ]
-            )
-            compressed_size = sum(
-                len(
-                    gzip.compress(
-                        "\n".join(
-                            extract_error_trace_segment(
-                                trace_lines, error, context_lines
-                            )[0]
-                        ).encode()
-                    )
-                )
-                for error in errors
-            )
-
-            print(f"✅ Stored {len(errors)} trace segments for job {job_id}")
-            print(f"   Total: {total_size} chars -> {compressed_size} bytes compressed")
 
         except Exception as e:
             print(f"ERROR: Failed to store trace segments: {e}")
@@ -1071,7 +1018,9 @@ class McpCache:
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
+                await conn.execute(
+                    f"DELETE FROM jobs WHERE created_at < {cutoff_sql}"
+                )  # nosec B608
                 await conn.execute(
                     f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
@@ -1089,18 +1038,30 @@ class McpCache:
         try:
             async with aiosqlite.connect(self.db_path) as conn:
                 if project_id:
-                    # Count entries for specific project
+                    # Count entries for specific project (using JOIN/subquery for all related tables)
                     cursor = await conn.execute(
                         """
                         SELECT COUNT(*) FROM (
                             SELECT 1 FROM jobs WHERE project_id = ?
                             UNION ALL
-                            SELECT 1 FROM errors WHERE project_id = ?
+                            SELECT 1 FROM errors e
+                            JOIN jobs j ON e.job_id = j.job_id
+                            WHERE j.project_id = ?
                             UNION ALL
-                            SELECT 1 FROM file_index WHERE project_id = ?
+                            SELECT 1 FROM file_index fi
+                            JOIN jobs j ON fi.job_id = j.job_id
+                            WHERE j.project_id = ?
+                            UNION ALL
+                            SELECT 1 FROM trace_segments ts
+                            JOIN jobs j ON ts.job_id = j.job_id
+                            WHERE j.project_id = ?
+                            UNION ALL
+                            SELECT 1 FROM pipelines WHERE project_id = ?
                         )
                         """,
                         (
+                            str(project_id),
+                            str(project_id),
                             str(project_id),
                             str(project_id),
                             str(project_id),
@@ -1109,19 +1070,32 @@ class McpCache:
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
 
-                    # Delete entries for specific project
+                    # Delete entries for specific project (delete child tables first, then parent)
+                    await conn.execute(
+                        """DELETE FROM errors
+                           WHERE job_id IN (SELECT job_id FROM jobs WHERE project_id = ?)""",
+                        (str(project_id),),
+                    )
+                    await conn.execute(
+                        """DELETE FROM file_index
+                           WHERE job_id IN (SELECT job_id FROM jobs WHERE project_id = ?)""",
+                        (str(project_id),),
+                    )
+                    await conn.execute(
+                        """DELETE FROM trace_segments
+                           WHERE job_id IN (SELECT job_id FROM jobs WHERE project_id = ?)""",
+                        (str(project_id),),
+                    )
+                    # Delete jobs and pipelines last
                     await conn.execute(
                         "DELETE FROM jobs WHERE project_id = ?", (str(project_id),)
                     )
                     await conn.execute(
-                        "DELETE FROM errors WHERE project_id = ?", (str(project_id),)
-                    )
-                    await conn.execute(
-                        "DELETE FROM file_index WHERE project_id = ?",
+                        "DELETE FROM pipelines WHERE project_id = ?",
                         (str(project_id),),
                     )
                 else:
-                    # Count all entries (except pipelines - they never expire)
+                    # Count all entries (including pipelines and trace_segments for full clear)
                     cursor = await conn.execute(
                         """
                         SELECT COUNT(*) FROM (
@@ -1130,16 +1104,23 @@ class McpCache:
                             SELECT 1 FROM errors
                             UNION ALL
                             SELECT 1 FROM file_index
+                            UNION ALL
+                            SELECT 1 FROM trace_segments
+                            UNION ALL
+                            SELECT 1 FROM pipelines
                         )
                         """
                     )
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
 
-                    # Delete all cache entries except pipelines
-                    await conn.execute("DELETE FROM jobs")
+                    # Delete all cache entries (delete child tables first, then parent tables)
                     await conn.execute("DELETE FROM errors")
                     await conn.execute("DELETE FROM file_index")
+                    await conn.execute("DELETE FROM trace_segments")
+                    # Delete jobs and pipelines last
+                    await conn.execute("DELETE FROM jobs")
+                    await conn.execute("DELETE FROM pipelines")
 
                 await conn.commit()
                 return count
@@ -1174,7 +1155,9 @@ class McpCache:
                         (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    )  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     await conn.execute(f"DELETE FROM {table}")  # nosec B608
@@ -1344,7 +1327,9 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                        cursor = await conn.execute(
+                            f"SELECT COUNT(*) FROM {table}"
+                        )  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
                         table_status[table] = {"status": "ok", "count": count}
@@ -1400,7 +1385,7 @@ class McpCache:
         """Set a value in the cache (compatibility method for resources)"""
         # For now, just log that we're setting a value
         # The actual storage is handled by store_pipeline_info_async method
-        print(f"Cache set called: key={key}, data_type={data_type}")
+        pass
 
 
 # Global cache instance for compatibility with old CacheManager

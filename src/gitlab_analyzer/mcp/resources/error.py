@@ -35,6 +35,23 @@ async def _get_error_analysis(
         if cached_data:
             return json.dumps(cached_data, indent=2)
 
+        # First check if job exists in database (has been analyzed)
+        job_info = await cache_manager.get_job_info_async(int(job_id))
+        if not job_info:
+            # Job not found in database - needs analysis first
+            error_result = {
+                "error": "Job not analyzed",
+                "message": f"Job {job_id} not found in cache. Run pipeline analysis first.",
+                "project_id": project_id,
+                "job_id": int(job_id),
+                "suggested_action": "Use failed_pipeline_analysis() to analyze the pipeline containing this job",
+                "resource_uri": f"gl://error/{project_id}/{job_id}?mode={response_mode}",
+                "mcp_info": get_mcp_info(
+                    "get_job_trace", error=True, parser_type="resource"
+                ),
+            }
+            return json.dumps(error_result, indent=2)
+
         # Get errors from database (pre-analyzed data)
         job_errors = cache_manager.get_job_errors(int(job_id))
 

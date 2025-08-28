@@ -29,7 +29,7 @@ from typing import Any, cast
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.cache.models import ErrorRecord
+from gitlab_analyzer.cache.models import ErrorRecord, JobRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
@@ -107,28 +107,22 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             cache_manager = get_cache_manager()
 
             # Step 1: Get comprehensive pipeline info and store it
-            print(f"📋 Step 1: Getting pipeline information for {pipeline_id}...")
             pipeline_info = await get_comprehensive_pipeline_info(
                 analyzer=analyzer, project_id=project_id, pipeline_id=pipeline_id
             )
 
             if store_in_db:
-                print("💾 Storing pipeline info in database...")
                 # Pass the full comprehensive pipeline info (the async method now handles extraction)
                 await cache_manager.store_pipeline_info_async(
                     project_id=project_id,
                     pipeline_id=pipeline_id,
                     pipeline_info=pipeline_info,
                 )
-                print("✅ Pipeline info stored successfully")
 
             # Step 2: Get only failed jobs (more efficient than all jobs)
-            print("🚨 Step 2: Getting failed jobs only...")
             failed_jobs = await analyzer.get_failed_pipeline_jobs(
                 project_id=project_id, pipeline_id=pipeline_id
             )
-
-            print(f"📊 Found {len(failed_jobs)} failed jobs")
 
             # Step 3: Store basic failed job info in database using cache manager
             if store_in_db and failed_jobs:
@@ -144,22 +138,10 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             # Set up file path exclusion patterns (combine defaults with user-provided patterns)
             if disable_file_filtering:
                 exclude_patterns = []  # No filtering at all
-                print(
-                    "🚫 File filtering disabled - processing ALL files including system files"
-                )
             else:
                 exclude_patterns = combine_exclude_file_patterns(exclude_file_patterns)
 
-                if exclude_file_patterns:
-                    print(f"🔧 Using custom exclude patterns: {exclude_file_patterns}")
-                    print(
-                        f"📋 Total exclude patterns: {len(exclude_patterns)} (defaults + custom)"
-                    )
-                else:
-                    print(f"📋 Using {len(exclude_patterns)} default exclude patterns")
-
             for job in failed_jobs:
-                print(f"🔎 Analyzing job {job.id} ({job.name})...")
                 trace = await analyzer.get_job_trace(project_id, job.id)
                 parser_type = (
                     "pytest"
@@ -188,6 +170,27 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                                     error_dict["line_number"] = str(tb.line_number)
                                     break
                         errors.append(error_dict)
+                    
+                    # CRITICAL FIX: Use generic LogParser as fallback for pytest jobs
+                    # to catch import-time errors (SyntaxError, etc.) that occur before pytest runs
+                    log_parser = LogParser()
+                    log_entries = log_parser.extract_log_entries(trace)
+                    generic_errors = [
+                        {
+                            "message": entry.message,
+                            "level": entry.level,
+                            "line_number": (
+                                str(entry.line_number)
+                                if entry.line_number is not None
+                                else None
+                            ),
+                            "context": entry.context,
+                        }
+                        for entry in log_entries
+                        if entry.level == "error"
+                    ]
+                    # Combine pytest errors with generic errors to catch all failure types
+                    errors.extend(generic_errors)
                 else:
                     log_parser = LogParser()
                     log_entries = log_parser.extract_log_entries(trace)
@@ -208,9 +211,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Group errors by file and filter out system files
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[
-                    dict[str, Any]
-                ] = []  # Track errors after filtering system files
+                filtered_errors: list[dict[str, Any]] = (
+                    []
+                )  # Track errors after filtering system files
 
                 for error in errors:
                     message = (
@@ -222,10 +225,34 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     if not file_path:
                         file_path = error.get("file_path", "unknown") or "unknown"
 
-                    # Filter out system/exclude paths (only if filtering is enabled)
-                    if not disable_file_filtering and should_exclude_file_path(
-                        file_path, exclude_patterns
-                    ):
+                    # Enhanced filtering: check detail_json for additional file context
+                    # Don't filter if we have valuable error context even if file_path extraction failed
+                    should_filter = False
+                    if not disable_file_filtering:
+                        # If we have a valid file path, check if it should be excluded
+                        if file_path != "unknown":
+                            should_filter = should_exclude_file_path(
+                                file_path, exclude_patterns
+                            )
+                        else:
+                            # For "unknown" file paths, check if detail_json contains valuable context
+                            # If error has detailed context (like SyntaxError with traceback), keep it
+                            error_context = error.get("context", "")
+                            error_level = error.get("level", "")
+                            error_msg = message.lower()
+
+                            # Keep errors with valuable context even if file path extraction failed
+                            has_valuable_context = (
+                                "syntaxerror" in error_msg
+                                or "traceback" in error_context.lower()
+                                or 'file "' in error_context.lower()
+                                or error_level == "error"
+                            )
+
+                            # Only filter "unknown" file paths if they lack valuable context
+                            should_filter = not has_valuable_context
+
+                    if should_filter:
                         continue  # Skip this error if the file should be excluded
 
                     # Keep this error since it's from an application file (or filtering is disabled)
@@ -244,20 +271,6 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 original_error_count = len(errors)
                 filtered_error_count = len(filtered_errors)
                 filtered_out_count = original_error_count - filtered_error_count
-
-                if filtered_out_count > 0:
-                    if disable_file_filtering:
-                        print(
-                            f"ℹ️  No filtering applied - processed all {original_error_count} errors including system files"
-                        )
-                    else:
-                        print(
-                            f"🔽 Filtered out {filtered_out_count} errors from system files (kept {filtered_error_count}/{original_error_count})"
-                        )
-                elif disable_file_filtering:
-                    print(
-                        f"ℹ️  No filtering applied - processed all {original_error_count} errors"
-                    )
 
                 categorized = categorize_files_by_type(list(file_groups.values()))
 
@@ -283,14 +296,32 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         parser_type=parser_type,
                     )
 
-                    # Store file and error analysis
-                    await cache_manager.store_job_file_errors(
-                        project_id=project_id,
-                        pipeline_id=pipeline_id,
-                        job_id=job.id,
-                        files=list(file_groups.values()),
-                        errors=filtered_errors,  # Use filtered errors instead of all errors
-                        parser_type=parser_type,
+                    # Store just the errors using the standard storage method
+                    # Create a JobRecord object for the storage method
+
+                    job_record = JobRecord.from_gitlab_job(
+                        job_data={
+                            "id": job.id,
+                            "project_id": project_id,
+                            "pipeline": {"id": pipeline_id, "sha": "unknown"},
+                            "ref": "unknown",
+                            "status": job.status,
+                            "created_at": "2024-01-01T00:00:00Z",
+                            "finished_at": "2024-01-01T00:00:00Z",
+                        },
+                        trace_text=trace,
+                        parser_version=1,
+                    )
+
+                    analysis_data = {
+                        "errors": filtered_errors,
+                        "parser_type": parser_type,
+                        "trace_hash": trace_hash,
+                    }
+                    cache_manager.store_job_analysis(
+                        job_record=job_record,
+                        trace_text=trace,
+                        parsed_data=analysis_data,
                     )
 
                 job_analysis_results.append(
@@ -323,12 +354,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[
-                str, dict[str, Any]
-            ] = {}  # Global file registry across all jobs
-            all_errors: dict[
-                str, dict[str, Any]
-            ] = {}  # Global error registry with trace references
+            all_files: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global file registry across all jobs
+            all_errors: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_result_typed = cast("dict[str, Any]", job_result)
@@ -373,25 +404,26 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         }
 
                     # Add to job-specific files
-                    resources["jobs_detail"][str(job_id)]["files"][file_path] = {
-                        "file": f"gl://file/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                    safe_file_path = file_path if file_path else "unknown"
+                    resources["jobs_detail"][str(job_id)]["files"][safe_file_path] = {
+                        "file": f"gl://file/{project_id}/{job_id}/{safe_file_path.replace('/', '%2F')}",
                         "error_count": error_count,
-                        "errors": f"gl://errors/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "errors": f"gl://errors/{project_id}/{job_id}/{safe_file_path.replace('/', '%2F')}",
                     }
 
                     # Add to global file registry (accumulate across jobs)
-                    if file_path not in all_files:
-                        all_files[file_path] = {
-                            "path": file_path,
+                    if safe_file_path not in all_files:
+                        all_files[safe_file_path] = {
+                            "path": safe_file_path,
                             "total_error_count": 0,
                             "jobs": {},
                         }
 
-                    all_files[file_path]["total_error_count"] += error_count
-                    all_files[file_path]["jobs"][str(job_id)] = {
+                    all_files[safe_file_path]["total_error_count"] += error_count
+                    all_files[safe_file_path]["jobs"][str(job_id)] = {
                         "job_name": job_name,
                         "error_count": error_count,
-                        "resource": f"gl://file/{project_id}/{job_id}/{file_path.replace('/', '%2F')}",
+                        "resource": f"gl://file/{project_id}/{job_id}/{safe_file_path.replace('/', '%2F')}",
                     }
 
             # Add global file hierarchy and errors to resources
@@ -472,11 +504,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 "mcp_info": get_mcp_info("failed_pipeline_analysis"),
             }
 
-            print("✅ Failed pipeline analysis completed successfully")
             return result
 
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
-            print(f"❌ Error in failed pipeline analysis: {e}")
             return {
                 "content": [
                     {

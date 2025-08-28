@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
+from gitlab_analyzer.cache.models import generate_standard_error_id
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 
@@ -77,20 +78,15 @@ async def store_job_analysis_step(
                 (f"trace_{job_id}", job_id),
             )
 
-            # Step 2: Store compressed trace
-            if trace_content:
-                trace_gzip = gzip.compress(trace_content.encode("utf-8"))
-                await conn.execute(
-                    "INSERT OR REPLACE INTO traces (job_id, trace_gzip) VALUES (?, ?)",
-                    (job_id, trace_gzip),
-                )
+            # Step 2: Note - Trace storage handled by trace_segments table
+            # Raw trace storage not needed as we store contextual segments per error
 
             # Step 3: Store individual errors
             errors = analysis_data.get("errors", [])
             file_errors: dict[str, list[str]] = {}  # file_path -> [error_ids]
 
             for i, error in enumerate(errors):
-                error_id = f"error_{job_id}_{i}"
+                error_id = generate_standard_error_id(job_id, i)
 
                 await conn.execute(
                     """
@@ -213,7 +209,7 @@ def parse_job_logs(
     exclude_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """
-    Parse job logs using the appropriate parser.
+    Parse job logs using the appropriate parser with hybrid fallback.
 
     Args:
         trace_content: Raw log content
@@ -230,7 +226,37 @@ def parse_job_logs(
         parser_type = get_optimal_parser(job_name, job_stage, trace_content)
 
     if parser_type == "pytest":
-        return parse_pytest_logs(trace_content, include_traceback, exclude_paths)
+        # Try pytest parser first
+        pytest_result = parse_pytest_logs(
+            trace_content, include_traceback, exclude_paths
+        )
+
+        # If pytest parser finds no errors, fall back to generic parser
+        # This handles cases where pytest jobs fail during setup/import phase
+        if pytest_result.get("error_count", 0) == 0:
+            logger.debug(
+                f"Pytest parser found no errors for job {job_name}, trying generic parser"
+            )
+            generic_result = parse_generic_logs(trace_content)
+
+            # If generic parser finds errors, use it but preserve pytest metadata
+            if generic_result.get("error_count", 0) > 0:
+                logger.info(
+                    f"Generic parser found {generic_result.get('error_count')} errors for pytest job {job_name}"
+                )
+                # Merge results - use generic errors but keep pytest structure
+                pytest_result.update(
+                    {
+                        "errors": generic_result.get("errors", []),
+                        "error_count": generic_result.get("error_count", 0),
+                        "warnings": generic_result.get("warnings", []),
+                        "warning_count": generic_result.get("warning_count", 0),
+                        "parser_type": "hybrid_pytest_generic",  # Indicate hybrid parsing
+                        "fallback_reason": "pytest_parser_found_no_errors",
+                    }
+                )
+
+        return pytest_result
     else:
         return parse_generic_logs(trace_content)
 
@@ -379,14 +405,21 @@ def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
 
     filtered_errors = []
     for error in parsed_data.get("errors", []):
-        # Skip unknown files and errors
+        # Only skip truly meaningless errors, NOT errors with "unknown" file paths
+        # SyntaxErrors and other real errors should be kept even if file path extraction failed
         if (
-            error.get("test_file") == "unknown"
-            or error.get("exception_type") == "Unknown"
-            or error.get("message", "").startswith("unknown:")
-            or not error.get("message", "").strip()
+            error.get("exception_type")
+            == "Unknown"  # Keep this filter for truly unknown exception types
+            or error.get("message", "").startswith(
+                "unknown:"
+            )  # Keep this for unknown message prefixes
+            or not error.get("message", "").strip()  # Keep this for empty messages
         ):
             continue
+
+        # REMOVED: error.get("test_file") == "unknown" - this was filtering out real SyntaxErrors
+        # Real errors with failed file path extraction should still be stored
+
         filtered_errors.append(error)
 
     # Return updated result
