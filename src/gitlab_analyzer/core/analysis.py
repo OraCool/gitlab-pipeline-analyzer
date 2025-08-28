@@ -63,8 +63,6 @@ async def store_job_analysis_step(
 ) -> None:
     """Store job analysis data progressively as each job is processed"""
     try:
-        import gzip
-
         import aiosqlite
 
         async with aiosqlite.connect(cache_manager.db_path) as conn:

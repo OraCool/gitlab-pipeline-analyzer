@@ -1051,9 +1051,7 @@ class McpCache:
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(
-                    f"DELETE FROM jobs WHERE created_at < {cutoff_sql}"
-                )  # nosec B608
+                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
                 await conn.execute(
                     f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
@@ -1188,9 +1186,7 @@ class McpCache:
                         (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM {table}"
-                    )  # nosec B608
+                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     await conn.execute(f"DELETE FROM {table}")  # nosec B608
@@ -1360,9 +1356,7 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(
-                            f"SELECT COUNT(*) FROM {table}"
-                        )  # nosec B608
+                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
                         table_status[table] = {"status": "ok", "count": count}

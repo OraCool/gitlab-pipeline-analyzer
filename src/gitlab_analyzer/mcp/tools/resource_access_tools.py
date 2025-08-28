@@ -9,7 +9,6 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import logging
-import re
 from typing import Any
 
 from fastmcp import FastMCP

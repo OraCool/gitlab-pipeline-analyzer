@@ -230,9 +230,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Group errors by file and filter out system files
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[dict[str, Any]] = (
-                    []
-                )  # Track errors after filtering system files
+                filtered_errors: list[
+                    dict[str, Any]
+                ] = []  # Track errors after filtering system files
 
                 for error in errors:
                     message = (
@@ -383,12 +383,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global file registry across all jobs
-            all_errors: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global error registry with trace references
+            all_files: dict[
+                str, dict[str, Any]
+            ] = {}  # Global file registry across all jobs
+            all_errors: dict[
+                str, dict[str, Any]
+            ] = {}  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_result_typed = cast("dict[str, Any]", job_result)
