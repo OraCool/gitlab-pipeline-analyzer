@@ -58,6 +58,12 @@ class LogParser(BaseParser):
         (r"(.*)Lint check failed", "error"),
         (r"(.*)formatting.*issues", "error"),
         (r"(.*)files would be reformatted", "error"),
+        # Import linting failures
+        (r"No matches for ignored import (.+)", "error"),  # import-linter failures
+        (r"(.*)import.*not allowed", "error"),  # import policy violations
+        # Make/build tool errors
+        (r"make: \*\*\* \[(.+)\] Error (\d+)", "error"),  # make command failures
+        (r"(.*)make.*failed", "error"),  # general make failures
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),
         (r"(.*)security issue", "error"),

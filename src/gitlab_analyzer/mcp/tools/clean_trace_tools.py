@@ -12,6 +12,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from gitlab_analyzer.parsers.base_parser import BaseParser
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
 
 
@@ -26,32 +27,32 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
         output_format: str = "text",
     ) -> dict[str, Any]:
         """
-        🔍 CLEAN TRACE: Get raw, unprocessed job trace without analysis overhead.
+        🔍 CLEAN TRACE: Get cleaned, human-readable job trace without analysis overhead.
 
         WHEN TO USE:
-        - Need raw trace data for debugging
-        - Want to see exactly what GitLab CI produced
-        - Investigating parser issues
-        - Manual error analysis
+        - Need clean trace data for debugging (ANSI sequences removed)
+        - Want to see readable GitLab CI output without color codes
+        - Investigating parser issues with clean text
+        - Manual error analysis on readable logs
 
         FEATURES:
         - Direct GitLab API access
-        - No parsing or processing
+        - ANSI escape sequence cleaning for readability
         - Optional file saving
         - Multiple output formats
 
         Args:
             project_id: The GitLab project ID
             job_id: The specific job ID to get trace for
-            save_to_file: Whether to save trace to a local file
+            save_to_file: Whether to save cleaned trace to a local file
             output_format: Output format - 'text' for plain text, 'json' for structured
 
         Returns:
-            Raw trace content with metadata
+            Cleaned trace content with metadata (ANSI sequences removed)
 
         EXAMPLES:
-        - get_clean_job_trace(83, 76986695) - Get raw trace
-        - get_clean_job_trace(83, 76986695, save_to_file=True) - Save to file
+        - get_clean_job_trace(83, 76986695) - Get cleaned trace
+        - get_clean_job_trace(83, 76986695, save_to_file=True) - Save cleaned trace to file
         """
         try:
             analyzer = get_gitlab_analyzer()
@@ -69,9 +70,12 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                     "trace_lines": 0,
                 }
 
+            # Clean ANSI escape sequences to make trace readable
+            cleaned_trace = BaseParser.clean_ansi_sequences(trace_content)
+
             # Calculate basic stats
-            lines = trace_content.split("\n")
-            trace_length = len(trace_content)
+            lines = cleaned_trace.split("\n")
+            trace_length = len(cleaned_trace)
             trace_lines = len(lines)
 
             result = {
@@ -88,7 +92,7 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                 from pathlib import Path
 
                 output_file = Path(f"clean_trace_{project_id}_{job_id}.log")
-                output_file.write_text(trace_content, encoding="utf-8")
+                output_file.write_text(cleaned_trace, encoding="utf-8")
                 result["saved_to"] = str(output_file)
 
             # Format output
@@ -126,8 +130,8 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                     ),
                 }
             else:
-                # For text format, include full trace
-                result["trace_content"] = trace_content
+                # For text format, include cleaned trace
+                result["trace_content"] = cleaned_trace
 
             result["mcp_info"] = get_mcp_info("get_clean_job_trace")
 
@@ -145,22 +149,24 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
     @mcp.resource("trace://{project_id}/{job_id}")
     async def get_raw_trace_resource(project_id: str, job_id: str) -> str:
         """
-        📄 RAW TRACE RESOURCE: Direct access to unprocessed job trace content.
+        📄 CLEAN TRACE RESOURCE: Direct access to cleaned job trace content.
 
         Access via: trace://project_id/job_id
 
-        Returns the complete, unprocessed trace content as plain text.
-        Perfect for debugging, manual analysis, or when you need the exact
-        output that GitLab CI produced.
+        Returns the complete trace content with ANSI escape sequences removed,
+        making it perfect for human reading, debugging, manual analysis, or when
+        you need clean text output that GitLab CI produced.
         """
         try:
             analyzer = get_gitlab_analyzer()
-            trace_content = await analyzer.get_job_trace(project_id, job_id)
+            trace_content = await analyzer.get_job_trace(project_id, int(job_id))
 
             if not trace_content:
                 return f"No trace found for job {job_id} in project {project_id}"
 
-            return trace_content
+            # Clean ANSI escape sequences for readable output
+            cleaned_trace = BaseParser.clean_ansi_sequences(trace_content)
+            return cleaned_trace
 
         except Exception as e:
             return f"Error retrieving trace for job {job_id}: {str(e)}"

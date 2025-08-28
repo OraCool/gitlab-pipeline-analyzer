@@ -23,6 +23,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import asyncio
 import hashlib
 from typing import Any, cast
 
@@ -338,10 +339,14 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         "parser_type": parser_type,
                         "trace_hash": trace_hash,
                     }
-                    cache_manager.store_job_analysis(
-                        job_record=job_record,
-                        trace_text=trace,
-                        parsed_data=analysis_data,
+                    # Run sync database operation in thread pool to prevent async deadlock
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        None,
+                        cache_manager.store_job_analysis,
+                        job_record,
+                        trace,
+                        analysis_data,
                     )
 
                 job_analysis_results.append(
