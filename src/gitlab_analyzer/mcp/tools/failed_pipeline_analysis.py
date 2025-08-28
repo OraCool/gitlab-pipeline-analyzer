@@ -170,7 +170,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                                     error_dict["line_number"] = str(tb.line_number)
                                     break
                         errors.append(error_dict)
-                    
+
                     # CRITICAL FIX: Use generic LogParser as fallback for pytest jobs
                     # to catch import-time errors (SyntaxError, etc.) that occur before pytest runs
                     log_parser = LogParser()
@@ -221,7 +221,16 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         or error.get("message", "")
                         or ""
                     )
+                    # Try to extract file path from message first
                     file_path = extract_file_path_from_message(message)
+
+                    # If no file path found in message, try context field
+                    if not file_path:
+                        context = error.get("context", "")
+                        if context:
+                            file_path = extract_file_path_from_message(context)
+
+                    # Fall back to error's file_path field or "unknown"
                     if not file_path:
                         file_path = error.get("file_path", "unknown") or "unknown"
 
@@ -254,6 +263,17 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     if should_filter:
                         continue  # Skip this error if the file should be excluded
+
+                    # CRITICAL FIX: Update error dictionary with extracted file path for storage
+                    # The ErrorRecord.from_parsed_error expects 'file' and 'line' fields
+                    error["file"] = file_path
+                    if error.get("line_number"):
+                        try:
+                            error["line"] = int(error["line_number"])
+                        except (ValueError, TypeError):
+                            error["line"] = 0
+                    else:
+                        error["line"] = 0
 
                     # Keep this error since it's from an application file (or filtering is disabled)
                     filtered_errors.append(error)

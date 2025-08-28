@@ -27,19 +27,16 @@ class LogParser(BaseParser):
         (r"KeyError: (.+)", "error"),  # Key errors
         (r"AttributeError: (.+)", "error"),  # Attribute errors
         (r"FileNotFoundError: (.+)", "error"),  # Missing files
-
         # Docker/build infrastructure failures that cause job failures
         (r"Error response from daemon: (.+)", "error"),  # Docker errors
         (r"docker: (.+)", "error"),  # Docker command failures
         (r"Failed to pull image (.+)", "error"),  # Image pull failures
         (r"exec user process caused (.+)", "error"),  # Container exec failures
-
         # Shell script errors that affect job execution
         (r"(.*)not a valid identifier", "error"),
         (r"(.*)command not found", "error"),
         (r"(.*)No such file or directory", "error"),
         (r"(.*)Permission denied", "error"),
-
         # Test execution failures
         (r"^(.+\.py):(\d+):\s+in\s+(\w+)", "error"),  # pytest detailed format
         (r"(.*)AssertionError: (.+)", "error"),
@@ -48,27 +45,22 @@ class LogParser(BaseParser):
         (r"(.*)E\s+(.+Error: .+)", "error"),  # pytest error format with E prefix
         (r"(.*)FAILED (.+test.*)", "error"),  # Test failures
         (r"(.*)Test failed: (.+)", "error"),
-
         # Build/compilation failures
         (r"(.*)compilation error", "error"),
         (r"(.*)build failed", "error"),
         (r"(.*)fatal error: (.+)", "error"),
-
         # Package/dependency errors that prevent job completion
         (r"(.*)could not find", "error"),
         (r"(.*)missing", "error"),
         (r"ERROR: (.+)", "error"),  # Generic ERROR lines
-
         # Linting tool failures
         (r"(.*)would reformat", "error"),  # black formatting issues
         (r"(.*)Lint check failed", "error"),
         (r"(.*)formatting.*issues", "error"),
         (r"(.*)files would be reformatted", "error"),
-
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),
         (r"(.*)security issue", "error"),
-
         # Traceback start - often indicates real errors
         (r"(.*)Traceback \(most recent call last\):", "error"),
     ]
@@ -93,7 +85,6 @@ class LogParser(BaseParser):
         r"shared k8s runner",
         r"please use cache",
         r"per job and.*per service",
-
         # Kubernetes/Docker infrastructure setup (not failures)
         r"the \"kubernetes\" executor",
         r"Using Kubernetes",
@@ -103,20 +94,17 @@ class LogParser(BaseParser):
         r"Running on runner-",
         r"gitlab-managed-apps",
         r"via gitlab-runner",
-
         # Git operations (infrastructure, not code issues)
         r"Getting source from Git",
         r"source from Git repository",
         r"Fetching changes with git",
         r"Initialized empty Git repository",
         r"Skipping Git submodules",
-
         # Cache operations (successful)
         r"Checking cache for",
         r"Downloading cache from",
         r"Successfully extracted cache",
         r"storage\.googleapis\.com",
-
         # Job execution framework
         r"Executing \"step_script\"",
         r"\"step_script\" stage of the job script",
@@ -124,11 +112,9 @@ class LogParser(BaseParser):
         r"Preparing environment",
         r"Cleaning up project directory",
         r"cleanup_file_variables",
-
         # Shell command echoes (not the actual errors)
         r"^\$ ",
         r"echo \".*\"",
-
         # Package installation (successful operations only)
         r"Requirement already satisfied:",
         r"Collecting ",
@@ -136,16 +122,13 @@ class LogParser(BaseParser):
         r"Successfully installed",
         r"Downloading.*packages",
         r"Installing.*packages",
-
         # Success messages (not errors)
         r"Successfully",
         r"✅",
         r"🔍",
-
         # GitLab CI section markers and formatting
         r"section_start:",
         r"section_end:",
-
         # Generic GitLab CI completion messages (not specific errors)
         r"Cleaning up project directory and file based variables",
         r"upload project directory and file based variables",

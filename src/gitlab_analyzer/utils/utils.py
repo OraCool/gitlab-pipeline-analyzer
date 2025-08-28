@@ -176,7 +176,6 @@ DEFAULT_EXCLUDE_PATHS = [
     ".venv",
     "site-packages",
     ".local",
-    "/builds/",
     "/root/.local",
     "/usr/lib/python",
     "/opt/python",
@@ -188,34 +187,91 @@ DEFAULT_EXCLUDE_PATHS = [
 
 # --- Moved from old.py for DRY/KISS ---
 def extract_file_path_from_message(message: str) -> str | None:
-    """Extract file path from error message - testable helper function"""
+    """Extract file path from error message with enhanced Python traceback parsing"""
 
     def _is_application_file(file_path: str) -> bool:
         # Simple heuristic: not a system/lib path
         return not any(p in file_path for p in DEFAULT_EXCLUDE_PATHS)
 
-    file_match = re.search(r"([\w\-/\.]+\.py):\d+", message)
+    # PRIORITY 1: Python traceback pattern - File "path", line X
+    # This is the most reliable indicator of the actual error location
+    traceback_pattern = r'File "([^"]+\.py)", line (\d+)'
+    traceback_matches = re.findall(traceback_pattern, message)
+    
+    if traceback_matches:
+        # If we have multiple File entries, prioritize based on context
+        syntax_error_file = None
+        
+        # Look for the file that appears right before a SyntaxError with ^ marker
+        for _i, (file_path, _line_num) in enumerate(traceback_matches):
+            if _is_application_file(file_path):
+                # Find this file's position in the message
+                file_position = message.find(f'File "{file_path}"')
+                if file_position != -1:
+                    # Check what comes after this file reference
+                    remaining_text = message[file_position:]
+                    # If we find ^ and SyntaxError after this file, it's likely the source
+                    if '^' in remaining_text and 'SyntaxError' in remaining_text:
+                        # Check if this is the LAST file before the syntax error
+                        next_file_position = remaining_text.find('File "', 1)  # Look for next file after this one
+                        syntax_error_position = remaining_text.find('^')
+                        
+                        # If no file between this one and the ^, this is the error source
+                        if next_file_position == -1 or next_file_position > syntax_error_position:
+                            syntax_error_file = file_path
+                            break
+        
+        # If we found a file directly associated with syntax error, use it
+        if syntax_error_file:
+            return syntax_error_file
+
+        # If no syntax error context, return the first application file
+        for file_path, _line_num in traceback_matches:
+            if _is_application_file(file_path):
+                return file_path
+
+    # PRIORITY 2: Standard file:line pattern (for ruff/linting errors)
+    file_match = re.search(r"([\w\-/\.]+\.py):(\d+):\d+:", message)
     if file_match:
         file_path = file_match.group(1)
         if _is_application_file(file_path):
             return file_path
 
-    file_match = re.search(r"File ['\"]([^'\"]+\.py)['\"]", message)
+    # PRIORITY 3: Simple file:line pattern
+    file_match = re.search(r"([\w\-/\.]+\.py):(\d+)", message)
     if file_match:
         file_path = file_match.group(1)
         if _is_application_file(file_path):
             return file_path
 
+    # PRIORITY 4: File quoted without "File" prefix
+    file_match = re.search(r"['\"]([^'\"]+\.py)['\"]", message)
+    if file_match:
+        file_path = file_match.group(1)
+        if _is_application_file(file_path):
+            return file_path
+
+    # PRIORITY 5: Context patterns (for, in, at)
     file_match = re.search(r"(?:for|in|at)\s+([\w\-/\.]+\.py)", message)
     if file_match:
         file_path = file_match.group(1)
         if _is_application_file(file_path):
             return file_path
 
-    file_matches = re.findall(r"([\w\-/\.]+\.py)", message)
+    # LAST RESORT: All .py files, but avoid JSON "filename" entries
+    # Filter out JSON log entries by avoiding lines with JSON patterns
+    non_json_parts = []
+    for line in message.split('\n'):
+        # Skip lines that look like JSON logs
+        if not ('{' in line and '"filename"' in line and '"timestamp"' in line):
+            non_json_parts.append(line)
+    
+    non_json_message = '\n'.join(non_json_parts)
+    file_matches = re.findall(r"([\w\-/\.]+\.py)", non_json_message)
     for file_path in file_matches:
         if _is_application_file(file_path):
             return file_path
+            
     return None
 
 
