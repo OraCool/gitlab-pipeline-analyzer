@@ -140,7 +140,7 @@ class TestResourceAccessTools:
         await get_mcp_resource_func("gl://files/83/pipeline/123/page/2/limit/50")
         mock_get_files.assert_called_with("83", "123", 2, 50)
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource")
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_files_resource")
     async def test_get_mcp_resource_job_files(self, mock_get_file, mock_mcp):
         """Test accessing job files resource"""
         mock_get_file.return_value = {"files": ["error1.py", "error2.py"]}
@@ -161,7 +161,7 @@ class TestResourceAccessTools:
         # Test job files resource access
         result = await get_mcp_resource_func("gl://files/83/456")
         assert "files" in result
-        mock_get_file.assert_called_once_with("83", "456", "")
+        mock_get_file.assert_called_once_with("83", "456")
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource")
     async def test_get_mcp_resource_specific_file(self, mock_get_file, mock_mcp):
@@ -193,7 +193,14 @@ class TestResourceAccessTools:
         self, mock_get_file_trace, mock_mcp
     ):
         """Test accessing file resource with trace"""
-        mock_get_file_trace.return_value = {"file_path": "src/main.py", "trace": "..."}
+        import json
+
+        from mcp.types import TextResourceContents
+
+        mock_response = {"file_path": "src/main.py", "trace": "..."}
+        mock_get_file_trace.return_value = TextResourceContents(
+            uri="gl://file/83/456/src/main.py/trace", text=json.dumps(mock_response)
+        )
 
         # Register tools
         register_resource_access_tools(mock_mcp)

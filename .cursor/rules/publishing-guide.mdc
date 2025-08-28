@@ -1,0 +1,225 @@
+---
+description: Publishing and release instructions for the GitLab Pipeline Analyzer
+---
+
+# Publishing Guide for GitLab Pipeline Analyzer
+
+This project uses automated publishing workflows through GitHub Actions. Follow these steps for releasing new versions.
+
+## 🚀 Quick Release Process
+
+### Using the Release Script (Recommended)
+```bash
+# Run the automated release script
+./scripts/release.sh 0.4.2
+
+# The script will:
+# 1. Validate version format
+# 2. Check git status and branch
+# 3. Update version in pyproject.toml
+# 4. Run tests to ensure quality
+# 5. Commit changes and create git tag
+# 6. Push to GitHub (triggers automated publishing)
+```
+
+### Manual Release Process
+```bash
+# 1. Update version in pyproject.toml
+sed -i 's/version = "0.4.1"/version = "0.4.2"/' pyproject.toml
+
+# 2. Run tests to ensure everything works
+uv run pytest --tb=short
+
+# 3. Commit version bump
+git add pyproject.toml
+git commit -m "chore: prepare release v0.4.2"
+
+# 4. Push to main branch
+git push origin main
+
+# 5. Create and push tag (triggers PyPI publication)
+git tag v0.4.2
+git push origin v0.4.2
+```
+
+## 📋 Pre-Release Checklist
+
+### 1. Version Management
+- [ ] **Determine next version** following [Semantic Versioning](https://semver.org/):
+  - Patch (0.4.2): Bug fixes, small improvements
+  - Minor (0.5.0): New features, backward compatible
+  - Major (1.0.0): Breaking changes
+- [ ] **Update version** in [pyproject.toml](mdc:pyproject.toml)
+- [ ] **Update fallback version** in [src/gitlab_analyzer/version.py](mdc:src/gitlab_analyzer/version.py)
+
+### 2. Quality Assurance (CRITICAL)
+```bash
+# Clean up unnecessary files
+rm -rf build/ dist/ .pytest_cache/ .coverage coverage.xml
+rm -rf .mypy_cache/ .ruff_cache/
+rm -f *.tmp *.temp *.log *.out
+rm -rf temp/ tmp/ debug/
+
+# Install dependencies
+uv sync --all-extras
+
+# Code quality checks
+uv run ruff check && uv run ruff format --check
+uv run mypy src/
+uv run bandit -r src/
+
+# Run full test suite
+uv run pytest --tb=short --cov-report=term --cov-fail-under=65
+
+# Build and validate package
+uv run python -m build
+uv run twine check dist/*
+```
+
+### 3. Documentation Updates (CRITICAL)
+- [ ] **Update [CHANGELOG.md](mdc:CHANGELOG.md)**:
+  - Move items from `[Unreleased]` to new version section
+  - Include date in format `[X.Y.Z] - YYYY-MM-DD`
+  - Add meaningful descriptions of changes
+- [ ] **Update [README.md](mdc:README.md)** (CRITICAL for PyPI):
+  - Update tool count if changed
+  - Update feature descriptions
+  - Verify installation instructions
+  - Update code examples
+
+### 4. Tool Documentation Validation
+```bash
+# Count current tools
+TOOL_COUNT=$(find src/ -name "*tools.py" -exec grep -c "@mcp.tool" {} \; | awk '{sum+=$1} END {print sum}')
+echo "Total tools: $TOOL_COUNT"
+
+# Extract tool names
+find src/ -name "*tools.py" -exec grep -h "def " {} \; | grep -v "def _" | grep -v "register_" | sed 's/.*def //' | sed 's/(.*//g' | sort
+
+# Verify README.md tool count matches
+README_TOOL_COUNT=$(grep -o "[0-9]\+ tools" README.md | head -1 | grep -o "[0-9]\+")
+if [ "$README_TOOL_COUNT" != "$TOOL_COUNT" ]; then
+  echo "❌ README.md tool count doesn't match actual"
+fi
+```
+
+## 🏗️ Package Configuration
+
+### Entry Points
+The package is configured in [pyproject.toml](mdc:pyproject.toml) with:
+```toml
+[project.scripts]
+gitlab-analyzer = "gitlab_analyzer.cli:main"
+
+[project.entry-points."mcp.servers"]
+gitlab-analyzer = "gitlab_analyzer.mcp.server:main"
+```
+
+### Dependencies
+- **Core**: `fastmcp>=0.2.0`, `httpx`, `pydantic`
+- **Database**: `sqlite3` (built-in), `sqlalchemy`
+- **Development**: `pytest`, `ruff`, `mypy`, `bandit`
+
+## 🚀 GitHub Actions CI/CD
+
+### Automated Workflows
+1. **CI/CD Pipeline** ([.github/workflows/ci-cd.yml](mdc:.github/workflows/ci-cd.yml)):
+   - Runs on every push to main
+   - Tests, linting, type checking
+   - Publishes to TestPyPI
+
+2. **Release Pipeline** ([.github/workflows/release.yml](mdc:.github/workflows/release.yml)):
+   - Triggers on version tags (v*)
+   - Publishes to production PyPI
+   - Creates GitHub release
+
+### Required Secrets
+- `PYPI_API_TOKEN`: Production PyPI token
+- `TEST_PYPI_API_TOKEN`: TestPyPI token
+
+## 🎯 Quality Gates
+
+### Test Coverage
+- **Minimum**: 65% coverage required
+- **Current**: ~66% coverage achieved
+- **Command**: `uv run pytest --cov-report=term --cov-fail-under=65`
+
+### Code Quality
+- **Linting**: `ruff check` (no errors)
+- **Formatting**: `ruff format --check` (consistent)
+- **Type Checking**: `mypy src/` (strict mode)
+- **Security**: `bandit -r src/` (no high-severity issues)
+
+## 📦 Build and Distribution
+
+### Local Testing
+```bash
+# Build package
+uv run python -m build
+
+# Check package
+uv run twine check dist/*
+
+# Test installation
+pip install dist/gitlab_pipeline_analyzer-*.whl
+```
+
+### PyPI Publication
+- **TestPyPI**: Automatic on main branch pushes
+- **Production PyPI**: Automatic on version tag pushes
+- **Manual**: `uv run twine upload dist/*`
+
+## 🔍 Monitoring
+
+### Links
+- **PyPI Package**: https://pypi.org/project/gitlab-pipeline-analyzer/
+- **TestPyPI Package**: https://test.pypi.org/project/gitlab-pipeline-analyzer/
+- **GitHub Actions**: Repository → Actions tab
+- **GitHub Releases**: Repository → Releases tab
+
+### Verification
+```bash
+# Test installation after release
+pip install gitlab-pipeline-analyzer==X.Y.Z
+
+# Verify tools work
+gitlab-analyzer --help
+```
+
+## ⚠️ Important Notes
+
+- **Never skip quality checks** - they prevent broken releases
+- **TestPyPI publication happens on every main push** - use for testing
+- **Production PyPI publication only happens on version tags** - no rollbacks!
+- **Documentation accuracy is critical** - README.md is the primary PyPI documentation
+- **Version must follow semver strictly** - tools and CI depend on it
+
+## 🆘 Troubleshooting
+
+### Common Issues
+- **Tests failing**: Check test logs, ensure 65%+ coverage
+- **Build failing**: Verify [pyproject.toml](mdc:pyproject.toml) syntax
+- **PyPI publication failing**: Check for version conflicts
+- **GitHub Actions stuck**: Check workflow permissions and secrets
+- **Tool count mismatches**: Update README.md and documentation
+
+### Debug Commands
+```bash
+# Check current version
+grep '^version =' pyproject.toml
+
+# Validate package
+uv run python -c "import gitlab_analyzer; print(gitlab_analyzer.__version__)"
+
+# Test MCP server
+uv run python -m gitlab_analyzer.mcp.server
+```
+
+## 📚 Documentation Structure
+
+- **[README.md](mdc:README.md)**: Primary package description (displayed on PyPI)
+- **[docs/](mdc:docs/)**: Comprehensive Sphinx documentation
+- **[CHANGELOG.md](mdc:CHANGELOG.md)**: Version history and release notes
+- **[examples/](mdc:examples/)**: Usage examples and demonstrations
+
+All documentation locations must be kept synchronized for accurate tool count and feature representation.

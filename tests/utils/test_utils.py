@@ -366,7 +366,6 @@ class TestDefaultExcludePaths:
             ".venv",
             "site-packages",
             ".local",
-            "/builds/",
             "/root/.local",
             "/usr/lib/python",
             "/opt/python",

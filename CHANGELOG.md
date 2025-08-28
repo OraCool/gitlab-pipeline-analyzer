@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-08-28
+
+### 🐛 **Fixed**
+
+- **Type Safety Improvements**: Fixed mypy type annotation errors in cache and tools modules
+  - Replaced incorrect `any` type annotations with proper `Any` imports
+  - Removed unreachable code after return statements
+  - Cleaned up unused type ignore comments
+- **Code Quality**: Enhanced parser implementations and cache management
+  - Improved hybrid parser functionality with better error handling
+  - Fixed auto-cleanup manager type annotations
+  - Enhanced resource access tools stability
+
+### 🔧 **Technical Improvements**
+
+- **Testing**: Updated test coverage for parser enhancements
+- **Documentation**: Code quality improvements and type safety fixes
+- **Build**: All quality checks (ruff, mypy, bandit, pytest) now pass cleanly
+
 ## [0.4.1] - 2025-08-27
 
 ### ✨ **Added**

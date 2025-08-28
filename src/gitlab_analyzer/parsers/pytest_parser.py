@@ -195,7 +195,7 @@ class PytestLogParser(BaseParser):
             r"(?:E\s+)?(\w+Exception): (.+?)(?:\n|$)",  # Any *Exception type
         ]
 
-        exception_type = "Unknown"
+        exception_type = "unknown"
         exception_message = "Unknown error"
 
         for pattern in exception_patterns:
@@ -459,7 +459,7 @@ class PytestLogParser(BaseParser):
                     error_message = error_match.group(2)
                 else:
                     # Handle cases where the error format is different
-                    error_type = "Unknown"
+                    error_type = "unknown"
                     error_message = error_info
 
                 short_summary.append(

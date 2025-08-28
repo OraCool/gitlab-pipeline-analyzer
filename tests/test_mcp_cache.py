@@ -35,7 +35,7 @@ class TestMCPCacheBasic:
     def test_cache_manager_initialization(self, temp_cache_manager):
         """Test cache manager properties after initialization"""
         manager = temp_cache_manager
-        assert manager.parser_version == 1
+        assert manager.parser_version == 2  # v2 adds error_type classification
         assert "pipeline" in manager.ttl_config
         assert "job" in manager.ttl_config
         assert "analysis" in manager.ttl_config

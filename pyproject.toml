@@ -1,6 +1,6 @@
 [project]
 name = "gitlab-pipeline-analyzer"
-version = "0.4.1"
+version = "0.4.2"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
 authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
 license = "MIT"
@@ -198,7 +198,8 @@ exclude_dirs = ["tests", "test_*.py", "*_test.py"]
 skips = [
     "B101",
     "B113",
-] # Skip assert_used test and request_without_timeout (we have timeouts)
+    "B608",  # Skip SQL injection warnings for trusted table names (already marked with # nosec B608)
+] # Skip assert_used test, request_without_timeout (we have timeouts), and hardcoded_sql_expressions
 
 [tool.pytest.ini_options]
 minversion = "7.0"

@@ -83,6 +83,18 @@ def generate_error_id(
     return hashlib.sha256(signature.encode()).hexdigest()[:12]
 
 
+def generate_standard_error_id(job_id: int, error_index: int) -> str:
+    """Generate standardized error ID for job errors
+
+    This is the SINGLE function that should be used everywhere for error ID generation
+    to ensure consistency between errors and trace_segments tables.
+
+    Format: {job_id}_{error_index}
+    Example: 76986678_0, 76986678_1, etc.
+    """
+    return f"{job_id}_{error_index}"
+
+
 class JobStatus(Enum):
     """GitLab job status enumeration"""
 
@@ -184,6 +196,7 @@ class JobRecord:
 
 
 @dataclass
+@dataclass
 class ErrorRecord:
     """Individual error record"""
 
@@ -195,14 +208,15 @@ class ErrorRecord:
     file: str
     line: int
     detail_json: dict[str, Any]
+    error_type: str = "unknown"
 
     @classmethod
     def from_parsed_error(
         cls, job_id: int, error_data: dict[str, Any], error_index: int
     ) -> "ErrorRecord":
         """Create ErrorRecord from parsed error data"""
-        # Generate stable error ID
-        error_id = f"err_{error_index:04d}"
+        # Generate stable error ID using unified function
+        error_id = generate_standard_error_id(job_id, error_index)
 
         # Create fingerprint for deduplication
         fingerprint_data = {
@@ -224,4 +238,5 @@ class ErrorRecord:
             file=error_data.get("file", ""),
             line=error_data.get("line", 0),
             detail_json=error_data,
+            error_type=error_data.get("error_type", "unknown"),
         )

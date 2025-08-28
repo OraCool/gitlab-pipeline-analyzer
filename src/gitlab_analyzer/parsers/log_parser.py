@@ -14,54 +14,68 @@ from .base_parser import BaseParser
 class LogParser(BaseParser):
     """Parser for extracting errors and warnings from CI/CD logs"""
 
-    # Job verification error patterns - focus ONLY on actual job failures
+    # Enhanced error patterns - focus on actual failures including infrastructure issues
     ERROR_PATTERNS = [
+        # CRITICAL: Job-ending failures that should ALWAYS be captured
+        (r"SyntaxError: (.+)", "error"),  # Python syntax errors
+        (r"ImportError: (.+)", "error"),  # Import failures
+        (r"ModuleNotFoundError: (.+)", "error"),  # Missing modules
+        (r"IndentationError: (.+)", "error"),  # Python indentation errors
+        (r"NameError: (.+)", "error"),  # Undefined variables
+        (r"TypeError: (.+)", "error"),  # Type errors
+        (r"ValueError: (.+)", "error"),  # Value errors
+        (r"KeyError: (.+)", "error"),  # Key errors
+        (r"AttributeError: (.+)", "error"),  # Attribute errors
+        (r"FileNotFoundError: (.+)", "error"),  # Missing files
+        # Docker/build infrastructure failures that cause job failures
+        (r"Error response from daemon: (.+)", "error"),  # Docker errors
+        (r"docker: (.+)", "error"),  # Docker command failures
+        (r"Failed to pull image (.+)", "error"),  # Image pull failures
+        (r"exec user process caused (.+)", "error"),  # Container exec failures
         # Shell script errors that affect job execution
         (r"(.*)not a valid identifier", "error"),
         (r"(.*)command not found", "error"),
         (r"(.*)No such file or directory", "error"),
         (r"(.*)Permission denied", "error"),
-        # Linting tool failures
-        (r"(.*)would reformat", "error"),  # black formatting issues
-        (r"(.*)Lint check failed", "error"),
-        (r"(.*)formatting.*issues", "error"),
-        (r"(.*)files would be reformatted", "error"),
-        # Test failures - prioritize detailed format over summary
-        # Pytest detailed format: test/test_failures.py:10: in test_intentional_failure
-        (
-            r"^(.+\.py):(\d+):\s+in\s+(\w+)",
-            "error",
-        ),  # pytest detailed test failure format (highest priority)
-        # Pytest assertion errors with more detail
+        # Test execution failures
+        (r"^(.+\.py):(\d+):\s+in\s+(\w+)", "error"),  # pytest detailed format
         (r"(.*)AssertionError: (.+)", "error"),
         (r"(.*)assert (.+)", "error"),
-        # Exception patterns that may come after pytest details
         (r"(.*)>.*assert (.+)", "error"),  # pytest assertion with > marker
         (r"(.*)E\s+(.+Error: .+)", "error"),  # pytest error format with E prefix
-        (r"(.*)FAILED (.+test.*)", "error"),  # Test failures (lower priority)
+        (r"(.*)FAILED (.+test.*)", "error"),  # Test failures
         (r"(.*)Test failed: (.+)", "error"),
         # Build/compilation failures
         (r"(.*)compilation error", "error"),
         (r"(.*)build failed", "error"),
         (r"(.*)fatal error: (.+)", "error"),
-        # Python code errors in actual application code (not pytest details)
-        (r"(.*)Traceback \(most recent call last\):", "error"),
-        (r"(.*)SyntaxError: (.+)", "error"),
-        (r"(.*)ImportError: (.+)", "error"),
-        (r"(.*)ModuleNotFoundError: (.+)", "error"),
-        (r"(.*)NameError: (.+)", "error"),
-        (r"(.*)TypeError: (.+)", "error"),
-        (r"(.*)ValueError: (.+)", "error"),
-        (r"(.*)KeyError: (.+)", "error"),
-        (r"(.*)AttributeError: (.+)", "error"),
-        # Specific linter errors - simplified pattern (removed negative lookaheads for performance)
-        (r"ERROR: (.+)", "error"),
+        # Package/dependency errors that prevent job completion
+        (r"(.*)could not find", "error"),
+        (r"(.*)missing", "error"),
+        (r"ERROR: (.+)", "error"),  # Generic ERROR lines
+        # Linting tool failures
+        (r"(.*)would reformat", "error"),  # black formatting issues
+        (r"(.*)Lint check failed", "error"),
+        (r"(.*)formatting.*issues", "error"),
+        (r"(.*)files would be reformatted", "error"),
+        # Ruff linting errors - specific pattern for Ruff output
+        (
+            r"(.+\.py):(\d+):(\d+):\s+([A-Z]\d+)\s+\[?\*?\]?\s*(.+)",
+            "error",
+        ),  # Ruff format: file.py:line:col: CODE [*] message
+        (r"Found (\d+) error", "error"),  # Ruff summary: "Found 1 error"
+        (r"(.+) error.* fixable with", "error"),  # Ruff fixable errors summary
+        # Import linting failures
+        (r"No matches for ignored import (.+)", "error"),  # import-linter failures
+        (r"(.*)import.*not allowed", "error"),  # import policy violations
+        # Make/build tool errors
+        (r"make: \*\*\* \[(.+)\] Error (\d+)", "error"),  # make command failures
+        (r"(.*)make.*failed", "error"),  # general make failures
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),
         (r"(.*)security issue", "error"),
-        # Package/dependency errors that affect the job
-        (r"(.*)could not find", "error"),
-        (r"(.*)missing", "error"),
+        # Traceback start - often indicates real errors
+        (r"(.*)Traceback \(most recent call last\):", "error"),
     ]
 
     WARNING_PATTERNS = [
@@ -75,24 +89,22 @@ class LogParser(BaseParser):
         (r"(.*)warning: (.+)", "warning"),
     ]
 
-    # Comprehensive CI/CD infrastructure exclusions - exclude ALL runner/infrastructure messages
+    # Focused CI/CD infrastructure exclusions - only exclude clear infrastructure noise
     EXCLUDE_PATTERNS = [
-        # GitLab Runner infrastructure
+        # GitLab Runner infrastructure (keep these as they're clearly not job failures)
         r"Running with gitlab-runner",
         r"on GCP Ocean",
         r"system ID:",
         r"shared k8s runner",
         r"please use cache",
         r"per job and.*per service",
-        # Kubernetes/Docker infrastructure
+        # Kubernetes/Docker infrastructure setup (not failures)
         r"the \"kubernetes\" executor",
         r"Using Kubernetes",
         r"Using attach strategy",
         r"Pod activeDeadlineSeconds",
         r"Waiting for pod",
         r"Running on runner-",
-        r"ContainersNotReady:",
-        r"containers with unready status:",
         r"gitlab-managed-apps",
         r"via gitlab-runner",
         # Git operations (infrastructure, not code issues)
@@ -101,7 +113,7 @@ class LogParser(BaseParser):
         r"Fetching changes with git",
         r"Initialized empty Git repository",
         r"Skipping Git submodules",
-        # Cache operations
+        # Cache operations (successful)
         r"Checking cache for",
         r"Downloading cache from",
         r"Successfully extracted cache",
@@ -116,58 +128,25 @@ class LogParser(BaseParser):
         # Shell command echoes (not the actual errors)
         r"^\$ ",
         r"echo \".*\"",
-        # Package installation (successful operations)
+        # GitLab CI internal scripts (infrastructure, not user code issues)
+        r"/scripts-.*/get_sources:",
+        # Package installation (successful operations only)
         r"Requirement already satisfied:",
         r"Collecting ",
         r"Installing collected packages:",
         r"Successfully installed",
         r"Downloading.*packages",
         r"Installing.*packages",
-        # Docker/K8s warnings (infrastructure, not job-related)
-        r"MountVolume\.SetUp failed",
-        r"Unable to retrieve.*image pull secrets",
-        r"timed out waiting for the condition",
-        r"may not succeed",
-        r"artifactory.*attempting to pull",
-        r"Event retrieved from the cluster:",
-        # Python installation/pip warnings (not code issues)
-        r"Running pip as the 'root' user",
-        r"broken permissions and conflicting behaviour",
-        r"recommended to use a virtual environment",
-        # GitLab CI section markers and formatting
-        r"section_start:",
-        r"section_end:",
-        r"Oh no! 💥 💔 💥",
-        r"Starting.*stage\.\.\.",
-        r"validation stage",
-        r"Installed.*tools",
-        r"Running.*checks",
         # Success messages (not errors)
         r"Successfully",
         r"✅",
         r"🔍",
-        # Specific to this test case - simulation messages
-        r"SIMULATING.*FAILURE",
-        r"Creating intentional.*issues",
-        r"Running.*on intentionally bad code",
-        r"as expected!",
-        # Output formatting and informational
-        r"1 file would be reformatted\.$",  # This is just output, not the error
-        r"^[0-9]+ files? would be reformatted\.$",
-        # Generic GitLab CI failure messages (not meaningful for analysis)
-        r"Job failed: command terminated with exit code",
-        r": Job failed: exit code",
-        r"ERROR: Job failed: exit code",
+        # GitLab CI section markers and formatting
+        r"section_start:",
+        r"section_end:",
+        # Generic GitLab CI completion messages (not specific errors)
         r"Cleaning up project directory and file based variables",
         r"upload project directory and file based variables",
-        # GitLab runner script errors (infrastructure, not user code)
-        r"/scripts-.*get_sources: line .* export:.*not a valid identifier",
-        r"/scripts-.*upload_artifacts_on_failure: line .* export:.*not a valid identifier",
-        r"/scripts-.*: line .* export:.*not a valid identifier",
-        r"line \d+: export:.*not a valid identifier",
-        # GitLab runner internal scripts (broad exclusion)
-        r"/scripts-\d+-\d+/.*:",
-        r"bash: line \d+:",
     ]
 
     @classmethod
@@ -345,6 +324,7 @@ class LogParser(BaseParser):
                         message=log_line,
                         line_number=line_num,
                         context=cls._get_context(lines, line_num),
+                        error_type=cls.classify_error_type(log_line),
                     )
                     entries.append(entry)
                     break
@@ -358,6 +338,7 @@ class LogParser(BaseParser):
                         message=log_line,
                         line_number=line_num,
                         context=cls._get_context(lines, line_num),
+                        error_type=cls.classify_error_type(log_line),
                     )
                     entries.append(entry)
                     break

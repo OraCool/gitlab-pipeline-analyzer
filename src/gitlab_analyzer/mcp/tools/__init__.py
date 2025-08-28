@@ -5,6 +5,7 @@ Only essential tools following DRY and KISS principles:
 1. Comprehensive pipeline analysis with intelligent parsing
 2. Search tools for repository content
 3. Cache management tools
+4. Clean trace access tools
 
 All other functionality moved to pure functions and accessed via resources.
 
@@ -17,6 +18,7 @@ from fastmcp import FastMCP
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer
 
 from .cache_tools import register_cache_tools
+from .clean_trace_tools import register_clean_trace_tools
 from .failed_pipeline_analysis import register_failed_pipeline_analysis_tools
 from .resource_access_tools import register_resource_access_tools
 from .search_tools import register_search_tools
@@ -28,6 +30,7 @@ def register_tools(mcp: FastMCP) -> None:
     register_search_tools(mcp)
     register_cache_tools(mcp)
     register_resource_access_tools(mcp)
+    register_clean_trace_tools(mcp)
 
 
 __all__ = [
@@ -36,5 +39,6 @@ __all__ = [
     "register_search_tools",
     "register_cache_tools",
     "register_resource_access_tools",
+    "register_clean_trace_tools",
     "get_gitlab_analyzer",
 ]
