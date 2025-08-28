@@ -59,7 +59,10 @@ class LogParser(BaseParser):
         (r"(.*)formatting.*issues", "error"),
         (r"(.*)files would be reformatted", "error"),
         # Ruff linting errors - specific pattern for Ruff output
-        (r"(.+\.py):(\d+):(\d+):\s+([A-Z]\d+)\s+\[?\*?\]?\s*(.+)", "error"),  # Ruff format: file.py:line:col: CODE [*] message
+        (
+            r"(.+\.py):(\d+):(\d+):\s+([A-Z]\d+)\s+\[?\*?\]?\s*(.+)",
+            "error",
+        ),  # Ruff format: file.py:line:col: CODE [*] message
         (r"Found (\d+) error", "error"),  # Ruff summary: "Found 1 error"
         (r"(.+) error.* fixable with", "error"),  # Ruff fixable errors summary
         # Import linting failures
@@ -319,6 +322,7 @@ class LogParser(BaseParser):
                         message=log_line,
                         line_number=line_num,
                         context=cls._get_context(lines, line_num),
+                        error_type=cls.classify_error_type(log_line),
                     )
                     entries.append(entry)
                     break
@@ -332,6 +336,7 @@ class LogParser(BaseParser):
                         message=log_line,
                         line_number=line_num,
                         context=cls._get_context(lines, line_num),
+                        error_type=cls.classify_error_type(log_line),
                     )
                     entries.append(entry)
                     break

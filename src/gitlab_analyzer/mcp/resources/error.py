@@ -67,7 +67,7 @@ async def _get_error_analysis(
                 "level": "error",  # All from get_job_errors are errors
                 "line_number": db_error.get("line"),
                 "file_path": db_error.get("file_path"),
-                "exception_type": db_error.get("exception"),
+                "exception_type": db_error.get("error_type"),
                 "fingerprint": db_error.get("fingerprint"),
                 "detail": db_error.get("detail", {}),
             }
@@ -76,8 +76,8 @@ async def _get_error_analysis(
             # Track error files and types for statistics
             if error_data.get("file_path"):
                 error_files.add(str(error_data["file_path"]))
-            if error_data.get("exception_type"):
-                error_types.add(error_data["exception_type"])
+            if error_data.get("error_type"):
+                error_types.add(error_data["error_type"])
 
         # Process the analysis data
         result = {
@@ -96,7 +96,7 @@ async def _get_error_analysis(
                         error_type: sum(
                             1
                             for err in all_errors
-                            if err.get("exception_type") == error_type
+                            if err.get("error_type") == error_type
                         )
                         for error_type in error_types
                     },
@@ -172,7 +172,7 @@ async def get_file_errors_resource_data(
                 "message": error["message"],
                 "line_number": error.get("line"),
                 "file_path": error.get("file"),  # Use file instead of file_path
-                "exception_type": error.get("exception"),
+                "exception_type": error.get("error_type"),
                 "severity": "error",
                 "context": {
                     "job_id": int(job_id),
@@ -285,7 +285,7 @@ async def get_pipeline_errors_resource_data(
                         "job_name": job.get("name"),
                         "line_number": error.get("line"),
                         "file_path": error.get("file_path"),
-                        "exception_type": error.get("exception"),
+                        "exception_type": error.get("error_type"),
                         "resource_links": [
                             {
                                 "type": "resource_link",
@@ -301,8 +301,8 @@ async def get_pipeline_errors_resource_data(
                     }
                     all_errors.append(enhanced_error)
 
-                    if error.get("exception"):
-                        error_summary["error_types"].add(error["exception"])
+                    if error.get("error_type"):
+                        error_summary["error_types"].add(error["error_type"])
                     if error.get("file_path"):
                         error_summary["affected_files"].add(error["file_path"])
 
@@ -417,7 +417,7 @@ async def _get_individual_error_with_mode(
         enhanced_error = {
             "error_id": target_error.get("error_id", error_id),
             "fingerprint": target_error.get("fingerprint"),
-            "exception": target_error.get("exception"),
+            "exception": target_error.get("error_type"),
             "message": target_error.get("message"),
             "file": target_error.get("file_path"),
             "line": target_error.get("line"),
@@ -431,7 +431,7 @@ async def _get_individual_error_with_mode(
                 from gitlab_analyzer.utils.utils import _generate_fix_guidance
 
                 fix_guidance_error = {
-                    "exception_type": target_error.get("exception"),
+                    "exception_type": target_error.get("error_type"),
                     "exception_message": target_error.get("message"),
                     "file_path": target_error.get("file_path"),
                     "line_number": str(target_error.get("line", "")),

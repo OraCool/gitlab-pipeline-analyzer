@@ -196,6 +196,7 @@ class JobRecord:
 
 
 @dataclass
+@dataclass
 class ErrorRecord:
     """Individual error record"""
 
@@ -207,6 +208,7 @@ class ErrorRecord:
     file: str
     line: int
     detail_json: dict[str, Any]
+    error_type: str = "unknown"
 
     @classmethod
     def from_parsed_error(
@@ -236,4 +238,5 @@ class ErrorRecord:
             file=error_data.get("file", ""),
             line=error_data.get("line", 0),
             detail_json=error_data,
+            error_type=error_data.get("error_type", "unknown"),
         )

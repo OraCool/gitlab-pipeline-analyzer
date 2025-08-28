@@ -107,6 +107,15 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             analyzer = get_gitlab_analyzer()
             cache_manager = get_cache_manager()
 
+            # CLEAR CACHE: Clear any existing data for this pipeline to prevent conflicts
+            # This prevents freezing when re-analyzing pipelines that already have data
+            try:
+                await cache_manager.clear_cache_by_pipeline(project_id, pipeline_id)
+                print(f"✅ Cleared existing cache for pipeline {pipeline_id}")
+            except Exception as cache_error:
+                print(f"⚠️ Warning: Could not clear cache: {cache_error}")
+                # Continue anyway - cache clearing failure shouldn't stop analysis
+
             # Step 1: Get comprehensive pipeline info and store it
             pipeline_info = await get_comprehensive_pipeline_info(
                 analyzer=analyzer, project_id=project_id, pipeline_id=pipeline_id
@@ -155,6 +164,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     # Convert PytestFailureDetail objects to error dict format
                     errors: list[dict[str, Any]] = []
                     for failure in parsed.detailed_failures:
+                        # Classify the error type using the shared BaseParser method
+                        error_message = (
+                            f"{failure.exception_type}: {failure.exception_message}"
+                        )
+                        error_type = PytestLogParser.classify_error_type(error_message)
+
                         error_dict: dict[str, Any] = {
                             "exception_type": failure.exception_type,
                             "exception_message": failure.exception_message,
@@ -163,6 +178,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                             "test_function": failure.test_function,
                             "test_name": failure.test_name,
                             "message": failure.exception_message,
+                            "error_type": error_type,  # Add error type classification
                         }
                         # Try to get line number from traceback
                         if failure.traceback:
@@ -186,6 +202,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                                 else None
                             ),
                             "context": entry.context,
+                            "error_type": entry.error_type,  # Add missing error_type field
                         }
                         for entry in log_entries
                         if entry.level == "error"
@@ -205,6 +222,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                                 else None
                             ),
                             "context": entry.context,
+                            "error_type": entry.error_type,  # Add missing error_type field
                         }
                         for entry in log_entries
                         if entry.level == "error"

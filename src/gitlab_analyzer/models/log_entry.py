@@ -16,3 +16,6 @@ class LogEntry(BaseModel):
     line_number: int | None = None
     timestamp: str | None = None
     context: str | None = None
+    error_type: str | None = (
+        None  # Classified error type (e.g., "test_failure", "linting_error")
+    )

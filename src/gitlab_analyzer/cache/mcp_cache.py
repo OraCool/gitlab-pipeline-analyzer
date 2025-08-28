@@ -38,7 +38,9 @@ class McpCache:
             db_path = os.environ.get("MCP_DATABASE_PATH", "analysis_cache.db")
 
         self.db_path = Path(db_path)
-        self.parser_version = 1  # Bump when parser logic changes
+        self.parser_version = (
+            2  # Bump when parser logic changes - v2 adds error_type classification
+        )
 
         # TTL configuration for different data types
         self.ttl_config = {
@@ -116,6 +118,7 @@ class McpCache:
                     file TEXT NOT NULL,
                     line INTEGER NOT NULL,
                     detail_json TEXT NOT NULL,
+                    error_type TEXT DEFAULT 'unknown',
                     PRIMARY KEY (job_id, error_id),
                     FOREIGN KEY (job_id) REFERENCES jobs(job_id)
                 );
@@ -135,6 +138,7 @@ class McpCache:
                 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
                 CREATE INDEX IF NOT EXISTS idx_errors_fingerprint ON errors(fingerprint);
                 CREATE INDEX IF NOT EXISTS idx_errors_file ON errors(file);
+                CREATE INDEX IF NOT EXISTS idx_errors_error_type ON errors(error_type);
                 CREATE INDEX IF NOT EXISTS idx_file_index_path ON file_index(path);
             """
             )
@@ -199,8 +203,8 @@ class McpCache:
             conn.execute(
                 """
                 INSERT INTO errors
-                (job_id, error_id, fingerprint, exception, message, file, line, detail_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (job_id, error_id, fingerprint, exception, message, file, line, detail_json, error_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     error_record.job_id,
@@ -211,6 +215,7 @@ class McpCache:
                     error_record.file,
                     error_record.line,
                     json.dumps(error_record.detail_json),
+                    error_record.error_type,
                 ),
             )
 
@@ -754,7 +759,7 @@ class McpCache:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 """
-                SELECT error_id, fingerprint, exception, message, file, line, detail_json
+                SELECT error_id, fingerprint, exception, message, file, line, detail_json, error_type
                 FROM errors
                 WHERE job_id = ?
                 ORDER BY file, line
@@ -771,6 +776,7 @@ class McpCache:
                     "message": row[3],
                     "file_path": row[4],
                     "line": row[5],
+                    "error_type": row[7],  # Added error_type field
                 }
 
                 # Parse additional details if available
@@ -800,7 +806,7 @@ class McpCache:
             placeholders = ",".join("?" * len(error_ids))
             cursor = conn.execute(
                 f"""
-                SELECT error_id, fingerprint, exception, message, file, line, detail_json
+                SELECT error_id, fingerprint, exception, message, file, line, detail_json, error_type
                 FROM errors
                 WHERE job_id = ? AND error_id IN ({placeholders})
                 ORDER BY line
@@ -817,6 +823,7 @@ class McpCache:
                     "message": row[3],
                     "file": row[4],
                     "line": row[5],
+                    "error_type": row[7],  # Added error_type field
                 }
                 # Parse detail JSON safely
                 try:
