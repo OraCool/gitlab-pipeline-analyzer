@@ -128,6 +128,8 @@ class LogParser(BaseParser):
         # Shell command echoes (not the actual errors)
         r"^\$ ",
         r"echo \".*\"",
+        # GitLab CI internal scripts (infrastructure, not user code issues)
+        r"/scripts-.*/get_sources:",
         # Package installation (successful operations only)
         r"Requirement already satisfied:",
         r"Collecting ",

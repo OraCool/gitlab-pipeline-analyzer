@@ -24,6 +24,7 @@ from gitlab_analyzer.mcp.resources.error import (
 from gitlab_analyzer.mcp.resources.file import (
     get_file_resource,
     get_file_resource_with_trace,
+    get_files_resource,
     get_pipeline_files_resource,
 )
 from gitlab_analyzer.mcp.resources.job import (
@@ -31,8 +32,284 @@ from gitlab_analyzer.mcp.resources.job import (
     get_pipeline_jobs_resource,
 )
 from gitlab_analyzer.mcp.resources.pipeline import get_pipeline_resource
+from gitlab_analyzer.utils import get_mcp_info
 
 logger = logging.getLogger(__name__)
+
+
+async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
+    """
+    Implementation of get_mcp_resource that can be imported for testing.
+    This is the same implementation as the @mcp.tool decorated version.
+    """
+    # Store cleanup status to add to final response
+    cleanup_status = {}
+
+    try:
+        # Trigger automatic cache cleanup if needed (runs in background)
+        from gitlab_analyzer.cache.auto_cleanup import get_auto_cleanup_manager
+
+        auto_cleanup = get_auto_cleanup_manager()
+        cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
+
+    except Exception as e:
+        logging.warning(f"Auto-cleanup failed during resource access: {e}")
+        cleanup_status = {"status": "failed", "reason": str(e)}
+
+    # Parse resource URI
+    if not resource_uri.startswith("gl://"):
+        return {
+            "error": f"Invalid resource URI format: {resource_uri}",
+            "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+            "auto_cleanup": cleanup_status,
+        }
+
+    try:
+        # Remove the scheme and split the path
+        path = resource_uri[5:]  # Remove "gl://"
+
+        # Handle different resource types
+        if path.startswith("pipeline/"):
+            # Parse: gl://pipeline/83/123 -> project_id=83, pipeline_id=123
+            parts = path.split("/")
+            if len(parts) >= 3:
+                project_id = parts[1]
+                pipeline_id = parts[2]
+                result = await get_pipeline_resource(project_id, pipeline_id)
+            else:
+                return {
+                    "error": f"Invalid pipeline URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("jobs/"):
+            # Parse: gl://jobs/83/pipeline/123 or gl://jobs/83/pipeline/123/failed
+            parts = path.split("/")
+            if len(parts) >= 4 and parts[2] == "pipeline":
+                project_id = parts[1]
+                pipeline_id = parts[3]
+                # Check for status filter (e.g., /failed)
+                status = "all"
+                if len(parts) > 4:
+                    status = parts[4]  # e.g., "failed"
+                result = await get_pipeline_jobs_resource(project_id, pipeline_id, status)
+            else:
+                return {
+                    "error": f"Invalid jobs URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("job/"):
+            # Parse: gl://job/83/123/456 -> project_id=83, pipeline_id=123, job_id=456
+            parts = path.split("/")
+            if len(parts) >= 4:
+                project_id = parts[1]
+                pipeline_id = parts[2]
+                job_id = parts[3]
+                result = await get_job_resource(project_id, pipeline_id, job_id)
+            else:
+                return {
+                    "error": f"Invalid job URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("files/"):
+            # Parse: gl://files/83/pipeline/123 or gl://files/83/456
+            parts = path.split("/")
+            if len(parts) >= 3:
+                project_id = parts[1]
+                if len(parts) >= 4 and parts[2] == "pipeline":
+                    # gl://files/83/pipeline/123 or gl://files/83/pipeline/123/page/2/limit/50
+                    pipeline_id = parts[3]
+                    # Check for pagination parameters
+                    page = 1
+                    limit = 20
+                    if len(parts) >= 6 and parts[4] == "page":
+                        page = int(parts[5])
+                    if len(parts) >= 8 and parts[6] == "limit":
+                        limit = int(parts[7])
+                    result = await get_pipeline_files_resource(project_id, pipeline_id, page, limit)
+                else:
+                    # gl://files/83/456 (job files)
+                    job_id = parts[2]
+                    result = await get_files_resource(project_id, job_id)
+            else:
+                return {
+                    "error": f"Invalid files URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("file/"):
+            # Parse: gl://file/83/456/src/main.py or gl://file/83/456/src/main.py/trace?...
+            parts = path.split("/")
+            if len(parts) >= 5:
+                project_id = parts[1]
+                job_id = parts[2]
+                file_path = "/".join(parts[3:])
+
+                # Check if it's a trace request
+                if "/trace?" in file_path:
+                    # Parse trace parameters: src/main.py/trace?mode=detailed&include_trace=true
+                    file_parts = file_path.split("/trace?")
+                    actual_file_path = file_parts[0]
+                    
+                    # Parse query parameters
+                    mode = "balanced"
+                    include_trace = "false"
+                    if len(file_parts) > 1:
+                        query_params = file_parts[1]
+                        for param in query_params.split("&"):
+                            if "=" in param:
+                                key, value = param.split("=", 1)
+                                if key == "mode":
+                                    mode = value
+                                elif key == "include_trace":
+                                    include_trace = value
+                    
+                    # The function returns TextResourceContents, so we need to handle it differently
+                    trace_result = await get_file_resource_with_trace(project_id, job_id, actual_file_path, mode, include_trace)
+                    # Convert TextResourceContents to dict for consistency
+                    import json
+                    result = json.loads(trace_result.text)
+                else:
+                    result = await get_file_resource(project_id, job_id, file_path)
+            else:
+                return {
+                    "error": f"Invalid file URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("error/"):
+            # Parse: gl://error/83/456 or gl://error/83/456/123_0 or gl://error/83/456?mode=detailed
+            parts = path.split("/")
+            if len(parts) >= 3:
+                project_id = parts[1]
+                job_id_with_query = parts[2]
+                
+                # Parse query parameters
+                mode = "balanced"
+                if "?" in job_id_with_query:
+                    job_id, query_string = job_id_with_query.split("?", 1)
+                    for param in query_string.split("&"):
+                        if "=" in param:
+                            key, value = param.split("=", 1)
+                            if key == "mode":
+                                mode = value
+                else:
+                    job_id = job_id_with_query
+                
+                if len(parts) >= 4:
+                    # gl://error/83/456/123_0
+                    error_id = parts[3]
+                    result = await get_individual_error_data(project_id, job_id, error_id, mode)
+                else:
+                    # gl://error/83/456
+                    result = await get_error_resource_data(project_id, job_id, mode)
+            else:
+                return {
+                    "error": f"Invalid error URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("errors/"):
+            # Parse: gl://errors/83/pipeline/123 or gl://errors/83/456/src/main.py
+            parts = path.split("/")
+            if len(parts) >= 3:
+                project_id = parts[1]
+                if len(parts) >= 4 and parts[2] == "pipeline":
+                    # gl://errors/83/pipeline/123
+                    pipeline_id = parts[3]
+                    result = await get_pipeline_errors_resource_data(project_id, pipeline_id)
+                else:
+                    # gl://errors/83/456/src/main.py
+                    job_id = parts[2]
+                    file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
+                    result = await get_file_errors_resource_data(project_id, job_id, file_path)
+            else:
+                return {
+                    "error": f"Invalid errors URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        elif path.startswith("analysis/"):
+            # Parse: gl://analysis/83, gl://analysis/83/pipeline/123, gl://analysis/83/job/456
+            parts = path.split("/")
+            if len(parts) >= 2:
+                project_id = parts[1]
+                pipeline_id = None
+                job_id = None
+                mode = "balanced"
+                
+                # Parse additional path components
+                if len(parts) >= 4:
+                    if parts[2] == "pipeline":
+                        # gl://analysis/83/pipeline/123?mode=detailed
+                        pipeline_id_with_query = parts[3]
+                        if "?" in pipeline_id_with_query:
+                            pipeline_id, query_string = pipeline_id_with_query.split("?", 1)
+                            for param in query_string.split("&"):
+                                if "=" in param:
+                                    key, value = param.split("=", 1)
+                                    if key == "mode":
+                                        mode = value
+                        else:
+                            pipeline_id = pipeline_id_with_query
+                    elif parts[2] == "job":
+                        # gl://analysis/83/job/456?mode=minimal
+                        job_id_with_query = parts[3]
+                        if "?" in job_id_with_query:
+                            job_id, query_string = job_id_with_query.split("?", 1)
+                            for param in query_string.split("&"):
+                                if "=" in param:
+                                    key, value = param.split("=", 1)
+                                    if key == "mode":
+                                        mode = value
+                        else:
+                            job_id = job_id_with_query
+                
+                result = await get_analysis_resource_data(project_id, pipeline_id, job_id, mode)
+            else:
+                return {
+                    "error": f"Invalid analysis URI format: {resource_uri}",
+                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                    "auto_cleanup": cleanup_status,
+                }
+        else:
+            return {
+                "error": f"Unsupported resource URI pattern: {resource_uri}",
+                "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+                "auto_cleanup": cleanup_status,
+                "available_patterns": [
+                    "gl://pipeline/{project_id}/{pipeline_id}",
+                    "gl://jobs/{project_id}/pipeline/{pipeline_id}",
+                    "gl://job/{project_id}/{pipeline_id}/{job_id}",
+                    "gl://files/{project_id}/pipeline/{pipeline_id}",
+                    "gl://files/{project_id}/{job_id}",
+                    "gl://file/{project_id}/{job_id}/{file_path}",
+                    "gl://error/{project_id}/{job_id}",
+                    "gl://errors/{project_id}/pipeline/{pipeline_id}",
+                    "gl://analysis/{project_id}"
+                ],
+            }
+
+        # Add auto-cleanup status to the result
+        if isinstance(result, dict):
+            result["auto_cleanup"] = cleanup_status
+
+        return result
+
+    except Exception as e:
+        logging.error(f"Error accessing resource {resource_uri}: {e}")
+        return {
+            "error": f"Failed to access resource: {str(e)}",
+            "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+            "auto_cleanup": cleanup_status,
+            "resource_uri": resource_uri,
+        }
+
+
+# Create an alias for backward compatibility
+get_mcp_resource = get_mcp_resource_impl
 
 
 def register_resource_access_tools(mcp: FastMCP) -> None:
@@ -89,20 +366,21 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://analysis/83/pipeline/1594344?mode=detailed") - Detailed analysis
         - get_mcp_resource("gl://file/83/76474172/src/main.py") - Specific file analysis
         """
+        # Delegate to the implementation function
+        return await get_mcp_resource_impl(resource_uri)
 
-        # Store cleanup status to add to final response
-        cleanup_status = {}
-        
         try:
             # Trigger automatic cache cleanup if needed (runs in background)
             from gitlab_analyzer.cache.auto_cleanup import get_auto_cleanup_manager
-            
+
             auto_cleanup = get_auto_cleanup_manager()
             cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
-            
+
             logger.info(f"Accessing MCP resource: {resource_uri}")
             if cleanup_status["cleanup_triggered"]:
-                logger.info(f"🧹 Background cache cleanup triggered (max_age: {cleanup_status['max_age_hours']}h)")
+                logger.info(
+                    f"🧹 Background cache cleanup triggered (max_age: {cleanup_status['max_age_hours']}h)"
+                )
 
             # Parse the resource URI
             if not resource_uri.startswith("gl://"):

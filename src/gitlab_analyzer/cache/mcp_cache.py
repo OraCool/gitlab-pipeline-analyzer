@@ -143,6 +143,26 @@ class McpCache:
             """
             )
 
+            # Migration: Add error_type column if it doesn't exist (for existing databases)
+            cursor = conn.execute(
+                """
+                PRAGMA table_info(errors)
+            """
+            )
+            columns = [row[1] for row in cursor.fetchall()]
+            if "error_type" not in columns:
+                conn.execute(
+                    """
+                    ALTER TABLE errors ADD COLUMN error_type TEXT DEFAULT 'unknown'
+                """
+                )
+                conn.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_errors_error_type ON errors(error_type)
+                """
+                )
+                conn.commit()
+
     def is_job_cached(self, job_id: int, trace_hash: str) -> bool:
         """Check if job is already cached with current parser version"""
         with sqlite3.connect(self.db_path) as conn:

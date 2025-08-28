@@ -197,11 +197,11 @@ def extract_file_path_from_message(message: str) -> str | None:
     # This is the most reliable indicator of the actual error location
     traceback_pattern = r'File "([^"]+\.py)", line (\d+)'
     traceback_matches = re.findall(traceback_pattern, message)
-    
+
     if traceback_matches:
         # If we have multiple File entries, prioritize based on context
         syntax_error_file = None
-        
+
         # Look for the file that appears right before a SyntaxError with ^ marker
         for _i, (file_path, _line_num) in enumerate(traceback_matches):
             if _is_application_file(file_path):
@@ -211,16 +211,21 @@ def extract_file_path_from_message(message: str) -> str | None:
                     # Check what comes after this file reference
                     remaining_text = message[file_position:]
                     # If we find ^ and SyntaxError after this file, it's likely the source
-                    if '^' in remaining_text and 'SyntaxError' in remaining_text:
+                    if "^" in remaining_text and "SyntaxError" in remaining_text:
                         # Check if this is the LAST file before the syntax error
-                        next_file_position = remaining_text.find('File "', 1)  # Look for next file after this one
-                        syntax_error_position = remaining_text.find('^')
-                        
+                        next_file_position = remaining_text.find(
+                            'File "', 1
+                        )  # Look for next file after this one
+                        syntax_error_position = remaining_text.find("^")
+
                         # If no file between this one and the ^, this is the error source
-                        if next_file_position == -1 or next_file_position > syntax_error_position:
+                        if (
+                            next_file_position == -1
+                            or next_file_position > syntax_error_position
+                        ):
                             syntax_error_file = file_path
                             break
-        
+
         # If we found a file directly associated with syntax error, use it
         if syntax_error_file:
             return syntax_error_file
@@ -261,17 +266,17 @@ def extract_file_path_from_message(message: str) -> str | None:
     # LAST RESORT: All .py files, but avoid JSON "filename" entries
     # Filter out JSON log entries by avoiding lines with JSON patterns
     non_json_parts = []
-    for line in message.split('\n'):
+    for line in message.split("\n"):
         # Skip lines that look like JSON logs
-        if not ('{' in line and '"filename"' in line and '"timestamp"' in line):
+        if not ("{" in line and '"filename"' in line and '"timestamp"' in line):
             non_json_parts.append(line)
-    
-    non_json_message = '\n'.join(non_json_parts)
+
+    non_json_message = "\n".join(non_json_parts)
     file_matches = re.findall(r"([\w\-/\.]+\.py)", non_json_message)
     for file_path in file_matches:
         if _is_application_file(file_path):
             return file_path
-            
+
     return None
 
 
