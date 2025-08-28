@@ -11,6 +11,7 @@ Licensed under the MIT License - see LICENSE file for details
 import asyncio
 import os
 import time
+from typing import Any
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
@@ -46,7 +47,7 @@ class AutoCleanupManager:
         elapsed_minutes = (time.time() - self._last_cleanup_time) / 60
         return elapsed_minutes >= self.cleanup_interval_minutes
 
-    async def trigger_cleanup_if_needed(self) -> dict[str, any]:
+    async def trigger_cleanup_if_needed(self) -> dict[str, Any]:
         """
         Trigger cleanup if needed, runs in background without blocking.
         Returns status information.
@@ -97,7 +98,7 @@ class AutoCleanupManager:
         elapsed_minutes = (time.time() - self._last_cleanup_time) / 60
         return max(0, self.cleanup_interval_minutes - elapsed_minutes)
 
-    def get_status(self) -> dict[str, any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current cleanup status"""
         return {
             "enabled": self.enabled,
