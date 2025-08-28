@@ -30,7 +30,7 @@ from typing import Any, cast
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.cache.models import ErrorRecord, JobRecord
+from gitlab_analyzer.cache.models import ErrorRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
@@ -336,34 +336,20 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     )
 
                     # Store just the errors using the standard storage method
-                    # Create a JobRecord object for the storage method
-
-                    job_record = JobRecord.from_gitlab_job(
-                        job_data={
-                            "id": job.id,
-                            "project_id": project_id,
-                            "pipeline": {"id": pipeline_id, "sha": "unknown"},
-                            "ref": "unknown",
-                            "status": job.status,
-                            "created_at": "2024-01-01T00:00:00Z",
-                            "finished_at": "2024-01-01T00:00:00Z",
-                        },
-                        trace_text=trace,
-                        parser_version=1,
-                    )
+                    # Note: Job metadata was already stored correctly by store_failed_jobs_basic()
 
                     analysis_data = {
                         "errors": filtered_errors,
                         "parser_type": parser_type,
                         "trace_hash": trace_hash,
                     }
-                    # Run sync database operation in thread pool to prevent async deadlock
+                    # Store only errors and trace segments without overwriting job metadata
+                    # (job metadata was already stored correctly by store_failed_jobs_basic)
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(
                         None,
-                        cache_manager.store_job_analysis,
-                        job_record,
-                        trace,
+                        cache_manager.store_errors_only,
+                        job.id,
                         analysis_data,
                     )
 

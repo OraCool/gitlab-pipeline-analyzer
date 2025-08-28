@@ -233,6 +233,12 @@ class McpCache:
                 (job_id, file_path, json.dumps(error_ids)),
             )
 
+    def store_errors_only(self, job_id: int, parsed_data: dict[str, Any]):
+        """Store only errors and file index without overwriting job metadata"""
+        with sqlite3.connect(self.db_path) as conn:
+            # Store only errors and file index - do not touch job metadata
+            self._store_errors_and_file_index(conn, job_id, parsed_data)
+
     def store_pipeline_info(self, pipeline_record: PipelineRecord):
         """Store pipeline information (legacy sync method - use store_pipeline_info_async instead)
 
