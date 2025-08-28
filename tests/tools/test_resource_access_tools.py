@@ -193,8 +193,10 @@ class TestResourceAccessTools:
         self, mock_get_file_trace, mock_mcp
     ):
         """Test accessing file resource with trace"""
-        from mcp.types import TextResourceContents
         import json
+
+        from mcp.types import TextResourceContents
+
         mock_response = {"file_path": "src/main.py", "trace": "..."}
         mock_get_file_trace.return_value = TextResourceContents(
             uri="gl://file/83/456/src/main.py/trace", text=json.dumps(mock_response)
