@@ -21,9 +21,9 @@ author = "Siarhei Skuratovich"
 
 # The version info
 # The short X.Y version
-version = "0.3.4"
+version = "0.4.2"
 # The full version, including alpha/beta/rc tags
-release = "0.3.4"
+release = "0.4.2"
 
 # -- General configuration ---------------------------------------------------
 

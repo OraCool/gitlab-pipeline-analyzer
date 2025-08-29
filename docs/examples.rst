@@ -1,11 +1,130 @@
 Examples and Use Cases
 ======================
 
-This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server in various scenarios.
+This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server in various scenarios, including the enhanced intelligent prompt system.
 
 .. contents::
    :local:
    :depth: 2
+
+Using Intelligent Prompts
+--------------------------
+
+The MCP server provides 13+ specialized prompts that guide users through complex CI/CD workflows. Here are practical examples of how to leverage these prompts effectively.
+
+Investigation Wizard for Beginners
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** A new team member encounters their first pipeline failure and needs guided assistance.
+
+.. code-block:: text
+
+    User: "I'm new to CI/CD and our pipeline failed. I don't know where to start."
+    
+    Assistant: "I'll use the investigation-wizard prompt in beginner mode to guide you through 
+    the analysis step by step. We'll start with basic concepts and gradually dive deeper."
+    
+    # The wizard will:
+    # 1. Explain basic pipeline concepts
+    # 2. Guide through failed_pipeline_analysis tool usage
+    # 3. Help interpret results in simple terms
+    # 4. Suggest next steps based on findings
+    # 5. Provide learning resources for skill development
+
+Pipeline Comparison for Regression Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** A pipeline that was working yesterday is now failing, and you need to identify what changed.
+
+.. code-block:: text
+
+    User: "Pipeline 12345 was working fine, but pipeline 12346 is failing. What changed?"
+    
+    Assistant: "I'll use the pipeline-comparison prompt to analyze the differences between 
+    your successful and failed pipelines."
+    
+    # The comparison will:
+    # 1. Compare job configurations and results
+    # 2. Identify new errors or changed behavior
+    # 3. Analyze commit differences using search_repository_commits
+    # 4. Check for configuration drift
+    # 5. Provide regression analysis report
+
+Performance Investigation for Optimization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** Your pipelines are taking too long to complete and consuming too many resources.
+
+.. code-block:: text
+
+    User: "Our CI/CD pipelines are slow and expensive. How can we optimize them?"
+    
+    Assistant: "I'll use the performance-investigation prompt to analyze your pipeline 
+    efficiency and identify optimization opportunities."
+    
+    # The investigation will:
+    # 1. Analyze pipeline timing and resource usage
+    # 2. Identify bottlenecks and slow jobs
+    # 3. Check cache usage with cache_stats
+    # 4. Suggest parallelization opportunities
+    # 5. Provide cost optimization recommendations
+
+Learning Path for Team Development
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** You want to help your team improve their CI/CD skills systematically.
+
+.. code-block:: text
+
+    User: "I want to create a learning plan for my team to master CI/CD best practices."
+    
+    Assistant: "I'll use the learning-path prompt to create a personalized CI/CD 
+    curriculum based on your team's current skill level and goals."
+    
+    # The learning path will:
+    # 1. Assess current team capabilities
+    # 2. Create progressive learning modules
+    # 3. Provide hands-on exercises using real pipeline data
+    # 4. Set up practice scenarios with search_repository_code
+    # 5. Track progress and adjust difficulty
+
+Mentoring Guide for Knowledge Transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** You're an experienced engineer tasked with mentoring junior team members on CI/CD.
+
+.. code-block:: text
+
+    User: "I need to mentor new developers on CI/CD practices. How should I structure this?"
+    
+    Assistant: "I'll use the mentoring-guide prompt to help you create an effective 
+    teaching strategy for CI/CD concepts."
+    
+    # The mentoring guide will:
+    # 1. Suggest teaching methodologies for different concepts
+    # 2. Provide explanation frameworks for complex topics
+    # 3. Create practical exercises using get_mcp_resource
+    # 4. Recommend progress tracking approaches
+    # 5. Help establish feedback loops
+
+Fix Strategy Planning for Complex Issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** You have a complex pipeline failure that affects multiple teams and requires coordinated fixing.
+
+.. code-block:: text
+
+    User: "We have a major pipeline failure affecting multiple teams. I need a comprehensive fix strategy."
+    
+    Assistant: "I'll use the fix-strategy-planner prompt to create a comprehensive 
+    remediation plan with resource allocation and timeline estimates."
+    
+    # The strategy planner will:
+    # 1. Analyze failure scope and impact
+    # 2. Prioritize fixes by criticality and effort
+    # 3. Create resource allocation plan
+    # 4. Estimate timelines and dependencies
+    # 5. Suggest rollback strategies and risk mitigation
 
 Basic Usage Examples
 --------------------

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The GitLab Pipeline Analyzer MCP Server provides **9 focused tools** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow.
+The GitLab Pipeline Analyzer MCP Server provides **10 focused tools** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow.
 
 ## Tool Categories
 

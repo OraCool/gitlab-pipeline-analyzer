@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🚀 **Major Enhancement: Intelligent Prompt System**
+
+- **13+ Specialized Prompts**: Comprehensive workflow guidance across 5 categories
+  - **Advanced Workflow Prompts**: `investigation-wizard`, `pipeline-comparison`, `fix-strategy-planner`
+  - **Performance & Optimization**: `performance-investigation`, `ci-cd-optimization`, `resource-efficiency`
+  - **Educational & Learning**: `learning-path`, `knowledge-sharing`, `mentoring-guide`
+  - **Original Investigation**: Enhanced versions of existing debugging prompts
+- **Role-based Customization**: Prompts adapt to user expertise (Beginner/Intermediate/Expert/SRE/Manager)
+- **Progressive Complexity**: Multi-step workflows with context continuity
+- **Team Collaboration**: Knowledge sharing and mentoring capabilities
+- **Documentation Generation**: Automated documentation templates and best practices
+
+### 📚 **Documentation Enhancements**
+
+- **New Prompts Documentation**: Comprehensive guide to all 13+ prompts with usage examples
+- **Updated Architecture**: Reflects enhanced capabilities (10 tools + 13+ prompts)
+- **GitHub Pages Ready**: Updated Sphinx documentation for enhanced features
+- **Enhanced README**: Updated feature descriptions and capabilities overview
+
+### 🔧 **Technical Improvements**
+
+- **Prompt Architecture**: Modular prompt system with category-based organization
+- **Type Safety**: Modern Python 3.10+ type annotations throughout prompt system
+- **Integration**: Seamless integration between prompts and existing MCP tools
+- **Code Quality**: Enhanced maintainability and extensibility
+
 ## [0.4.2] - 2025-08-28
 
 ### 🐛 **Fixed**

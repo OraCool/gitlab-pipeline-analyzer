@@ -23,12 +23,14 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 - `gl://analysis/{project_id}/{target_id}` - Structured error analysis
 - `gl://error/{project_id}/{error_id}` - Individual error deep-dive
 
-### 🎯 **Guided Prompts**
+### 🎯 **Intelligent Prompts & Workflows**
 
-- `pipeline-investigation` - Systematic pipeline failure analysis
-- `error-analysis` - Error pattern investigation
-- `test-failure-debugging` - Python/pytest specific debugging
-- `build-failure-debugging` - Build system troubleshooting
+- **13+ Specialized Prompts** across 5 categories for comprehensive CI/CD guidance
+- **Advanced Workflows**: `investigation-wizard`, `pipeline-comparison`, `fix-strategy-planner`
+- **Performance Optimization**: `performance-investigation`, `ci-cd-optimization`, `resource-efficiency`
+- **Educational & Learning**: `learning-path`, `knowledge-sharing`, `mentoring-guide`
+- **Role-based Customization**: Adapts to user expertise (Beginner/Intermediate/Expert/SRE/Manager)
+- **Progressive Complexity**: Multi-step workflows with context continuity
 
 ### 🚀 **Multiple Transport Protocols**
 
@@ -50,11 +52,11 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 ├─────────────────┬─────────────────┬─────────────────────────────┤
 │   Resources     │     Tools       │       Prompts              │
 │                 │                 │                             │
-│ • Pipeline      │ • Complex       │ • Pipeline Investigation   │
-│ • Job           │   Analysis      │ • Error Analysis           │
-│ • Analysis      │ • Repository    │ • Test Debugging           │
-│ • Error         │   Search        │ • Build Debugging          │
-│                 │ • Pagination    │                             │
+│ • Pipeline      │ • Complex       │ • Advanced Workflows       │
+│ • Job           │   Analysis      │ • Performance Optimization │
+│ • Analysis      │ • Repository    │ • Educational & Learning   │
+│ • Error         │   Search        │ • Investigation & Debug    │
+│                 │ • Pagination    │ • Role-based Guidance      │
 └─────────────────┴─────────────────┴─────────────────────────────┘
 ```
 

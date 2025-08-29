@@ -6,6 +6,7 @@ GitLab Pipeline Analyzer MCP Server Documentation
    :caption: Contents:
 
    installation
+   prompts
    examples
    configuration
    troubleshooting
@@ -13,12 +14,19 @@ GitLab Pipeline Analyzer MCP Server Documentation
 Overview
 --------
 
-The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 6 streamlined tools following DRY and KISS principles for pipeline analysis, repository search, and cache management.
+The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 10 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
 
 Key Features
 ------------
 
-🔍 **Comprehensive Pipeline Analysis**
+� **Intelligent Prompts & Workflows**
+   - 13+ specialized prompts across 5 categories (Investigation, Performance, Educational, Advanced, Original)
+   - Role-based investigation wizards with progressive complexity
+   - Pipeline comparison and regression analysis capabilities
+   - Performance optimization and resource efficiency guidance
+   - Educational pathways and team mentoring support
+
+�🔍 **Comprehensive Pipeline Analysis**
    - Analyze complete failed pipelines with detailed error extraction
    - Deep-dive into individual job failures with structured error categorization
    - Support for both pytest-specific and generic log parsing
@@ -51,11 +59,20 @@ Key Features
 Architecture
 ------------
 
-The MCP server follows a streamlined architecture with 6 focused tools:
+The MCP server follows a streamlined architecture with 10 focused tools and 13+ intelligent prompts:
 
+**Core Tools:**
 1. **Pipeline Analysis** - Complete pipeline failure analysis with intelligent parsing
-2. **Repository Search** - Code and commit search functionality
+2. **Repository Search** - Code and commit search functionality  
 3. **Cache Management** - Cache operations and health monitoring
+4. **Resource Access** - Efficient data retrieval via MCP resource URIs
+5. **Job Analysis** - Individual job trace and error analysis
+
+**Intelligent Prompts:**
+- **Investigation Workflows** - Multi-step guided analysis and debugging
+- **Performance Optimization** - Pipeline efficiency and resource optimization
+- **Educational & Learning** - Skill development and knowledge sharing
+- **Advanced Analytics** - Complex analysis and comparison workflows
 
 All detailed data is accessed via resource URIs following DRY and KISS principles.
 
