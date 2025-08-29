@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🚀 **Planned Enhancements**
+
+- Additional prompt templates for specialized workflows
+- Enhanced error analysis with machine learning insights
+- Expanded GitLab integration features
+
+## [0.5.0] - 2025-08-29
+
 ### 🚀 **Major Enhancement: Intelligent Prompt System**
 
 - **13+ Specialized Prompts**: Comprehensive workflow guidance across 5 categories
@@ -27,13 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Server configuration (`MCP_HOST`, `MCP_PORT`, `MCP_PATH`, `MCP_TRANSPORT`)
   - GitLab connectivity (`GITLAB_URL`, `GITLAB_TOKEN`)
   - Deployment examples (development, production, testing, Docker)
-- **New Tools & Resources Documentation**: Comprehensive reference for all 10 tools and MCP resources
+- **New Tools & Resources Documentation**: Comprehensive reference for all 11 tools and MCP resources
   - Complete tool documentation with parameters, examples, and use cases
   - Comprehensive MCP resource patterns (Pipeline, Job, File, Error, Analysis)
   - Integration patterns and workflow examples
   - Best practices for tool selection and resource usage
 - **New Prompts Documentation**: Comprehensive guide to all 13+ prompts with usage examples
-- **Updated Architecture**: Reflects enhanced capabilities (10 tools + 13+ prompts + comprehensive resources)
+- **Updated Architecture**: Reflects enhanced capabilities (11 tools + 13+ prompts + comprehensive resources)
 - **Updated .env.example**: Added all auto-cleanup environment variables
 - **GitHub Pages Ready**: Updated Sphinx documentation for enhanced features
 - **Enhanced README**: Updated feature descriptions and capabilities overview
@@ -44,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Type Safety**: Modern Python 3.10+ type annotations throughout prompt system
 - **Integration**: Seamless integration between prompts and existing MCP tools
 - **Code Quality**: Enhanced maintainability and extensibility
+- **Tool Optimization**: Now includes 11 specialized MCP tools for comprehensive pipeline analysis
 
 ## [0.4.2] - 2025-08-28
 

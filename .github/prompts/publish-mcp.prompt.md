@@ -35,167 +35,103 @@ Prepare and release a new version of the **GitLab Pipeline Analyzer MCP** (`gitl
 
 ⚠️ **SAFETY NOTE**: The cleanup commands below have been carefully designed to preserve ALL legitimate test files in the `tests/` directory and any `pytest_*.py` files. Only temporary debug files from the root directory are removed.
 
-Run comprehensive quality checks and fix any issues:
+**Step 1: Check Tool Availability**
 
 ```bash
-# Check command availability and set up aliases for compatibility
-echo "🔧 Checking available commands..."
-
-# Check for find vs fd
-if command -v fd &> /dev/null; then
-    echo "✅ Using fd (modern file finder)"
-    FIND_CMD="fd"
-    FIND_TYPE="-t f"
-    FIND_EXEC="-x"
-    FIND_DELETE="-X rm"
-    FIND_NAME=""  # fd uses patterns directly
-else
-    echo "✅ Using find (traditional)"
-    FIND_CMD="find"
-    FIND_TYPE="-type f"
-    FIND_EXEC="-exec"
-    FIND_DELETE="-delete"
-    FIND_NAME="-name"
+# Check command availability
+if ! command -v fd &> /dev/null; then
+    echo "❌ fd not found. Please install: brew install fd"
+    exit 1
 fi
 
-# Check for grep vs rg (ripgrep)
-if command -v rg &> /dev/null; then
-    echo "✅ Using rg (ripgrep)"
-    GREP_CMD="rg"
-    GREP_COUNT="-c"
-    GREP_OUTPUT="-o"
-    GREP_REPLACE="-r"
-else
-    echo "✅ Using grep (traditional)"
-    GREP_CMD="grep"
-    GREP_COUNT="-c"
-    GREP_OUTPUT="-o"
-    GREP_REPLACE="s///"  # Will need sed for replacements
+if ! command -v rg &> /dev/null; then
+    echo "❌ rg not found. Please install: brew install ripgrep"
+    exit 1
 fi
 
-# Clean up unnecessary files before checks
-echo "🧹 Cleaning up unnecessary files..."
+echo "✅ Modern tools available"
+```
 
-# ⚠️  CRITICAL SAFETY NOTE:
-# This cleanup ONLY removes temporary/debug files from the root directory.
-# NEVER delete legitimate test files from tests/ directory or pytest_*.py files!
-# The patterns below are carefully designed to preserve all legitimate test files.
+**Step 2: Clean Up Temporary Files**
 
-# Safety check: Verify we're not about to delete legitimate test files
-echo "🔍 Safety check: Verifying test file preservation..."
-if [ -d "tests/" ]; then
-    if [ "$FIND_CMD" = "fd" ]; then
-        TEST_FILE_COUNT=$(fd -t f "test_.*\.py$" tests/ | wc -l)
-    else
-        TEST_FILE_COUNT=$(find tests/ -name "test_*.py" | wc -l)
-    fi
-    echo "✅ Found $TEST_FILE_COUNT legitimate test files in tests/ directory (will be preserved)"
-else
-    echo "⚠️  No tests/ directory found"
-fi
+```bash
+# Clean up Python cache and temporary files
+fd -t f -e pyc -X rm 2>/dev/null || true
+fd -t d -n __pycache__ -X rm -rf 2>/dev/null || true
+```
 
-if [ "$FIND_CMD" = "fd" ]; then
-    # Modern fd syntax - only clean up obvious temporary/debug files
-    fd -t f -e pyc -X rm 2>/dev/null || true
-    fd -t d -n __pycache__ -X rm -rf 2>/dev/null || true
-    # Only remove obvious temporary/debug files from root directory, not legitimate test files
-    fd -t f "debug_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    fd -t f "temp_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    fd -t f "demo_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    fd -t f "analyze_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    # Remove only very specific temporary test files (not legitimate test_*.py files)
-    fd -t f "simple_test.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    fd -t f "quick_test.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-    # Remove backup and temporary files
-    fd -t f ".*_old\..*$" -X rm 2>/dev/null || true
-    fd -t f ".*_clean\..*$" -X rm 2>/dev/null || true
-    fd -t f ".*\.bak$" -X rm 2>/dev/null || true
-    fd -t d ".*\.egg-info$" -X rm -rf 2>/dev/null || true
-else
-    # Traditional find syntax - only clean up obvious temporary/debug files
-    find . -name "*.pyc" -delete 2>/dev/null || true
-    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-    # Only remove obvious temporary/debug files from root directory, not legitimate test files
-    find . -maxdepth 1 -name "debug_*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "temp_*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "demo_*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "analyze_*.py" -delete 2>/dev/null || true
-    # Remove only very specific temporary test files (not legitimate test_*.py files)
-    find . -maxdepth 1 -name "simple_test*.py" -delete 2>/dev/null || true
-    find . -maxdepth 1 -name "quick_test*.py" -delete 2>/dev/null || true
-    find . -name "*_old.*" -delete 2>/dev/null || true
-    find . -name "*_clean.*" -delete 2>/dev/null || true
-    find . -name "*.bak" -delete 2>/dev/null || true
-    find . -name "*.egg-info" -type d -exec rm -rf {} + 2>/dev/null || true
-fi
+```bash
+# Remove temporary debug files from root only
+fd -t f "debug_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+fd -t f "temp_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+fd -t f "demo_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+```
 
-# Common cleanup regardless of tools
+```bash
+# Clean up build artifacts
 rm -rf build/ dist/ .pytest_cache/ .coverage coverage.xml 2>/dev/null || true
 rm -rf .mypy_cache/ .ruff_cache/ 2>/dev/null || true
-rm -f *.tmp *.temp *.log *.out 2>/dev/null || true
-rm -rf temp/ tmp/ debug/ 2>/dev/null || true
-# Note: *.egg-info directories can be in src/ or root, handled by find/fd commands above
+```
 
-# ⚠️  IMPORTANT: The cleanup above ONLY removes temporary/debug files from the root directory.
-# Legitimate test files in tests/ directory and pytest_*.py files are preserved!
-# Do NOT delete test_*.py files from tests/ directory - they are essential for the project.
+**Step 3: Install Dependencies**
 
-# Install dependencies
+```bash
 uv sync --all-extras
+```
 
-# Code quality checks
+**Step 4: Code Quality Checks**
+
+```bash
+# Run code formatting and linting
 uv run ruff check && uv run ruff format --check
-uv run mypy src/
-uv run bandit -r src/
+```
 
+```bash
+# Run type checking
+uv run mypy src/
+```
+
+```bash
+# Run security checks
+uv run bandit -r src/
+```
+
+**Step 5: Run Tests**
+
+```bash
 # Run full test suite
 uv run pytest --tb=short --cov-report=term --cov-fail-under=65
+```
 
-# Build and validate package
+**Step 6: Build and Validate Package**
+
+```bash
+# Build package
 uv run python -m build
+```
+
+```bash
+# Validate package
 uv run twine check dist/*
+```
 
-# Validate documentation accuracy (CRITICAL for PyPI)
-echo "📚 Validating documentation accuracy..."
-echo "🔍 Current tool count:"
+**Step 7: Get Tool Count for Documentation**
 
-# Count tools with available commands
-if [ "$FIND_CMD" = "fd" ] && [ "$GREP_CMD" = "rg" ]; then
-    # Modern tools
-    TOOL_COUNT=$(fd -t f -e py -E tests -E __pycache__ . src/ -x rg -c "@mcp\.tool" | awk '{sum+=$1} END {print sum}')
-elif [ "$FIND_CMD" = "find" ] && [ "$GREP_CMD" = "grep" ]; then
-    # Traditional tools
-    TOOL_COUNT=$(find src/ -name "*tools.py" -exec grep -c "@mcp.tool" {} \; | awk '{sum+=$1} END {print sum}')
-else
-    # Mixed environment
-    TOOL_COUNT=$(find src/ -name "*tools.py" -exec grep -c "@mcp.tool" {} \; 2>/dev/null | awk '{sum+=$1} END {print sum}')
-fi
-
+```bash
+# Count tools for documentation validation
+TOOL_COUNT=$(fd -t f -e py -E tests -E __pycache__ . src/ -x rg -c "@mcp\.tool" | awk '{sum+=$1} END {print sum}')
 echo "Total tools: $TOOL_COUNT"
+```
 
-echo "🔍 Available tools:"
-# Extract tool names with available commands
-if [ "$FIND_CMD" = "fd" ] && [ "$GREP_CMD" = "rg" ]; then
-    fd -t f -e py -E tests . src/ -x rg -o "def ([a-z_]+)" -r '$1' | rg -v "^_" | rg -v "register_" | sort | head -20
-else
-    find src/ -name "*tools.py" -exec grep -h "def " {} \; | grep -v "def _" | grep -v "register_" | sed 's/.*def //' | sed 's/(.*//g' | sort | head -20
-fi
+**Step 8: Build Sphinx Documentation (if present)**
 
-echo "⚠️  Verify README.md 'Available tools' section matches the above list"
-
-# Build and validate Sphinx documentation if present
+```bash
+# Build documentation if docs/ exists
 if [ -d "docs/" ]; then
-  echo "📖 Building Sphinx documentation..."
-  cd docs/
-  make clean && make html
-  if [ $? -eq 0 ]; then
-    echo "✅ Documentation build successful"
-  else
-    echo "❌ Documentation build failed - fix warnings before release"
-    cd ..
-    exit 1
-  fi
-  cd ..
+  cd docs/ && make clean && make html && cd ..
+  echo "✅ Documentation build successful"
+else
+  echo "📝 No docs/ directory found"
 fi
 ```
 
@@ -214,68 +150,49 @@ fi
 
 **FIRST**: Extract actual tool data from the codebase to ensure documentation accuracy:
 
-````bash
+**Step 1: Get Tool Count**
+
 ```bash
-# Check command availability first
-if command -v fd &> /dev/null && command -v rg &> /dev/null; then
-    echo "✅ Using modern tools (fd + rg)"
-    USE_MODERN=true
-else
-    echo "✅ Using traditional tools (find + grep)"
-    USE_MODERN=false
-fi
-
-# Generate current tool count and list
-echo "🔍 Generating current tool data..."
-
-# Count total tools with available commands
-if [ "$USE_MODERN" = true ]; then
-    TOOL_COUNT=$(fd -t f -e py -E tests -E __pycache__ . src/ -x rg -c "@mcp\.tool" | awk '{sum+=$1} END {print sum}')
-else
-    TOOL_COUNT=$(find src/ -name "*tools.py" -exec grep -c "@mcp.tool" {} \; | awk '{sum+=$1} END {print sum}')
-fi
+# Count total tools
+TOOL_COUNT=$(fd -t f -e py -E tests -E __pycache__ . src/ -x rg -c "@mcp\.tool" | awk '{sum+=$1} END {print sum}')
 echo "Total tools: $TOOL_COUNT"
+```
 
-# Extract tool names and descriptions
+**Step 2: Extract Tool Names**
+
+```bash
+# Extract tool names and save to file
 echo "🔍 Available tools with descriptions:" > /tmp/current_tools.txt
-if [ "$USE_MODERN" = true ]; then
-    fd -t f -e py -E tests . src/ -x rg -A 5 "@mcp\.tool" | \
-    rg "def ([a-z_]+)" -o -r '$1' | \
-    sort >> /tmp/current_tools.txt
-else
-    find src/ -name "*tools.py" -exec grep -A 5 "@mcp.tool" {} \; | \
-    grep -E "(async def|def )" | \
-    sed 's/.*def //' | \
-    sed 's/(.*//g' | \
-    sort >> /tmp/current_tools.txt
-fi
+fd -t f -e py -E tests . src/ -x rg -A 5 "@mcp\.tool" | rg "def ([a-z_]+)" -o -r '$1' | sort >> /tmp/current_tools.txt
+```
 
+**Step 3: Extract Tool Categories**
+
+```bash
 # Extract tool categories from docstrings
 echo "🔍 Tool categories:" > /tmp/tool_categories.txt
-if [ "$USE_MODERN" = true ]; then
-    fd -t f -e py -E tests . src/ -x rg -B 2 -A 10 "@mcp\.tool" | \
-    rg "[🔍📊🧪🌐🛡️📈🎯🔧📱📋]" >> /tmp/tool_categories.txt
-else
-    find src/ -name "*tools.py" -exec grep -B 2 -A 10 "@mcp.tool" {} \; | \
-    grep -E "[🔍📊🧪🌐🛡️📈🎯🔧📱📋]" >> /tmp/tool_categories.txt
-fi
+fd -t f -e py -E tests . src/ -x rg -B 2 -A 10 "@mcp\.tool" | rg "[🔍📊🧪🌐🛡️📈🎯🔧📱📋]" >> /tmp/tool_categories.txt
+```
 
-# Extract FastMCP version and dependencies
+**Step 4: Extract Dependencies**
+
+```bash
+# Extract dependencies
 echo "🔍 Current dependencies:" > /tmp/current_deps.txt
-if [ "$USE_MODERN" = true ]; then
-    rg -A 20 "dependencies =" pyproject.toml >> /tmp/current_deps.txt
-else
-    grep -A 20 "dependencies =" pyproject.toml >> /tmp/current_deps.txt
-fi
+rg -A 20 "dependencies =" pyproject.toml >> /tmp/current_deps.txt
+```
 
+**Step 5: Get Version Info**
+
+```bash
 # Extract version info
-if [ "$USE_MODERN" = true ]; then
-    CURRENT_VERSION=$(rg '^version =' pyproject.toml | rg -o '"[^"]*"' | tr -d '"')
-else
-    CURRENT_VERSION=$(grep '^version =' pyproject.toml | sed 's/version = "//' | sed 's/"//')
-fi
+CURRENT_VERSION=$(rg '^version =' pyproject.toml | rg -o '"[^"]*"' | tr -d '"')
 echo "Current version: $CURRENT_VERSION"
+```
 
+**Step 6: Review Data Summary**
+
+```bash
 # Display extracted data for review
 echo "📋 Current Tool Data Summary:"
 echo "- Total tools: $TOOL_COUNT"
@@ -283,9 +200,14 @@ echo "- Current version: $CURRENT_VERSION"
 echo "- Tool list saved to: /tmp/current_tools.txt"
 echo "- Categories saved to: /tmp/tool_categories.txt"
 echo "- Dependencies saved to: /tmp/current_deps.txt"
+```
 
+**Step 7: Review Tool List**
+
+```bash
+# Show tool list for verification
 cat /tmp/current_tools.txt
-````
+```
 
 ````
 
@@ -320,79 +242,79 @@ cat /tmp/current_tools.txt
 
 - [ ] **Update Sphinx Documentation** (if present):
 
+  **Step 1: Check for docs directory**
+
   ```bash
-  # Check if docs exist and update them comprehensively
+  # Check if docs exist
   if [ -d "docs/" ]; then
-    echo "📖 Updating Sphinx documentation..."
+    echo "📖 Found docs directory"
     cd docs/
-
-    # Update tool count in all documentation files
-    if command -v rg &> /dev/null; then
-      echo "🔢 Updating tool count to $TOOL_COUNT in documentation..."
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ comprehensive tools/$TOOL_COUNT comprehensive tools/g" {} \;
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ specialized tools/$TOOL_COUNT specialized tools/g" {} \;
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ tools/$TOOL_COUNT tools/g" {} \;
-    else
-      echo "🔢 Updating tool count to $TOOL_COUNT in documentation..."
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ comprehensive tools/$TOOL_COUNT comprehensive tools/g" {} \;
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ specialized tools/$TOOL_COUNT specialized tools/g" {} \;
-      find . -name "*.rst" -exec sed -i.bak "s/[0-9]\+ tools/$TOOL_COUNT tools/g" {} \;
-    fi
-
-    # Check for missing tools in mcp_tools.rst
-    echo "🔍 Validating tool documentation completeness..."
-
-    # Extract documented tools from mcp_tools.rst
-    if [ -f "mcp_tools.rst" ]; then
-      DOCUMENTED_TOOLS=$(grep -E "^[🔍📊🧪🌐🛡️📈🎯🔧📱📋📄📂📦📝🚨] " mcp_tools.rst | wc -l || echo "0")
-      echo "📚 Found $DOCUMENTED_TOOLS documented tools in mcp_tools.rst"
-
-      # Warn if counts don't match
-      if [ "$DOCUMENTED_TOOLS" -lt "$TOOL_COUNT" ]; then
-        echo "⚠️  WARNING: mcp_tools.rst has $DOCUMENTED_TOOLS tools but codebase has $TOOL_COUNT"
-        echo "   Please manually update docs/mcp_tools.rst with missing tools:"
-
-        # Show actual tools for comparison
-        echo "   Current tools in codebase:"
-        cd ..
-        fd -t f -e py . src/ -x rg -A 1 "@mcp\.tool" | rg "def " | sed 's/.*def //' | sed 's/(.*//g' | sort
-        cd docs/
-      fi
-    else
-      echo "⚠️  No mcp_tools.rst found - documentation may be incomplete"
-    fi
-
-    # Rebuild documentation to check for warnings
-    echo "🏗️  Building documentation..."
-    if command -v make &> /dev/null; then
-      make clean && make html
-      BUILD_SUCCESS=$?
-    else
-      echo "⚠️  Make not available - cannot build documentation"
-      BUILD_SUCCESS=0
-    fi
-
-    if [ $BUILD_SUCCESS -eq 0 ]; then
-      echo "✅ Documentation build successful"
-    else
-      echo "❌ Documentation build failed - check warnings before release"
-      echo "   Common issues:"
-      echo "   - Missing tool references"
-      echo "   - Broken links"
-      echo "   - Sphinx syntax errors"
-      cd ..
-      exit 1
-    fi
-
-    cd ..
-
-    # Clean up backup files
-    find docs/ -name "*.bak" -delete 2>/dev/null || true
-
-    echo "📚 Documentation update completed"
   else
-    echo "📝 No docs/ directory found - skipping Sphinx documentation update"
+    echo "� No docs/ directory found - skipping Sphinx documentation update"
+    exit 0
   fi
+  ```
+
+  **Step 2: Update tool count in documentation**
+
+  ```bash
+  # Update tool count in RST files
+  echo "🔢 Updating tool count to $TOOL_COUNT in documentation..."
+  fd -e rst . -x sed -i.bak "s/[0-9]\+ comprehensive tools/$TOOL_COUNT comprehensive tools/g"
+  fd -e rst . -x sed -i.bak "s/[0-9]\+ specialized tools/$TOOL_COUNT specialized tools/g"
+  fd -e rst . -x sed -i.bak "s/[0-9]\+ tools/$TOOL_COUNT tools/g"
+  ```
+
+  **Step 3: Validate tool documentation completeness**
+
+  ```bash
+  # Check for missing tools in mcp_tools.rst
+  if [ -f "mcp_tools.rst" ]; then
+    DOCUMENTED_TOOLS=$(rg -c "^[🔍📊🧪🌐🛡️📈🎯🔧📱📋📄📂📦📝🚨] " mcp_tools.rst || echo "0")
+    echo "📚 Found $DOCUMENTED_TOOLS documented tools in mcp_tools.rst"
+  else
+    echo "⚠️  No mcp_tools.rst found - documentation may be incomplete"
+  fi
+  ```
+
+  **Step 4: Check for tool count mismatch**
+
+  ```bash
+  # Warn if counts don't match
+  if [ "$DOCUMENTED_TOOLS" -lt "$TOOL_COUNT" ]; then
+    echo "⚠️  WARNING: mcp_tools.rst has $DOCUMENTED_TOOLS tools but codebase has $TOOL_COUNT"
+    echo "   Please manually update docs/mcp_tools.rst with missing tools"
+  fi
+  ```
+
+  **Step 5: Show actual tools for comparison**
+
+  ```bash
+  # Show current tools in codebase
+  echo "   Current tools in codebase:"
+  cd .. && fd -t f -e py . src/ -x rg -A 1 "@mcp\.tool" | rg "def " | sed 's/.*def //' | sed 's/(.*//g' | sort
+  cd docs/
+  ```
+
+  **Step 6: Build documentation**
+
+  ```bash
+  # Test documentation build
+  echo "🏗️  Building documentation..."
+  if command -v make &> /dev/null; then
+    make clean && make html
+  else
+    echo "⚠️  Make not available - cannot build documentation"
+  fi
+  ```
+
+  **Step 7: Clean up and return**
+
+  ```bash
+  # Clean up backup files and return to root
+  fd -e bak . -X rm 2>/dev/null || true
+  cd ..
+  echo "📚 Documentation update completed"
   ```
 
 **Manual Documentation Updates Required:**
@@ -410,113 +332,123 @@ cat /tmp/current_tools.txt
 
 **⚠️ CRITICAL**: Verify all documentation matches actual implementation:
 
+**Step 1: Check README.md tool count**
+
 ```bash
-# Check command availability for validation
-if command -v rg &> /dev/null; then
-    echo "✅ Using rg for validation"
-    GREP_VALIDATE="rg"
-else
-    echo "✅ Using grep for validation"
-    GREP_VALIDATE="grep"
-fi
-
-# Validate tool documentation accuracy
-echo "📚 Validating documentation accuracy..."
-
 # Check README.md tool count matches actual
-if [ "$GREP_VALIDATE" = "rg" ]; then
-    README_TOOL_COUNT=$(rg -o "[0-9]+ tools" README.md | head -1 | rg -o "[0-9]+")
-else
-    README_TOOL_COUNT=$(grep -o "[0-9]\+ tools" README.md | head -1 | grep -o "[0-9]\+")
-fi
+README_TOOL_COUNT=$(rg -o "[0-9]+ tools" README.md | head -1 | rg -o "[0-9]+")
+echo "README tools: $README_TOOL_COUNT, Actual tools: $TOOL_COUNT"
+```
 
+**Step 2: Validate tool count match**
+
+```bash
+# Validate counts match
 if [ "$README_TOOL_COUNT" != "$TOOL_COUNT" ]; then
   echo "❌ README.md tool count ($README_TOOL_COUNT) doesn't match actual ($TOOL_COUNT)"
   exit 1
-fi
-
-# Verify all tools mentioned in README exist in code
-echo "🔍 Checking tool references in README..."
-
-if [ "$GREP_VALIDATE" = "rg" ] && command -v fd &> /dev/null; then
-    # Modern tools
-    rg -o "analyze_[a-z_]*|get_[a-z_]*|extract_[a-z_]*|search_[a-z_]*" README.md | \
-    sort -u > /tmp/readme_tools.txt
-
-    fd -t f -e py -E tests . src/ -x rg -o "def ([a-z_]+)" -r '$1' | \
-    rg -v "^_" | rg -v "register_" | \
-    sort > /tmp/actual_tools.txt
 else
-    # Traditional tools
-    grep -o "analyze_[a-z_]*\|get_[a-z_]*\|extract_[a-z_]*\|search_[a-z_]*" README.md | \
-    sort -u > /tmp/readme_tools.txt
-
-    find src/ -name "*tools.py" -exec grep -h "def " {} \; | \
-    grep -v "def _" | grep -v "register_" | \
-    sed 's/.*def //' | sed 's/(.*//g' | \
-    sort > /tmp/actual_tools.txt
+  echo "✅ README.md tool count matches actual count"
 fi
+```
 
-# Check for mismatches
+**Step 3: Extract tools from README**
+
+```bash
+# Extract tools mentioned in README
+echo "🔍 Checking tool references in README..."
+rg -o "analyze_[a-z_]*|get_[a-z_]*|extract_[a-z_]*|search_[a-z_]*" README.md | sort -u > /tmp/readme_tools.txt
+```
+
+**Step 4: Extract actual tools from code**
+
+```bash
+# Extract actual tools from codebase
+fd -t f -e py -E tests . src/ -x rg -o "def ([a-z_]+)" -r '$1' | rg -v "^_" | rg -v "register_" | sort > /tmp/actual_tools.txt
+```
+
+**Step 5: Compare tool lists**
+
+```bash
+# Check for mismatches between README and actual tools
 if ! diff /tmp/readme_tools.txt /tmp/actual_tools.txt > /dev/null; then
   echo "❌ Tool references in README don't match actual tools"
-  echo "README tools:"
-  cat /tmp/readme_tools.txt
-  echo "Actual tools:"
-  cat /tmp/actual_tools.txt
   echo "Please update README.md tool references"
   exit 1
+else
+  echo "✅ README tool references match actual tools"
 fi
+```
 
-# Validate docs/ folder documentation if present
+**Step 6: Validate docs/ folder (if present)**
+
+```bash
+# Check docs folder documentation
 if [ -d "docs/" ]; then
   echo "📚 Validating docs/ folder documentation..."
-
-  # Check if docs tool count matches actual
-  if [ -f "docs/mcp_tools.rst" ]; then
-    if [ "$GREP_VALIDATE" = "rg" ]; then
-      DOCS_TOOL_COUNT=$(rg -o "[0-9]+ comprehensive tools" docs/mcp_tools.rst | head -1 | rg -o "[0-9]+")
-    else
-      DOCS_TOOL_COUNT=$(grep -o "[0-9]\+ comprehensive tools" docs/mcp_tools.rst | head -1 | grep -o "[0-9]\+")
-    fi
-
-    if [ -n "$DOCS_TOOL_COUNT" ] && [ "$DOCS_TOOL_COUNT" != "$TOOL_COUNT" ]; then
-      echo "❌ docs/mcp_tools.rst tool count ($DOCS_TOOL_COUNT) doesn't match actual ($TOOL_COUNT)"
-      exit 1
-    else
-      echo "✅ docs/mcp_tools.rst tool count matches actual ($TOOL_COUNT)"
-    fi
-  fi
-
-  # Check for broken internal links in documentation
-  if command -v fd &> /dev/null && command -v rg &> /dev/null; then
-    echo "🔗 Checking for broken internal references in docs..."
-    # Find :doc: references that might be broken
-    BROKEN_DOCS=$(fd -e rst . docs/ -x rg ":doc:" | rg -o ":doc:\`[^\`]+\`" | rg -o "[^\`]+\`$" | rg -o "^[^\`]+" | sort -u)
-    if [ -n "$BROKEN_DOCS" ]; then
-      echo "📋 Found doc references (verify these files exist):"
-      echo "$BROKEN_DOCS"
-    fi
-  fi
-
-  # Verify docs can be built without errors
-  if [ -f "docs/Makefile" ]; then
-    echo "🏗️  Testing documentation build..."
-    cd docs/
-    if make html > /tmp/docs_build.log 2>&1; then
-      echo "✅ Documentation builds successfully"
-    else
-      echo "❌ Documentation build failed - check docs/:"
-      cat /tmp/docs_build.log | tail -20
-      cd ..
-      exit 1
-    fi
-    cd ..
-  fi
 else
   echo "📝 No docs/ folder found - skipping docs validation"
 fi
+```
 
+**Step 7: Check docs tool count**
+
+```bash
+# Check docs tool count if docs exist
+if [ -f "docs/mcp_tools.rst" ]; then
+  DOCS_TOOL_COUNT=$(rg -o "[0-9]+ comprehensive tools" docs/mcp_tools.rst | head -1 | rg -o "[0-9]+")
+  echo "Docs tool count: $DOCS_TOOL_COUNT"
+else
+  echo "No mcp_tools.rst found"
+fi
+```
+
+**Step 8: Validate docs tool count**
+
+```bash
+# Validate docs tool count matches
+if [ -n "$DOCS_TOOL_COUNT" ] && [ "$DOCS_TOOL_COUNT" != "$TOOL_COUNT" ]; then
+  echo "❌ docs/mcp_tools.rst tool count ($DOCS_TOOL_COUNT) doesn't match actual ($TOOL_COUNT)"
+  exit 1
+elif [ -n "$DOCS_TOOL_COUNT" ]; then
+  echo "✅ docs/mcp_tools.rst tool count matches actual ($TOOL_COUNT)"
+fi
+```
+
+**Step 9: Check for broken doc references**
+
+```bash
+# Check for broken internal links in documentation
+if [ -d "docs/" ]; then
+  echo "🔗 Checking for broken internal references in docs..."
+  BROKEN_DOCS=$(fd -e rst . docs/ -x rg ":doc:" | rg -o ":doc:\`[^\`]+\`" | rg -o "[^\`]+\`$" | rg -o "^[^\`]+" | sort -u)
+  if [ -n "$BROKEN_DOCS" ]; then
+    echo "📋 Found doc references (verify these files exist):"
+    echo "$BROKEN_DOCS"
+  fi
+fi
+```
+
+**Step 10: Test documentation build**
+
+```bash
+# Test documentation build if Makefile exists
+if [ -f "docs/Makefile" ]; then
+  echo "🏗️  Testing documentation build..."
+  cd docs/ && make html > /tmp/docs_build.log 2>&1 && cd ..
+  if [ $? -eq 0 ]; then
+    echo "✅ Documentation builds successfully"
+  else
+    echo "❌ Documentation build failed - check docs/"
+    exit 1
+  fi
+fi
+```
+
+**Step 11: Final validation summary**
+
+```bash
+# Summary
 echo "✅ Documentation validation passed"
 ```
 
@@ -605,6 +537,8 @@ The tag push will automatically trigger:
 - **GitHub Release is automatic** - manual editing available post-creation
 - **Version must follow semver strictly** - tools and CI depend on it
 - **Tool count and descriptions must be current** - users rely on accurate documentation for feature discovery
+- **🚨 TERMINAL PERFORMANCE**: All bash scripts have been broken into small steps to prevent terminal freezing
+- **📋 STEP-BY-STEP EXECUTION**: Run each code block separately - do not combine multiple steps into single terminal commands
 
 ## 🆘 Troubleshooting
 
