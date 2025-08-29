@@ -18,30 +18,30 @@ def register_educational_prompts(mcp) -> None:
         user_experience: str = "intermediate",
         focus_areas: list[str] | None = None,
         time_commitment: str = "moderate",
-        learning_style: str = "hands_on"
+        learning_style: str = "hands_on",
     ) -> str:
         """Generate personalized CI/CD learning paths"""
 
         areas = focus_areas or ["gitlab_ci", "debugging", "optimization"]
-        
+
         experience_levels = {
             "beginner": "New to CI/CD and GitLab",
             "intermediate": "Some CI/CD experience, want to improve",
             "advanced": "Experienced, looking for optimization and best practices",
-            "expert": "Expert level, focusing on cutting-edge practices"
+            "expert": "Expert level, focusing on cutting-edge practices",
         }
 
         time_commitments = {
             "light": "1-2 hours per week",
-            "moderate": "3-5 hours per week", 
-            "intensive": "10+ hours per week"
+            "moderate": "3-5 hours per week",
+            "intensive": "10+ hours per week",
         }
 
         learning_styles = {
             "theoretical": "Documentation and concept-based learning",
             "hands_on": "Practical examples and experimentation",
             "problem_solving": "Real-world problem analysis and solutions",
-            "collaborative": "Team-based learning and knowledge sharing"
+            "collaborative": "Team-based learning and knowledge sharing",
         }
 
         return f"""
@@ -49,7 +49,7 @@ def register_educational_prompts(mcp) -> None:
 ## Experience Level: {experience_levels[user_experience]}
 
 ### 🎯 **Learning Configuration**
-- **Focus Areas**: {', '.join(areas)}
+- **Focus Areas**: {", ".join(areas)}
 - **Time Commitment**: {time_commitments[time_commitment]}
 - **Learning Style**: {learning_styles[learning_style]}
 
@@ -107,7 +107,7 @@ Parameters: project_id="[project]", job_id="[failed_job]"
 
 ## 📖 **Knowledge Building Activities**
 
-### For {learning_style.replace('_', ' ').title()} Learners:
+### For {learning_style.replace("_", " ").title()} Learners:
 {_get_learning_style_activities(learning_style, user_experience)}
 
 ## 🎯 **Skill Assessment Checkpoints**
@@ -155,22 +155,22 @@ Time Commitment: {time_commitment}
         project_id: str,
         investigation_context: str = "",
         sharing_scope: str = "team",
-        documentation_level: str = "detailed"
+        documentation_level: str = "detailed",
     ) -> str:
         """Generate knowledge sharing documentation from investigations"""
 
         sharing_scopes = {
             "personal": "Personal learning notes and reference",
-            "team": "Team knowledge base and shared learnings", 
+            "team": "Team knowledge base and shared learnings",
             "organization": "Company-wide best practices and patterns",
-            "community": "Public documentation and community contribution"
+            "community": "Public documentation and community contribution",
         }
 
         documentation_levels = {
             "minimal": "Basic problem and solution summary",
             "standard": "Detailed analysis with steps and reasoning",
             "detailed": "Comprehensive documentation with examples",
-            "tutorial": "Step-by-step educational content"
+            "tutorial": "Step-by-step educational content",
         }
 
         return f"""
@@ -299,23 +299,27 @@ Documentation Depth: {documentation_level}
         mentee_experience: str = "beginner",
         mentoring_focus: str = "general",
         session_type: str = "investigation",
-        learning_objectives: list[str] | None = None
+        learning_objectives: list[str] | None = None,
     ) -> str:
         """Guide for mentoring others in CI/CD and debugging skills"""
 
-        objectives = learning_objectives or ["debugging_skills", "tool_usage", "problem_solving"]
-        
+        objectives = learning_objectives or [
+            "debugging_skills",
+            "tool_usage",
+            "problem_solving",
+        ]
+
         experience_approaches = {
             "beginner": "Focus on fundamental concepts and guided practice",
             "intermediate": "Emphasize independent problem-solving with guidance",
-            "advanced": "Collaborative investigation and knowledge sharing"
+            "advanced": "Collaborative investigation and knowledge sharing",
         }
 
         mentoring_focuses = {
             "general": "Broad CI/CD and debugging skills",
             "tools": "Specific tool usage and techniques",
             "process": "Investigation processes and methodologies",
-            "troubleshooting": "Problem-solving and critical thinking"
+            "troubleshooting": "Problem-solving and critical thinking",
         }
 
         return f"""
@@ -325,7 +329,7 @@ Documentation Depth: {documentation_level}
 ### 🎯 **Mentoring Session Configuration**
 - **Focus Area**: {mentoring_focuses[mentoring_focus]}
 - **Session Type**: {session_type}
-- **Learning Objectives**: {', '.join(objectives)}
+- **Learning Objectives**: {", ".join(objectives)}
 - **Approach**: {experience_approaches[mentee_experience]}
 
 ## 📋 **Session Structure**
@@ -463,7 +467,7 @@ def _get_foundation_curriculum(experience: str, areas: list[str]) -> str:
 - Pipeline design principles
 - Performance optimization
 - Security considerations
-        """
+        """,
     }
     return curriculums.get(experience, curriculums["intermediate"])
 
@@ -471,7 +475,7 @@ def _get_foundation_curriculum(experience: str, areas: list[str]) -> str:
 def _get_practical_curriculum(experience: str, areas: list[str]) -> str:
     """Generate practical curriculum"""
     return f"""
-**Hands-on Practice with {', '.join(areas)}:**
+**Hands-on Practice with {", ".join(areas)}:**
 - Real-world problem solving
 - Tool combination techniques
 - Investigation methodology
@@ -531,7 +535,7 @@ def _get_learning_style_activities(style: str, experience: str) -> str:
 - Knowledge sharing presentations
 - Tool technique exchanges
 - Collaborative problem solving
-        """
+        """,
     }
     return activities.get(style, activities["hands_on"])
 
@@ -539,27 +543,27 @@ def _get_learning_style_activities(style: str, experience: str) -> str:
 def _get_sharing_activities(scope: str, level: str) -> str:
     """Generate sharing activities based on scope and level"""
     activities = {
-        "team": f"""
+        "team": """
 **Team Knowledge Sharing:**
 - Weekly debugging sessions
 - Tool technique sharing
 - Best practices documentation
 - Peer mentoring programs
         """,
-        "organization": f"""
+        "organization": """
 **Organizational Knowledge:**
 - Cross-team learning sessions
 - Best practices standardization
 - Tool training programs
 - Process improvement initiatives
         """,
-        "community": f"""
+        "community": """
 **Community Contribution:**
 - Public documentation
 - Open source contributions
 - Conference presentations
 - Blog posts and tutorials
-        """
+        """,
     }
     return activities.get(scope, activities["team"])
 
@@ -587,7 +591,7 @@ def _get_guided_investigation_structure(experience: str, focus: str) -> str:
 - Share advanced techniques
 - Collaborative problem solving
 - Knowledge exchange
-        """
+        """,
     }
     return structures.get(experience, structures["intermediate"])
 
@@ -615,7 +619,7 @@ def _get_teaching_strategies(experience: str, focus: str) -> str:
 - Share cutting-edge techniques
 - Peer learning and teaching
 - Innovation and improvement
-        """
+        """,
     }
     return strategies.get(experience, strategies["intermediate"])
 

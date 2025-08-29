@@ -34,12 +34,14 @@ def _get_role_specific_tips(role: str) -> str:
 - Coordinate team response and communication
 - Track resolution timeline and resource allocation
 - Plan process improvements to prevent recurrence
-        """
+        """,
     }
     return tips.get(role, tips["developer"])
 
 
-def _generate_strategy_matrix(scope: str, urgency: str, constraints: dict[str, Any]) -> str:
+def _generate_strategy_matrix(
+    scope: str, urgency: str, constraints: dict[str, Any]
+) -> str:
     """Generate fix strategy matrix based on parameters"""
     return f"""
 **Scope: {scope.title()} | Urgency: {urgency.title()}**
@@ -74,26 +76,29 @@ def register_advanced_prompts(mcp) -> None:
         user_role: str = "developer",
         investigation_depth: str = "standard",
         previous_context: str = "",
-        focus_areas: list[str] | None = None
+        focus_areas: list[str] | None = None,
     ) -> str:
         """Multi-step investigation wizard with role-based guidance"""
 
         role_configs = {
             "developer": {
                 "focus": ["code_errors", "test_failures", "compilation_issues"],
-                "tools_priority": ["failed_pipeline_analysis", "search_repository_code"],
-                "depth": "detailed_code_analysis"
+                "tools_priority": [
+                    "failed_pipeline_analysis",
+                    "search_repository_code",
+                ],
+                "depth": "detailed_code_analysis",
             },
             "devops": {
                 "focus": ["infrastructure", "deployments", "environment_issues"],
                 "tools_priority": ["cache_stats", "get_clean_job_trace"],
-                "depth": "system_level_analysis"
+                "depth": "system_level_analysis",
             },
             "manager": {
                 "focus": ["impact_assessment", "timeline", "resource_allocation"],
                 "tools_priority": ["get_mcp_resource", "cache_stats"],
-                "depth": "high_level_overview"
-            }
+                "depth": "high_level_overview",
+            },
         }
 
         config = role_configs.get(user_role, role_configs["developer"])
@@ -102,10 +107,14 @@ def register_advanced_prompts(mcp) -> None:
         depth_instructions = {
             "quick": "Focus on immediate blockers and quick wins",
             "standard": "Comprehensive analysis with actionable recommendations",
-            "deep": "Exhaustive investigation including root cause analysis"
+            "deep": "Exhaustive investigation including root cause analysis",
         }
 
-        continuation = f"\n## 🔄 **Continuing from previous context:**\n{previous_context}\n" if previous_context else ""
+        continuation = (
+            f"\n## 🔄 **Continuing from previous context:**\n{previous_context}\n"
+            if previous_context
+            else ""
+        )
 
         return f"""
 # 🧙‍♂️ Investigation Wizard for {user_role.title()}
@@ -115,7 +124,7 @@ def register_advanced_prompts(mcp) -> None:
 
 ## 🎯 **Role-Optimized Investigation Path**
 
-### Your Focus Areas: {', '.join(focus_list)}
+### Your Focus Areas: {", ".join(focus_list)}
 ### Investigation Depth: {depth_instructions[investigation_depth]}
 
 ## 📋 **Step-by-Step Workflow**
@@ -131,7 +140,7 @@ Resource: gl://pipeline/{project_id}/{pipeline_id}
 Tool: failed_pipeline_analysis
 Parameters: project_id="{project_id}", pipeline_id={pipeline_id}
 ```
-**{user_role.title()} Priority:** Look for {', '.join(config["focus"])}
+**{user_role.title()} Priority:** Look for {", ".join(config["focus"])}
 
 ### Step 3: Deep Dive Investigation
 Based on your role, prioritize these tools:
@@ -164,7 +173,7 @@ Use `investigation-wizard` again with `previous_context` parameter to continue w
         failed_pipeline_id: int,
         reference_pipeline_id: int | None = None,
         comparison_type: str = "failure-analysis",
-        time_window: str = "7_days"
+        time_window: str = "7_days",
     ) -> str:
         """Compare pipelines to identify changes and regressions"""
 
@@ -172,10 +181,14 @@ Use `investigation-wizard` again with `previous_context` parameter to continue w
             "failure-analysis": "Focus on what changed between working and broken states",
             "performance": "Compare execution times, resource usage, and efficiency",
             "environment": "Analyze environment differences and configuration changes",
-            "dependency": "Track dependency changes and version differences"
+            "dependency": "Track dependency changes and version differences",
         }
 
-        ref_pipeline_text = f"Resource: gl://pipeline/{project_id}/{reference_pipeline_id}" if reference_pipeline_id else "Use most recent successful pipeline"
+        ref_pipeline_text = (
+            f"Resource: gl://pipeline/{project_id}/{reference_pipeline_id}"
+            if reference_pipeline_id
+            else "Use most recent successful pipeline"
+        )
 
         return f"""
 # 🔍 Pipeline Comparison Analysis
@@ -251,24 +264,24 @@ Time Window: {time_window}
         error_context: str = "",
         team_constraints: dict[str, Any] | None = None,
         fix_scope: str = "targeted",
-        urgency: str = "medium"
+        urgency: str = "medium",
     ) -> str:
         """Generate comprehensive fix strategies based on constraints and context"""
 
         constraints = team_constraints or {}
-        
+
         scope_strategies = {
             "hotfix": "Minimal, immediate fix to restore functionality",
             "targeted": "Address root cause with focused changes",
             "comprehensive": "Systematic fix including related issues",
-            "preventive": "Fix current issue plus implement prevention measures"
+            "preventive": "Fix current issue plus implement prevention measures",
         }
 
         urgency_timelines = {
             "critical": "Immediate action required (< 1 hour)",
             "high": "Urgent fix needed (< 4 hours)",
             "medium": "Important fix (< 24 hours)",
-            "low": "Planned fix (< 1 week)"
+            "low": "Planned fix (< 1 week)",
         }
 
         return f"""

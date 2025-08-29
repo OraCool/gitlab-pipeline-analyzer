@@ -19,7 +19,7 @@ def register_performance_prompts(mcp) -> None:
         pipeline_id: int,
         baseline_pipeline_id: int | None = None,
         performance_threshold: str = "20_percent",
-        focus_area: str = "overall"
+        focus_area: str = "overall",
     ) -> str:
         """Investigate pipeline performance issues and bottlenecks"""
 
@@ -27,7 +27,7 @@ def register_performance_prompts(mcp) -> None:
             "10_percent": "Highly sensitive to performance changes",
             "20_percent": "Standard performance monitoring",
             "50_percent": "Only major performance regressions",
-            "100_percent": "Extreme performance issues only"
+            "100_percent": "Extreme performance issues only",
         }
 
         focus_areas = {
@@ -35,10 +35,14 @@ def register_performance_prompts(mcp) -> None:
             "build_time": "Focus on compilation and build steps",
             "test_time": "Focus on test execution performance",
             "deployment": "Focus on deployment and infrastructure steps",
-            "resource_usage": "Focus on CPU, memory, and I/O usage"
+            "resource_usage": "Focus on CPU, memory, and I/O usage",
         }
 
-        baseline_text = f"Compare against pipeline {baseline_pipeline_id}" if baseline_pipeline_id else "Use recent successful pipelines as baseline"
+        baseline_text = (
+            f"Compare against pipeline {baseline_pipeline_id}"
+            if baseline_pipeline_id
+            else "Use recent successful pipelines as baseline"
+        )
 
         return f"""
 # ⚡ Pipeline Performance Investigation
@@ -146,24 +150,28 @@ Focus Area: {focus_area}
         optimization_goal: str = "speed",
         current_pain_points: list[str] | None = None,
         team_size: str = "medium",
-        deployment_frequency: str = "daily"
+        deployment_frequency: str = "daily",
     ) -> str:
         """Comprehensive CI/CD pipeline optimization guidance"""
 
-        pain_points = current_pain_points or ["slow_builds", "flaky_tests", "complex_debugging"]
-        
+        pain_points = current_pain_points or [
+            "slow_builds",
+            "flaky_tests",
+            "complex_debugging",
+        ]
+
         optimization_strategies = {
             "speed": "Minimize pipeline execution time",
             "reliability": "Maximize pipeline success rate and stability",
             "cost": "Optimize resource usage and reduce infrastructure costs",
             "developer_experience": "Improve developer productivity and workflow",
-            "security": "Enhance security scanning and compliance checks"
+            "security": "Enhance security scanning and compliance checks",
         }
 
         team_contexts = {
             "small": "1-5 developers, simple workflows",
             "medium": "5-20 developers, moderate complexity",
-            "large": "20+ developers, complex enterprise workflows"
+            "large": "20+ developers, complex enterprise workflows",
         }
 
         return f"""
@@ -174,7 +182,7 @@ Focus Area: {focus_area}
 - **Primary Goal**: {optimization_strategies[optimization_goal]}
 - **Team Context**: {team_contexts[team_size]}
 - **Deployment Frequency**: {deployment_frequency}
-- **Current Pain Points**: {', '.join(pain_points)}
+- **Current Pain Points**: {", ".join(pain_points)}
 
 ## 📋 **Step 1: Current State Assessment**
 
@@ -272,7 +280,7 @@ Current Focus: {optimization_goal}
         pipeline_id: int,
         cost_concern: str = "medium",
         resource_type: str = "compute",
-        optimization_timeframe: str = "immediate"
+        optimization_timeframe: str = "immediate",
     ) -> str:
         """Analyze and optimize pipeline resource usage"""
 
@@ -280,14 +288,14 @@ Current Focus: {optimization_goal}
             "low": "Minor cost optimization needed",
             "medium": "Moderate cost reduction opportunities",
             "high": "Significant cost optimization required",
-            "critical": "Immediate cost reduction essential"
+            "critical": "Immediate cost reduction essential",
         }
 
         resource_types = {
             "compute": "CPU and memory optimization",
             "storage": "Disk and artifact storage optimization",
             "network": "Network bandwidth and transfer optimization",
-            "time": "Execution time and scheduling optimization"
+            "time": "Execution time and scheduling optimization",
         }
 
         return f"""
@@ -410,7 +418,7 @@ Cost Priority: {cost_concern}
 - Advanced parallelization and resource management
 - Comprehensive testing and deployment strategies
 - Deploy {frequency} with enterprise-grade controls
-            """
+            """,
         }
         return recommendations.get(team_size, recommendations["medium"])
 
