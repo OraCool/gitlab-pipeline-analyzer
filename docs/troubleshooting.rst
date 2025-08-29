@@ -620,7 +620,7 @@ Getting Help
 **Community Support:**
 
 - Check project documentation: :doc:`index`
-- Review configuration guide: :doc:`configuration`
+- Review environment variables guide: :doc:`environment_variables`
 - See examples: :doc:`examples`
 
 **Issue Reporting:**

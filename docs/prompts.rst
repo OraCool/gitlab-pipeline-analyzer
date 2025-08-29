@@ -21,7 +21,7 @@ Available Prompt Categories
 ---------------------------
 
 🔧 **Advanced Workflow Prompts** (3 prompts)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **investigation-wizard**
    Multi-step guided investigation with role-based customization
@@ -46,7 +46,7 @@ Available Prompt Categories
    - **Use Cases**: Large-scale fixes, team coordination, change management
 
 ⚡ **Performance & Optimization Prompts** (3 prompts)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **performance-investigation**
    Pipeline performance analysis and bottleneck identification
@@ -94,7 +94,7 @@ Available Prompt Categories
    - **Use Cases**: Mentoring programs, skill development, team growth
 
 🎯 **Original Investigation Prompts** (4 prompts)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **pipeline-investigation**
    Comprehensive pipeline failure analysis

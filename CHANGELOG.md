@@ -21,8 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📚 **Documentation Enhancements**
 
+- **New Environment Variables Documentation**: Comprehensive guide to all configuration options
+  - Database configuration (`MCP_DATABASE_PATH`)
+  - Auto-cleanup configuration (`MCP_AUTO_CLEANUP_*` variables)
+  - Server configuration (`MCP_HOST`, `MCP_PORT`, `MCP_PATH`, `MCP_TRANSPORT`)
+  - GitLab connectivity (`GITLAB_URL`, `GITLAB_TOKEN`)
+  - Deployment examples (development, production, testing, Docker)
+- **New Tools & Resources Documentation**: Comprehensive reference for all 10 tools and MCP resources
+  - Complete tool documentation with parameters, examples, and use cases
+  - Comprehensive MCP resource patterns (Pipeline, Job, File, Error, Analysis)
+  - Integration patterns and workflow examples
+  - Best practices for tool selection and resource usage
 - **New Prompts Documentation**: Comprehensive guide to all 13+ prompts with usage examples
-- **Updated Architecture**: Reflects enhanced capabilities (10 tools + 13+ prompts)
+- **Updated Architecture**: Reflects enhanced capabilities (10 tools + 13+ prompts + comprehensive resources)
+- **Updated .env.example**: Added all auto-cleanup environment variables
 - **GitHub Pages Ready**: Updated Sphinx documentation for enhanced features
 - **Enhanced README**: Updated feature descriptions and capabilities overview
 

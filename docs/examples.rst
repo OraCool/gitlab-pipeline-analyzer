@@ -8,7 +8,7 @@ This section provides practical examples of using the GitLab Pipeline Analyzer M
    :depth: 2
 
 Using Intelligent Prompts
---------------------------
+-------------------------
 
 The MCP server provides 13+ specialized prompts that guide users through complex CI/CD workflows. Here are practical examples of how to leverage these prompts effectively.
 
@@ -777,6 +777,7 @@ These examples demonstrate the flexibility and power of the GitLab Pipeline Anal
 Next Steps
 ----------
 
-- See :doc:`tool_reference` for complete parameter documentation
-- Check :doc:`configuration` for advanced setup options
-- Review :doc:`deployment` for production deployment strategies
+- Review :doc:`tools_and_resources` for complete tool reference
+- Check :doc:`environment_variables` for complete configuration options  
+- See :doc:`installation` for deployment guidance
+- Visit :doc:`troubleshooting` for common issues and solutions

@@ -3,6 +3,9 @@ Configuration Guide
 
 This guide covers configuration options for the GitLab Pipeline Analyzer MCP Server.
 
+.. note::
+   For comprehensive environment variables documentation including database configuration, auto-cleanup settings, and deployment examples, see :doc:`environment_variables`.
+
 .. contents::
    :local:
    :depth: 2
@@ -33,7 +36,7 @@ Transport Configuration
 The server supports three transport protocols via FastMCP:
 
 STDIO Transport (Default)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Used by Claude Desktop and local development:
 
@@ -112,7 +115,7 @@ Client Configuration
 --------------------
 
 Claude Desktop Integration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Add to your ``claude_desktop_config.json``:
 

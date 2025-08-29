@@ -6,6 +6,8 @@ GitLab Pipeline Analyzer MCP Server Documentation
    :caption: Contents:
 
    installation
+   environment_variables
+   tools_and_resources
    prompts
    examples
    configuration
@@ -46,6 +48,14 @@ Key Features
    - Search commit messages with branch-specific filtering
    - Contextual code snippets with line numbers
 
+🛡️ **Robust Configuration & Management**
+   - Comprehensive environment variable configuration for all aspects
+   - Database path configuration (``MCP_DATABASE_PATH``)
+   - Auto-cleanup configuration (interval, age, enable/disable)
+   - Server configuration (transport, host, port, path)
+   - GitLab connectivity configuration (URL, token)
+   - Multiple deployment scenarios (development, production, testing, Docker)
+
 🌐 **Multiple Transport Protocols**
    - STDIO transport for local development and Claude Desktop integration
    - HTTP transport for remote deployments and web applications
@@ -62,11 +72,17 @@ Architecture
 The MCP server follows a streamlined architecture with 10 focused tools and 13+ intelligent prompts:
 
 **Core Tools:**
-1. **Pipeline Analysis** - Complete pipeline failure analysis with intelligent parsing
-2. **Repository Search** - Code and commit search functionality  
-3. **Cache Management** - Cache operations and health monitoring
-4. **Resource Access** - Efficient data retrieval via MCP resource URIs
-5. **Job Analysis** - Individual job trace and error analysis
+1. **Pipeline Analysis** - ``failed_pipeline_analysis`` with intelligent parsing
+2. **Repository Search** - ``search_repository_code``, ``search_repository_commits``
+3. **Resource Access** - ``get_mcp_resource`` with comprehensive URI patterns
+4. **Job Trace Access** - ``get_clean_job_trace`` for direct trace retrieval
+5. **Cache Management** - ``cache_stats``, ``cache_health``, ``clear_cache``, ``clear_pipeline_cache``, ``clear_job_cache``
+
+**Comprehensive Resources:**
+- **Pipeline Resources** - Complete pipeline and job metadata
+- **File Resources** - File-specific error analysis with pagination
+- **Error Resources** - Structured error data with multiple access patterns
+- **Analysis Resources** - Deep analysis summaries with configurable detail modes
 
 **Intelligent Prompts:**
 - **Investigation Workflows** - Multi-step guided analysis and debugging
@@ -115,7 +131,7 @@ Basic usage with FastMCP client:
             print(result)
 
 Supported GitLab Instances
----------------------------
+--------------------------
 
 - **GitLab.com** - Public GitLab instance
 - **GitLab Enterprise** - Self-hosted GitLab instances

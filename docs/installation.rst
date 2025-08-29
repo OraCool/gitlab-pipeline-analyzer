@@ -33,7 +33,7 @@ Configuration
 Environment Variables
 ~~~~~~~~~~~~~~~~~~~~~
 
-The MCP server requires the following environment variables:
+The MCP server supports comprehensive configuration through environment variables. For complete details, see :doc:`environment_variables`.
 
 **Required Variables:**
 
@@ -51,7 +51,39 @@ The MCP server requires the following environment variables:
      - ``glpat-xxxxxxxxxxxx``
      - GitLab personal access token with ``api`` scope
 
-**Optional Variables:**
+**Database Configuration:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 30 50
+
+   * - Variable
+     - Default
+     - Description
+   * - ``MCP_DATABASE_PATH``
+     - ``analysis_cache.db``
+     - SQLite database location for caching
+
+**Auto-Cleanup Configuration:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 30 50
+
+   * - Variable
+     - Default
+     - Description
+   * - ``AUTO_CLEANUP_ENABLED``
+     - ``true``
+     - Enable automatic cache cleanup
+   * - ``AUTO_CLEANUP_INTERVAL_HOURS``
+     - ``24``
+     - Hours between cleanup runs
+   * - ``AUTO_CLEANUP_MAX_AGE_DAYS``
+     - ``7``
+     - Maximum age for cached data
+
+**Server Configuration:**
 
 .. list-table::
    :header-rows: 1
@@ -69,6 +101,12 @@ The MCP server requires the following environment variables:
    * - ``MCP_PATH``
      - ``/mcp``
      - HTTP endpoint path
+   * - ``MCP_MAX_REQUEST_SIZE``
+     - ``10485760``
+     - Maximum request size (10MB)
+   * - ``MCP_CORS_ORIGINS``
+     - ``["*"]``
+     - CORS allowed origins (JSON array)
 
 GitLab Personal Access Token
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,17 +141,31 @@ Setting Environment Variables
 
 **Using .env file:**
 
-Create a ``.env`` file in the project directory:
+Create a ``.env`` file in the project directory. See :doc:`environment_variables` for complete reference.
 
 .. code-block:: text
 
+    # Required GitLab Configuration
     GITLAB_URL=https://gitlab.com
-    GITLAB_TOKEN=your-token
+    GITLAB_TOKEN=your-token-here
 
-    # Optional transport configuration
+    # Database Configuration
+    MCP_DATABASE_PATH=analysis_cache.db
+
+    # Auto-Cleanup Configuration
+    AUTO_CLEANUP_ENABLED=true
+    AUTO_CLEANUP_INTERVAL_HOURS=24
+    AUTO_CLEANUP_MAX_AGE_DAYS=7
+
+    # Server Configuration
     MCP_HOST=127.0.0.1
     MCP_PORT=8000
     MCP_PATH=/mcp
+    MCP_MAX_REQUEST_SIZE=10485760
+    MCP_CORS_ORIGINS=["*"]
+
+.. note::
+   For production deployments, see :doc:`environment_variables` for security considerations and advanced configuration options.
 
 Transport Protocols
 -------------------
@@ -191,9 +243,25 @@ With Environment File
 
 .. code-block:: bash
 
-    # Create .env file with your configuration
-    echo "GITLAB_URL=https://gitlab.com" > .env
-    echo "GITLAB_TOKEN=your-token" >> .env
+    # Create comprehensive .env file
+    cat > .env << 'EOF'
+    # Required GitLab Configuration
+    GITLAB_URL=https://gitlab.com
+    GITLAB_TOKEN=your-token-here
+
+    # Database Configuration
+    MCP_DATABASE_PATH=analysis_cache.db
+
+    # Auto-Cleanup Configuration
+    AUTO_CLEANUP_ENABLED=true
+    AUTO_CLEANUP_INTERVAL_HOURS=24
+    AUTO_CLEANUP_MAX_AGE_DAYS=7
+
+    # Server Configuration (for HTTP/SSE transports)
+    MCP_HOST=127.0.0.1
+    MCP_PORT=8000
+    MCP_PATH=/mcp
+    EOF
 
     # Run server (reads .env automatically)
     uv run gitlab-analyzer
@@ -219,6 +287,57 @@ SSE Server
 
     # Or use dedicated SSE server script
     uv run gitlab-analyzer-sse
+
+Cache and Database Management
+-----------------------------
+
+Database Setup
+~~~~~~~~~~~~~~
+
+The MCP server uses SQLite for caching pipeline analysis results:
+
+.. code-block:: bash
+
+    # Database is created automatically on first run
+    # Default location: analysis_cache.db
+    
+    # Custom database location
+    export MCP_DATABASE_PATH="/path/to/custom/cache.db"
+    uv run gitlab-analyzer
+
+Auto-Cleanup Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The server includes automatic cache cleanup to manage storage:
+
+.. code-block:: bash
+
+    # Enable auto-cleanup (default: enabled)
+    export AUTO_CLEANUP_ENABLED=true
+    
+    # Cleanup every 12 hours (default: 24)
+    export AUTO_CLEANUP_INTERVAL_HOURS=12
+    
+    # Keep data for 3 days (default: 7)
+    export AUTO_CLEANUP_MAX_AGE_DAYS=3
+
+Manual Cache Management
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You can manually manage the cache using MCP tools:
+
+.. code-block:: bash
+
+    # Check cache status
+    # Use cache_stats tool via MCP client
+    
+    # Clear old data
+    # Use clear_cache tool via MCP client
+    
+    # Check cache health
+    # Use cache_health tool via MCP client
+
+For complete cache management options, see :doc:`tools_and_resources`.
 
 Verification
 ------------
@@ -309,6 +428,37 @@ Common Issues
 - Check if you're in the project directory
 - Verify Python environment
 
+**Database Permission Issues:**
+
+.. code-block:: text
+
+    Error: Permission denied: analysis_cache.db
+
+- Check write permissions for database directory
+- Ensure database path is accessible
+- Try different ``MCP_DATABASE_PATH`` location
+
+**Cache Performance Issues:**
+
+.. code-block:: text
+
+    Warning: Cache operations are slow
+
+- Check disk space availability
+- Consider enabling auto-cleanup
+- Verify database integrity with ``cache_health`` tool
+
+**Auto-Cleanup Not Working:**
+
+.. code-block:: text
+
+    Cache size growing despite auto-cleanup enabled
+
+- Verify ``AUTO_CLEANUP_ENABLED=true``
+- Check ``AUTO_CLEANUP_INTERVAL_HOURS`` setting
+- Review ``AUTO_CLEANUP_MAX_AGE_DAYS`` value
+- Use ``cache_stats`` tool to monitor cleanup
+
 Debug Mode
 ~~~~~~~~~~
 
@@ -317,7 +467,8 @@ For troubleshooting, you can run the server with verbose output by checking the 
 Next Steps
 ----------
 
-- Review :doc:`mcp_tools` for complete tool overview
-- Check :doc:`tool_reference` for detailed tool documentation
-- See :doc:`examples` for usage examples
-- Read :doc:`configuration` for advanced configuration options
+- Review :doc:`environment_variables` for complete configuration reference
+- Check :doc:`tools_and_resources` for tool overview and MCP resources
+- See :doc:`prompts` for intelligent prompt system usage
+- Read :doc:`examples` for practical usage examples
+- Visit :doc:`troubleshooting` for common issues and solutions

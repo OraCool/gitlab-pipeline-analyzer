@@ -49,7 +49,7 @@ make man       # Manual pages
 - `mcp_tools.rst` - Overview of MCP tools and categories
 - `tool_reference.rst` - Complete API reference for all tools
 - `examples.rst` - Practical usage examples and code samples
-- `configuration.rst` - Advanced configuration options
+- `environment_variables.rst` - Complete environment variables reference
 - `deployment.rst` - Production deployment strategies
 - `troubleshooting.rst` - Common issues and solutions
 
