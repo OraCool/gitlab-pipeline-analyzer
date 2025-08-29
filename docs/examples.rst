@@ -1,783 +1,681 @@
 Examples and Use Cases
 ======================
 
-This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server in various scenarios, including the enhanced intelligent prompt system.
+This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server with its comprehensive toolkit of 10 essential tools, MCP resources, and 13+ intelligent prompts.
 
 .. contents::
    :local:
    :depth: 2
 
+Quick Start Examples
+--------------------
+
+Failed Pipeline Investigation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** Pipeline #1594344 in project 83 failed. You need a complete analysis.
+
+**Using the failed_pipeline_analysis tool:**
+
+.. code-block:: text
+
+    User: "Pipeline 1594344 in project 83 failed. What went wrong?"
+    
+    Assistant: "I'll analyze this failed pipeline comprehensively for you."
+    
+    # Tool call: failed_pipeline_analysis
+    {
+        "project_id": "83",
+        "pipeline_id": 1594344,
+        "store_in_db": true
+    }
+    
+    # Results show:
+    # - 3 failed jobs with 127 total errors
+    # - Main issues: Import errors, test failures
+    # - Resources created for detailed investigation
+
+**Follow-up with MCP Resources:**
+
+.. code-block:: text
+
+    # Access failed jobs directly
+    Resource: gl://jobs/83/pipeline/1594344/failed
+    
+    # Get specific error analysis  
+    Resource: gl://errors/83/pipeline/1594344
+    
+    # Examine specific file errors
+    Resource: gl://errors/83/76474172/src/main.py
+
+Search Repository for Solutions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** Errors mention missing imports. Find where they're defined.
+
+**Using search_repository_code tool:**
+
+.. code-block:: text
+
+    # Search for specific function or import
+    Tool: search_repository_code
+    {
+        "project_id": "83", 
+        "search_keywords": "import pandas",
+        "extension_filter": "py",
+        "max_results": 10
+    }
+    
+    # Results show where pandas is used across the codebase
+    # Helps identify missing dependencies or import patterns
+
+Clean Job Trace Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** Need readable log output without ANSI escape sequences.
+
+**Using get_clean_job_trace tool:**
+
+.. code-block:: text
+
+    Tool: get_clean_job_trace
+    {
+        "project_id": "83",
+        "job_id": 76474172,
+        "save_to_file": true,
+        "output_format": "text"
+    }
+    
+    # Returns clean, human-readable trace
+    # Saved to local file for further analysis
+
 Using Intelligent Prompts
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The MCP server provides 13+ specialized prompts that guide users through complex CI/CD workflows. Here are practical examples of how to leverage these prompts effectively.
-
-Investigation Wizard for Beginners
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** A new team member encounters their first pipeline failure and needs guided assistance.
+**Performance Investigation Prompt:**
 
 .. code-block:: text
 
-    User: "I'm new to CI/CD and our pipeline failed. I don't know where to start."
-    
-    Assistant: "I'll use the investigation-wizard prompt in beginner mode to guide you through 
-    the analysis step by step. We'll start with basic concepts and gradually dive deeper."
-    
-    # The wizard will:
-    # 1. Explain basic pipeline concepts
-    # 2. Guide through failed_pipeline_analysis tool usage
-    # 3. Help interpret results in simple terms
-    # 4. Suggest next steps based on findings
-    # 5. Provide learning resources for skill development
-
-Pipeline Comparison for Regression Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** A pipeline that was working yesterday is now failing, and you need to identify what changed.
-
-.. code-block:: text
-
-    User: "Pipeline 12345 was working fine, but pipeline 12346 is failing. What changed?"
-    
-    Assistant: "I'll use the pipeline-comparison prompt to analyze the differences between 
-    your successful and failed pipelines."
-    
-    # The comparison will:
-    # 1. Compare job configurations and results
-    # 2. Identify new errors or changed behavior
-    # 3. Analyze commit differences using search_repository_commits
-    # 4. Check for configuration drift
-    # 5. Provide regression analysis report
-
-Performance Investigation for Optimization
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** Your pipelines are taking too long to complete and consuming too many resources.
-
-.. code-block:: text
-
-    User: "Our CI/CD pipelines are slow and expensive. How can we optimize them?"
+    User: "Our pipelines are too slow. Help me optimize them."
     
     Assistant: "I'll use the performance-investigation prompt to analyze your pipeline 
     efficiency and identify optimization opportunities."
     
-    # The investigation will:
-    # 1. Analyze pipeline timing and resource usage
-    # 2. Identify bottlenecks and slow jobs
-    # 3. Check cache usage with cache_stats
-    # 4. Suggest parallelization opportunities
-    # 5. Provide cost optimization recommendations
+    # Guided analysis includes:
+    # 1. Pipeline timing analysis
+    # 2. Resource usage patterns
+    # 3. Cache effectiveness check
+    # 4. Bottleneck identification
+    # 5. Optimization recommendations
 
-Learning Path for Team Development
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** You want to help your team improve their CI/CD skills systematically.
+**Investigation Wizard for Beginners:**
 
 .. code-block:: text
 
-    User: "I want to create a learning plan for my team to master CI/CD best practices."
+    User: "I'm new to CI/CD. This pipeline failed and I don't understand why."
     
-    Assistant: "I'll use the learning-path prompt to create a personalized CI/CD 
-    curriculum based on your team's current skill level and goals."
+    Assistant: "I'll use the investigation-wizard in beginner mode to guide you 
+    through the analysis step by step."
     
-    # The learning path will:
-    # 1. Assess current team capabilities
-    # 2. Create progressive learning modules
-    # 3. Provide hands-on exercises using real pipeline data
-    # 4. Set up practice scenarios with search_repository_code
-    # 5. Track progress and adjust difficulty
-
-Mentoring Guide for Knowledge Transfer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** You're an experienced engineer tasked with mentoring junior team members on CI/CD.
-
-.. code-block:: text
-
-    User: "I need to mentor new developers on CI/CD practices. How should I structure this?"
-    
-    Assistant: "I'll use the mentoring-guide prompt to help you create an effective 
-    teaching strategy for CI/CD concepts."
-    
-    # The mentoring guide will:
-    # 1. Suggest teaching methodologies for different concepts
-    # 2. Provide explanation frameworks for complex topics
-    # 3. Create practical exercises using get_mcp_resource
-    # 4. Recommend progress tracking approaches
-    # 5. Help establish feedback loops
-
-Fix Strategy Planning for Complex Issues
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** You have a complex pipeline failure that affects multiple teams and requires coordinated fixing.
-
-.. code-block:: text
-
-    User: "We have a major pipeline failure affecting multiple teams. I need a comprehensive fix strategy."
-    
-    Assistant: "I'll use the fix-strategy-planner prompt to create a comprehensive 
-    remediation plan with resource allocation and timeline estimates."
-    
-    # The strategy planner will:
-    # 1. Analyze failure scope and impact
-    # 2. Prioritize fixes by criticality and effort
-    # 3. Create resource allocation plan
-    # 4. Estimate timelines and dependencies
-    # 5. Suggest rollback strategies and risk mitigation
-
-Basic Usage Examples
---------------------
-
-Analyzing a Failed Pipeline
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** You receive a notification that pipeline #456 in project "myorg/myproject" has failed and need to understand what went wrong.
-
-.. code-block:: python
-
-    from fastmcp import Client
-
-    async def investigate_pipeline_failure():
-        async with Client("http://localhost:8000/mcp") as client:
-            # Start with a quick overview
-            summary = await client.call_tool("analyze_failed_pipeline_summary", {
-                "project_id": "myorg/myproject",
-                "pipeline_id": 456
-            })
-
-            print(f"Pipeline {summary['pipeline_id']} has {summary['summary']['total_failed_jobs']} failed jobs")
-            print(f"Total errors: {summary['summary']['total_errors']}")
-
-            # Get detailed analysis if needed
-            if summary['summary']['total_errors'] < 50:  # Avoid overwhelming output
-                detailed = await client.call_tool("analyze_failed_pipeline", {
-                    "project_id": "myorg/myproject",
-                    "pipeline_id": 456
-                })
-
-                # Show parser usage
-                for parser_type, info in detailed['parser_analysis']['usage_summary'].items():
-                    print(f"{parser_type} parser used for {info['count']} jobs with {info['total_errors']} total errors")
-
-Investigating a Specific Job
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** Pipeline analysis shows that job #789 has the most errors, and you want to focus on it.
-
-.. code-block:: python
-
-    async def analyze_problematic_job():
-        async with Client("http://localhost:8000/mcp") as client:
-            # Get detailed job analysis
-            job_analysis = await client.call_tool("analyze_single_job", {
-                "project_id": "myorg/myproject",
-                "job_id": 789
-            })
-
-            print(f"Job {job_analysis['job_id']} has {job_analysis['error_count']} errors")
-            print(f"Parser type: {job_analysis['parser_type']}")
-
-            # If it's a pytest job, get more detailed test information
-            if job_analysis['parser_type'] == 'pytest':
-                pytest_details = await client.call_tool("analyze_pytest_job_complete", {
-                    "project_id": "myorg/myproject",
-                    "job_id": 789
-                })
-
-                stats = pytest_details['statistics']
-                print(f"Test Results: {stats['passed']} passed, {stats['failed']} failed, {stats['skipped']} skipped")
-                print(f"Duration: {stats['duration_formatted']}")
-
-Working with Large Error Sets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** A job has many errors and you need to process them systematically without overwhelming the response.
-
-.. code-block:: python
-
-    async def handle_large_error_set():
-        async with Client("http://localhost:8000/mcp") as client:
-            project_id = "myorg/myproject"
-            job_id = 789
-
-            # Start with limited analysis to gauge size
-            limited = await client.call_tool("analyze_single_job_limited", {
-                "project_id": project_id,
-                "job_id": job_id,
-                "max_errors": 5,
-                "include_traceback": False
-            })
-
-            total_errors = limited.get('total_available_errors', limited['error_count'])
-            print(f"Total errors available: {total_errors}")
-
-            if total_errors > 20:
-                # Use batch processing for large error sets
-                batch_size = 3
-                for start_idx in range(0, min(total_errors, 15), batch_size):  # Process first 15 errors
-                    batch = await client.call_tool("get_error_batch", {
-                        "project_id": project_id,
-                        "job_id": job_id,
-                        "start_index": start_idx,
-                        "batch_size": batch_size,
-                        "include_traceback": True
-                    })
-
-                    print(f"\\nBatch {start_idx//batch_size + 1}: {len(batch['errors'])} errors")
-                    for error in batch['errors']:
-                        print(f"  - {error.get('exception_type', 'Error')}: {error.get('exception_message', error.get('message', 'No message'))}")
+    # Educational approach:
+    # 1. Explains CI/CD concepts
+    # 2. Guides through tool usage
+    # 3. Interprets results clearly
+    # 4. Suggests learning resources
 
 Advanced Use Cases
 ------------------
 
-File-Based Error Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~
+MCP Resources Navigation
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Scenario:** You want to fix errors systematically by working on one file at a time.
-
-.. code-block:: python
-
-    async def systematic_file_fixing():
-        async with Client("http://localhost:8000/mcp") as client:
-            project_id = "myorg/myproject"
-            pipeline_id = 456
-
-            # Get overview of files with errors
-            files_overview = await client.call_tool("get_files_with_errors", {
-                "project_id": project_id,
-                "pipeline_id": pipeline_id,
-                "max_files": 10,
-                "exclude_file_patterns": ["*.pyc", "__pycache__", ".pytest_cache"]
-            })
-
-            print("Files with errors:")
-            for file_info in files_overview['files_with_errors']:
-                print(f"  {file_info['file_path']}: {file_info['error_count']} errors ({file_info['file_type']})")
-
-            # Group errors by file for systematic fixing
-            grouped_errors = await client.call_tool("group_errors_by_file", {
-                "project_id": project_id,
-                "pipeline_id": pipeline_id,
-                "max_files": 5,
-                "max_errors_per_file": 10,
-                "include_traceback": True
-            })
-
-            # Process highest priority files first
-            for file_group in grouped_errors['file_groups']:
-                file_path = file_group['file_path']
-                error_count = file_group['error_count']
-
-                print(f"\\n=== Processing {file_path} ({error_count} errors) ===")
-
-                # Get specific job with errors for this file
-                if file_group['errors']:
-                    first_error = file_group['errors'][0]
-                    job_id = first_error['job_id']
-
-                    # Get all errors for this specific file
-                    file_errors = await client.call_tool("get_file_errors", {
-                        "project_id": project_id,
-                        "job_id": job_id,
-                        "file_path": file_path,
-                        "max_errors": 15,
-                        "include_traceback": True
-                    })
-
-                    print(f"Found {len(file_errors['errors'])} errors in {file_path}")
-                    for error in file_errors['errors']:
-                        line = error.get('line_number', 'unknown')
-                        error_type = error.get('exception_type', 'Error')
-                        message = error.get('exception_message', error.get('message', 'No message'))
-                        print(f"  Line {line}: {error_type} - {message}")
-
-Repository Search Integration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** Errors mention missing functions or imports, and you need to find where they should be defined or used.
-
-.. code-block:: python
-
-    async def search_for_missing_dependencies():
-        async with Client("http://localhost:8000/mcp") as client:
-            project_id = "myorg/myproject"
-            job_id = 789
-
-            # Analyze errors to find missing imports
-            job_analysis = await client.call_tool("analyze_single_job", {
-                "project_id": project_id,
-                "job_id": job_id
-            })
-
-            import_errors = []
-            for error in job_analysis.get('errors', []):
-                message = error.get('exception_message', error.get('message', ''))
-                if 'No module named' in message or 'cannot import' in message:
-                    import_errors.append(error)
-
-            print(f"Found {len(import_errors)} import-related errors")
-
-            # Search for each missing module in the codebase
-            for error in import_errors[:3]:  # Process first 3 import errors
-                message = error.get('exception_message', error.get('message', ''))
-
-                # Extract module name (basic parsing)
-                if "No module named '" in message:
-                    module_name = message.split("No module named '")[1].split("'")[0]
-
-                    print(f"\\nSearching for module: {module_name}")
-
-                    # Search for the module in code
-                    search_results = await client.call_tool("search_repository_code", {
-                        "project_id": project_id,
-                        "search_keywords": module_name,
-                        "extension_filter": "py",
-                        "max_results": 5
-                    })
-
-                    if "Found 0 total matches" not in search_results:
-                        print("Found potential matches:")
-                        print(search_results)
-                    else:
-                        print(f"Module {module_name} not found in codebase - might need to be installed")
-
-Test Failure Investigation
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** Test jobs are failing and you need detailed analysis of test failures with full context.
-
-.. code-block:: python
-
-    async def investigate_test_failures():
-        async with Client("http://localhost:8000/mcp") as client:
-            project_id = "myorg/myproject"
-            job_id = 789  # Test job ID
-
-            # Get comprehensive pytest analysis
-            pytest_analysis = await client.call_tool("analyze_pytest_job_complete", {
-                "project_id": project_id,
-                "job_id": job_id
-            })
-
-            stats = pytest_analysis['statistics']
-            print(f"Test Summary: {stats['total_tests']} total, {stats['failed']} failed")
-            print(f"Pass rate: {stats['passed']}/{stats['total_tests']} ({(stats['passed']/stats['total_tests']*100):.1f}%)")
-
-            if stats['failed'] > 0:
-                print(f"\\n=== Failed Tests ===")
-
-                # Get detailed failure information
-                detailed_failures = await client.call_tool("extract_pytest_detailed_failures", {
-                    "project_id": project_id,
-                    "job_id": job_id
-                })
-
-                for failure in detailed_failures['detailed_failures']:
-                    print(f"\\nTest: {failure['test_name']}")
-                    print(f"File: {failure['test_file']}:{failure['line_number']}")
-                    print(f"Error: {failure['exception_type']} - {failure['exception_message']}")
-
-                    # Show relevant traceback entries (filtered)
-                    if failure.get('traceback'):
-                        print("Traceback (relevant parts):")
-                        for frame in failure['traceback'][-3:]:  # Show last 3 frames
-                            if '/builds/' not in frame.get('file_path', ''):  # Skip CI build paths
-                                print(f"  {frame.get('file_path', 'unknown')}:{frame.get('line_number', '?')}")
-                                if frame.get('code_line'):
-                                    print(f"    {frame['code_line']}")
-
-            # Check for patterns in failures
-            if len(pytest_analysis['detailed_failures']) > 1:
-                print(f"\\n=== Failure Analysis ===")
-
-                # Group by exception type
-                error_types = {}
-                for failure in pytest_analysis['detailed_failures']:
-                    error_type = failure['exception_type']
-                    if error_type not in error_types:
-                        error_types[error_type] = []
-                    error_types[error_type].append(failure)
-
-                for error_type, failures in error_types.items():
-                    print(f"{error_type}: {len(failures)} occurrences")
-                    if len(failures) > 2:
-                        print(f"  Common error type - investigate {error_type} issues")
-
-Commit History Analysis
-~~~~~~~~~~~~~~~~~~~~~~~
-
-**Scenario:** Errors appeared recently and you want to find related commits that might have introduced the issues.
-
-.. code-block:: python
-
-    async def investigate_recent_changes():
-        async with Client("http://localhost:8000/mcp") as client:
-            project_id = "myorg/myproject"
-
-            # Get pipeline info to understand what branch we're working with
-            pipeline_info = await client.call_tool("get_pipeline_info", {
-                "project_id": project_id,
-                "pipeline_id": 456
-            })
-
-            target_branch = pipeline_info['target_branch']
-            print(f"Investigating recent changes on branch: {target_branch}")
-
-            # Search for recent commits that might be related to the failures
-            search_terms = [
-                "fix", "bug", "error", "test", "import",
-                "refactor", "update", "change"
-            ]
-
-            for term in search_terms[:3]:  # Check first 3 terms
-                print(f"\\nSearching commits for: {term}")
-
-                commit_results = await client.call_tool("search_repository_commits", {
-                    "project_id": project_id,
-                    "search_keywords": term,
-                    "branch": target_branch,
-                    "max_results": 5
-                })
-
-                if "Found 0 total matches" not in commit_results:
-                    # Parse results to find recent commits
-                    lines = commit_results.split('\\n')
-                    for line in lines:
-                        if 'Date:' in line and '2025-01' in line:  # Recent commits
-                            print(f"  Recent commit found: {line}")
-
-Integration Examples
---------------------
-
-VS Code Claude Desktop Integration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Configuration for Claude Desktop:**
-
-.. code-block:: json
-
-    {
-      "servers": {
-        "gitlab-analyzer": {
-          "type": "stdio",
-          "command": "uvx",
-          "args": ["--from", "gitlab-pipeline-analyzer", "gitlab-analyzer"],
-          "env": {
-            "GITLAB_URL": "${input:gitlab_url}",
-            "GITLAB_TOKEN": "${input:gitlab_token}"
-          }
-        }
-      },
-      "inputs": [
-        {
-          "id": "gitlab_url",
-          "type": "promptString",
-          "description": "GitLab Instance URL"
-        },
-        {
-          "id": "gitlab_token",
-          "type": "promptString",
-          "description": "GitLab Personal Access Token"
-        }
-      ]
-    }
-
-**Usage in Claude Desktop:**
+**Complete resource workflow for pipeline investigation:**
 
 .. code-block:: text
 
-    User: "Pipeline 456 in project myorg/myproject failed. Can you analyze what went wrong?"
+    # 1. Start with pipeline overview
+    Resource: gl://pipeline/83/1594344
+    
+    # 2. Get failed jobs list
+    Resource: gl://jobs/83/pipeline/1594344/failed
+    
+    # 3. Analyze specific job
+    Resource: gl://job/83/1594344/76474172
+    
+    # 4. Check files with errors
+    Resource: gl://files/83/pipeline/1594344
+    
+    # 5. Examine specific file
+    Resource: gl://file/83/76474172/src/main.py
+    
+    # 6. Get error details with trace
+    Resource: gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true
+    
+    # 7. Pipeline-wide error analysis
+    Resource: gl://errors/83/pipeline/1594344
 
-    Claude: I'll analyze the failed pipeline for you. Let me start with an overview and then dive into the details.
+Repository Investigation Workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    [Claude calls analyze_failed_pipeline tool and provides analysis]
+**Finding code patterns and commit history:**
 
-Automated Monitoring Script
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: text
 
-**Script for monitoring multiple projects:**
+    # 1. Search for error-related code
+    Tool: search_repository_code
+    {
+        "project_id": "83",
+        "search_keywords": "import tensorflow",
+        "path_filter": "src/*",
+        "output_format": "json"
+    }
+    
+    # 2. Check commit history for recent changes
+    Tool: search_repository_commits  
+    {
+        "project_id": "83",
+        "search_keywords": "fix import",
+        "max_results": 15,
+        "output_format": "json"
+    }
+    
+    # 3. Find recent dependency changes
+    Tool: search_repository_code
+    {
+        "project_id": "83", 
+        "search_keywords": "requirements",
+        "filename_filter": "*.txt"
+    }
+
+Cache Management Strategy
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Monitoring and optimizing cache performance:**
+
+.. code-block:: text
+
+    # 1. Check cache statistics
+    Tool: cache_stats
+    # Returns: size, hit rates, storage info
+    
+    # 2. Verify cache health
+    Tool: cache_health  
+    # Returns: database integrity, performance metrics
+    
+    # 3. Clear old data if needed
+    Tool: clear_cache
+    {
+        "cache_type": "old",
+        "max_age_hours": 168  # 7 days
+    }
+    
+    # 4. Clear specific pipeline data
+    Tool: clear_pipeline_cache
+    {
+        "project_id": "83",
+        "pipeline_id": 1594344
+    }
+
+Comprehensive Error Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Deep-dive error investigation with resources:**
+
+.. code-block:: text
+
+    # 1. Get job-specific errors
+    Resource: gl://errors/83/76474172
+    
+    # 2. Filter by specific file
+    Resource: gl://errors/83/76474172/tests/test_main.py
+    
+    # 3. Get individual error details
+    Resource: gl://error/83/76474172/error_001
+    
+    # 4. Analysis with different modes
+    Resource: gl://analysis/83/job/76474172?mode=detailed
+    Resource: gl://analysis/83/job/76474172?mode=summary
+
+Educational and Mentoring Scenarios
+-----------------------------------
+
+Learning Path Development
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Using educational prompts for team development:**
+
+.. code-block:: text
+
+    # Learning Path Prompt
+    User: "Create a CI/CD learning curriculum for my team."
+    
+    Assistant: "I'll use the learning-path prompt to create a progressive 
+    curriculum based on your team's skill level."
+    
+    # Curriculum includes:
+    # 1. Skill assessment using real pipeline data
+    # 2. Progressive modules from basic to advanced
+    # 3. Hands-on exercises with actual errors
+    # 4. Practice scenarios using repository search
+    # 5. Progress tracking and milestone evaluation
+
+CI/CD Mentoring Guide
+~~~~~~~~~~~~~~~~~~~~~
+
+**Structured mentoring approach:**
+
+.. code-block:: text
+
+    # Mentoring Guide Prompt
+    User: "I need to mentor junior developers on CI/CD practices."
+    
+    Assistant: "I'll use the mentoring-guide prompt to create an effective 
+    teaching strategy."
+    
+    # Strategy includes:
+    # 1. Teaching methodologies for different concepts
+    # 2. Explanation frameworks for complex topics  
+    # 3. Practical exercises using MCP resources
+    # 4. Progress tracking approaches
+    # 5. Feedback loop establishment
+
+Advanced Investigation Prompts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Regression Analysis:**
+
+.. code-block:: text
+
+    # Pipeline Comparison Prompt
+    User: "Pipeline 1594344 was working, but 1594345 is failing. What changed?"
+    
+    Assistant: "I'll use the pipeline-comparison prompt to analyze differences."
+    
+    # Analysis includes:
+    # 1. Job configuration comparison
+    # 2. Error pattern analysis
+    # 3. Commit difference investigation
+    # 4. Configuration drift detection
+    # 5. Comprehensive regression report
+
+**Fix Strategy Planning:**
+
+.. code-block:: text
+
+    # Fix Strategy Planner Prompt
+    User: "Complex pipeline failure affecting multiple teams. Need a fix strategy."
+    
+    Assistant: "I'll use the fix-strategy-planner prompt for comprehensive 
+    remediation planning."
+    
+    # Strategy includes:
+    # 1. Failure scope and impact analysis
+    # 2. Priority matrix by criticality and effort
+    # 3. Resource allocation planning
+    # 4. Timeline and dependency estimation
+    # 5. Risk mitigation and rollback strategies
+
+Production Monitoring Examples
+------------------------------
+
+Real-time Pipeline Monitoring
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Continuous monitoring setup:**
 
 .. code-block:: python
 
     import asyncio
-    import json
-    from datetime import datetime
-    from fastmcp import Client
+    from mcp_client import MCPClient
 
-    class GitLabMonitor:
-        def __init__(self, mcp_url="http://localhost:8000/mcp"):
-            self.mcp_url = mcp_url
-            self.projects = [
-                {"id": "group/project1", "name": "Project 1"},
-                {"id": "group/project2", "name": "Project 2"},
-            ]
+    class PipelineMonitor:
+        def __init__(self):
+            self.client = MCPClient("local-pandado")
+            
+        async def monitor_project(self, project_id):
+            """Monitor project for failed pipelines"""
+            
+            # Check recent pipeline status (would need additional tools)
+            # For now, assume we have pipeline IDs to monitor
+            
+            failed_pipelines = await self.get_failed_pipelines(project_id)
+            
+            for pipeline_id in failed_pipelines:
+                # Quick analysis using failed_pipeline_analysis
+                result = await self.client.failed_pipeline_analysis(
+                    project_id=project_id,
+                    pipeline_id=pipeline_id,
+                    store_in_db=True
+                )
+                
+                print(f"Pipeline {pipeline_id}: {result['summary']['total_errors']} errors")
+                
+                # Store analysis for later detailed investigation
+                await self.store_failure_report(project_id, pipeline_id, result)
+        
+        async def investigate_failure_trends(self, project_id):
+            """Analyze failure patterns over time"""
+            
+            # Use cache_stats to understand data volume
+            stats = await self.client.cache_stats()
+            print(f"Cache contains {stats['total_entries']} analysis entries")
+            
+            # Use search tools to find patterns
+            commit_patterns = await self.client.search_repository_commits(
+                project_id=project_id,
+                search_keywords="fix|bug|error",
+                max_results=20
+            )
+            
+            return self.analyze_failure_patterns(commit_patterns)
 
-        async def check_recent_pipelines(self, project_id, limit=5):
-            """Check recent pipelines for a project (would need additional API)"""
-            # This would require additional MCP tools for listing recent pipelines
-            # For now, assume we have pipeline IDs to check
-            pipeline_ids = [456, 457, 458]  # Example IDs
+Automated Error Classification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-            failed_pipelines = []
+**Classify and prioritize errors automatically:**
 
-            async with Client(self.mcp_url) as client:
-                for pipeline_id in pipeline_ids:
-                    try:
-                        status = await client.call_tool("get_pipeline_status", {
-                            "project_id": project_id,
-                            "pipeline_id": pipeline_id
-                        })
+.. code-block:: python
 
-                        if status['status'] == 'failed':
-                            failed_pipelines.append({
-                                "pipeline_id": pipeline_id,
-                                "status": status,
-                                "project_id": project_id
-                            })
-                    except Exception as e:
-                        print(f"Error checking pipeline {pipeline_id}: {e}")
-
-            return failed_pipelines
-
-        async def generate_failure_report(self, failed_pipeline):
-            """Generate a summary report for a failed pipeline"""
-            async with Client(self.mcp_url) as client:
-                summary = await client.call_tool("analyze_failed_pipeline_summary", {
-                    "project_id": failed_pipeline["project_id"],
-                    "pipeline_id": failed_pipeline["pipeline_id"]
+    class ErrorClassifier:
+        def __init__(self):
+            self.client = MCPClient("local-pandado")
+            
+        async def classify_pipeline_errors(self, project_id, pipeline_id):
+            """Classify errors by type and priority"""
+            
+            # Get comprehensive error analysis
+            resource_uri = f"gl://errors/{project_id}/pipeline/{pipeline_id}"
+            errors = await self.client.get_mcp_resource(resource_uri)
+            
+            classification = {
+                "critical": [],     # Import/syntax errors
+                "test_failures": [], # Test-specific failures  
+                "warnings": [],     # Non-blocking issues
+                "config_issues": [] # Configuration problems
+            }
+            
+            for error in errors.get('errors', []):
+                error_type = error.get('error_type', '')
+                message = error.get('message', '')
+                
+                if 'ImportError' in error_type or 'ModuleNotFoundError' in error_type:
+                    classification['critical'].append(error)
+                elif 'AssertionError' in error_type or 'test_' in error.get('file_path', ''):
+                    classification['test_failures'].append(error) 
+                elif 'Warning' in error_type:
+                    classification['warnings'].append(error)
+                else:
+                    classification['config_issues'].append(error)
+            
+            return classification
+        
+        async def generate_fix_priorities(self, classification):
+            """Generate prioritized fix list"""
+            
+            priorities = []
+            
+            # Critical issues first
+            for error in classification['critical']:
+                file_path = error.get('file_path', '')
+                
+                # Search for related code to understand scope
+                search_result = await self.client.search_repository_code(
+                    project_id=error.get('project_id'),
+                    search_keywords=file_path.split('/')[-1].replace('.py', ''),
+                    extension_filter='py'
+                )
+                
+                impact_score = self.calculate_impact(search_result)
+                
+                priorities.append({
+                    'error': error,
+                    'priority': 'P0',
+                    'impact_score': impact_score,
+                    'fix_complexity': 'low' if 'import' in error.get('message', '') else 'medium'
                 })
+            
+            return sorted(priorities, key=lambda x: x['impact_score'], reverse=True)
 
-                return {
-                    "timestamp": datetime.now().isoformat(),
-                    "project_id": failed_pipeline["project_id"],
-                    "pipeline_id": failed_pipeline["pipeline_id"],
-                    "pipeline_url": failed_pipeline["status"]["web_url"],
-                    "total_errors": summary["summary"]["total_errors"],
-                    "failed_jobs": summary["summary"]["total_failed_jobs"],
-                    "summary": summary
+Integration Examples
+--------------------
+
+Claude Desktop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Complete Claude Desktop setup:**
+
+.. code-block:: json
+
+    {
+        "mcpServers": {
+            "gitlab-analyzer": {
+                "command": "uv",
+                "args": ["run", "gitlab-analyzer"],
+                "env": {
+                    "GITLAB_URL": "https://gitlab.com",
+                    "GITLAB_TOKEN": "your-token-here",
+                    "MCP_DATABASE_PATH": "analysis_cache.db",
+                    "AUTO_CLEANUP_ENABLED": "true",
+                    "AUTO_CLEANUP_INTERVAL_HOURS": "24"
                 }
+            }
+        }
+    }
 
-        async def monitor_all_projects(self):
-            """Monitor all configured projects"""
-            all_failures = []
+**Usage patterns in Claude Desktop:**
 
-            for project in self.projects:
-                print(f"Checking {project['name']}...")
-                failed_pipelines = await self.check_recent_pipelines(project["id"])
+.. code-block:: text
 
-                for failed_pipeline in failed_pipelines:
-                    report = await self.generate_failure_report(failed_pipeline)
-                    all_failures.append(report)
+    # Quick pipeline analysis
+    "Analyze failed pipeline 1594344 in project 83"
+    
+    # Resource-based investigation  
+    "Show me errors from gl://errors/83/pipeline/1594344"
+    
+    # Repository investigation
+    "Search for 'async def process' in project 83 Python files"
+    
+    # Cache management
+    "Check cache health and clean old data"
 
-                    print(f"  ❌ Pipeline {failed_pipeline['pipeline_id']}: {report['total_errors']} errors")
+VS Code Extension Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-            # Save report
-            if all_failures:
-                with open(f"failure_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w") as f:
-                    json.dump(all_failures, f, indent=2)
+**MCP server integration in VS Code:**
 
-                print(f"\\nGenerated failure report with {len(all_failures)} failed pipelines")
-            else:
-                print("\\n✅ No failed pipelines found")
+.. code-block:: typescript
 
-    # Usage
-    async def main():
-        monitor = GitLabMonitor()
-        await monitor.monitor_all_projects()
+    // VS Code extension using MCP client
+    import { MCPClient } from 'mcp-client';
 
-    if __name__ == "__main__":
-        asyncio.run(main())
+    export class GitLabAnalyzer {
+        private client: MCPClient;
+        
+        constructor() {
+            this.client = new MCPClient({
+                transport: 'stdio',
+                command: 'uv',
+                args: ['run', 'gitlab-analyzer']
+            });
+        }
+        
+        async analyzeCurrentPipeline() {
+            // Get current branch pipeline info from Git
+            const branch = await this.getCurrentBranch();
+            const projectId = await this.getProjectId();
+            
+            // Find recent pipeline for branch (would need additional tools)
+            const pipelineId = await this.getLatestPipelineId(projectId, branch);
+            
+            if (pipelineId) {
+                const analysis = await this.client.call('failed_pipeline_analysis', {
+                    project_id: projectId,
+                    pipeline_id: pipelineId,
+                    store_in_db: true
+                });
+                
+                // Display results in VS Code
+                this.showAnalysisResults(analysis);
+            }
+        }
+        
+        async searchInRepository(searchTerm: string) {
+            const projectId = await this.getProjectId();
+            
+            const results = await this.client.call('search_repository_code', {
+                project_id: projectId,
+                search_keywords: searchTerm,
+                extension_filter: 'py',
+                output_format: 'json'
+            });
+            
+            return this.parseSearchResults(results);
+        }
+    }
 
-CI/CD Integration Example
-~~~~~~~~~~~~~~~~~~~~~~~~~
+CI/CD Pipeline Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**GitHub Actions workflow using the MCP server:**
+**GitHub Actions monitoring workflow:**
 
 .. code-block:: yaml
 
     name: GitLab Pipeline Monitor
-
+    
     on:
       schedule:
-        - cron: '*/30 * * * *'  # Every 30 minutes
+        - cron: '0 */2 * * *'  # Every 2 hours
       workflow_dispatch:
-
+    
     jobs:
       monitor:
         runs-on: ubuntu-latest
         steps:
           - uses: actions/checkout@v4
-
-          - name: Set up Python
+          
+          - name: Setup Python
             uses: actions/setup-python@v4
             with:
               python-version: '3.11'
-
-          - name: Install dependencies
+          
+          - name: Install GitLab Analyzer
+            run: pip install gitlab-pipeline-analyzer
+          
+          - name: Monitor Projects
             run: |
-              pip install gitlab-pipeline-analyzer fastmcp
-
-          - name: Start MCP Server
-            run: |
+              # Start MCP server
               gitlab-analyzer --transport http --host 127.0.0.1 --port 8000 &
-              sleep 5  # Wait for server to start
+              sleep 5
+              
+              # Run monitoring script
+              python monitor_pipelines.py
             env:
               GITLAB_URL: ${{ secrets.GITLAB_URL }}
               GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-
-          - name: Monitor Pipelines
-            run: |
-              python monitoring_script.py
-
+              MCP_DATABASE_PATH: "monitor_cache.db"
+          
           - name: Upload Reports
             uses: actions/upload-artifact@v3
-            if: always()
             with:
               name: pipeline-reports
-              path: "*.json"
+              path: "reports/*.json"
+
+Best Practices and Patterns
+---------------------------
 
 Error Handling Patterns
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Robust Error Handling
-~~~~~~~~~~~~~~~~~~~~~
+**Robust error handling with fallbacks:**
 
 .. code-block:: python
 
-    async def robust_pipeline_analysis(project_id, pipeline_id):
-        async with Client("http://localhost:8000/mcp") as client:
+    async def robust_analysis(project_id, pipeline_id):
+        try:
+            # Try comprehensive analysis first
+            result = await client.failed_pipeline_analysis(
+                project_id=project_id,
+                pipeline_id=pipeline_id,
+                store_in_db=True
+            )
+            return result
+            
+        except Exception as e:
+            print(f"Comprehensive analysis failed: {e}")
+            
+            # Fallback to resource-based access
             try:
-                # Start with basic status check
-                status = await client.call_tool("get_pipeline_status", {
-                    "project_id": project_id,
-                    "pipeline_id": pipeline_id
-                })
-
-                if 'error' in status:
-                    print(f"Error getting pipeline status: {status['error']}")
-                    return None
-
-                if status['status'] != 'failed':
-                    print(f"Pipeline status is '{status['status']}', not failed")
-                    return status
-
-                # Try detailed analysis
-                try:
-                    analysis = await client.call_tool("analyze_failed_pipeline", {
-                        "project_id": project_id,
-                        "pipeline_id": pipeline_id
-                    })
-
-                    if 'error' in analysis:
-                        # Fallback to summary if detailed analysis fails
-                        print("Detailed analysis failed, trying summary...")
-                        analysis = await client.call_tool("analyze_failed_pipeline_summary", {
-                            "project_id": project_id,
-                            "pipeline_id": pipeline_id
-                        })
-
-                    return analysis
-
-                except Exception as e:
-                    print(f"Analysis failed: {e}")
-                    # Final fallback - just get failed jobs
-                    failed_jobs = await client.call_tool("get_failed_jobs", {
-                        "project_id": project_id,
-                        "pipeline_id": pipeline_id
-                    })
-                    return failed_jobs
-
+                resource_uri = f"gl://pipeline/{project_id}/{pipeline_id}"
+                return await client.get_mcp_resource(resource_uri)
+                
             except Exception as e:
-                print(f"Connection error: {e}")
-                return None
-
-Retry Logic with Backoff
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    import asyncio
-    from typing import Optional
-
-    async def analyze_with_retry(project_id: str, pipeline_id: int, max_retries: int = 3) -> Optional[dict]:
-        async with Client("http://localhost:8000/mcp") as client:
-            for attempt in range(max_retries):
-                try:
-                    result = await client.call_tool("analyze_failed_pipeline", {
-                        "project_id": project_id,
-                        "pipeline_id": pipeline_id
-                    })
-
-                    if 'error' not in result:
-                        return result
-
-                    print(f"Attempt {attempt + 1} failed: {result['error']}")
-
-                except Exception as e:
-                    print(f"Attempt {attempt + 1} exception: {e}")
-
-                if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff
-                    print(f"Waiting {wait_time}s before retry...")
-                    await asyncio.sleep(wait_time)
-
-            print(f"Failed after {max_retries} attempts")
-            return None
+                print(f"Resource access failed: {e}")
+                
+                # Final fallback to basic tools
+                return await client.get_clean_job_trace(
+                    project_id=project_id,
+                    job_id=pipeline_id  # Assuming job ID same as pipeline
+                )
 
 Performance Optimization
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Concurrent Analysis
-~~~~~~~~~~~~~~~~~~~
+**Efficient resource usage:**
 
-.. code-block:: python
+.. code-block:: text
 
-    async def analyze_multiple_jobs_concurrently(project_id: str, job_ids: list[int]):
-        async with Client("http://localhost:8000/mcp") as client:
+    # 1. Use summary first, details only if needed
+    Resource: gl://analysis/83/pipeline/1594344?mode=summary
+    
+    # 2. Filter file patterns to reduce noise  
+    Tool: failed_pipeline_analysis with exclude_file_patterns=["node_modules/", "*.pyc"]
+    
+    # 3. Limit search results appropriately
+    Tool: search_repository_code with max_results=10
+    
+    # 4. Use pagination for large datasets
+    Resource: gl://files/83/pipeline/1594344/page/1/limit/20
+    
+    # 5. Clear cache regularly
+    Tool: clear_cache with cache_type="old" and max_age_hours=48
 
-            async def analyze_single_job_with_id(job_id: int):
-                try:
-                    result = await client.call_tool("analyze_single_job_limited", {
-                        "project_id": project_id,
-                        "job_id": job_id,
-                        "max_errors": 5,
-                        "include_traceback": False
-                    })
-                    return {"job_id": job_id, "result": result, "error": None}
-                except Exception as e:
-                    return {"job_id": job_id, "result": None, "error": str(e)}
+Resource Navigation Patterns
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-            # Limit concurrency to avoid overwhelming the server
-            semaphore = asyncio.Semaphore(3)
+**Efficient investigation workflows:**
 
-            async def analyze_with_semaphore(job_id: int):
-                async with semaphore:
-                    return await analyze_single_job_with_id(job_id)
+.. code-block:: text
 
-            # Analyze all jobs concurrently
-            results = await asyncio.gather(
-                *[analyze_with_semaphore(job_id) for job_id in job_ids]
-            )
+    # Pattern 1: Top-down investigation
+    gl://pipeline/83/1594344                    # Overview
+    ↓
+    gl://jobs/83/pipeline/1594344/failed        # Failed jobs
+    ↓  
+    gl://job/83/1594344/76474172               # Specific job
+    ↓
+    gl://errors/83/76474172                    # Job errors
+    
+    # Pattern 2: File-focused investigation  
+    gl://files/83/pipeline/1594344             # Files with errors
+    ↓
+    gl://file/83/76474172/src/main.py         # Specific file
+    ↓
+    gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true
+    
+    # Pattern 3: Error-centric investigation
+    gl://errors/83/pipeline/1594344           # All pipeline errors
+    ↓
+    gl://errors/83/76474172/src/main.py      # File-specific errors
+    ↓
+    gl://error/83/76474172/error_001         # Individual error
 
-            # Process results
-            successful = [r for r in results if r["error"] is None]
-            failed = [r for r in results if r["error"] is not None]
-
-            print(f"Successfully analyzed {len(successful)} jobs")
-            if failed:
-                print(f"Failed to analyze {len(failed)} jobs:")
-                for failure in failed:
-                    print(f"  Job {failure['job_id']}: {failure['error']}")
-
-            return successful
-
-These examples demonstrate the flexibility and power of the GitLab Pipeline Analyzer MCP Server for various real-world scenarios. The tools can be combined in creative ways to build sophisticated analysis and monitoring solutions.
+This comprehensive examples guide demonstrates the full power of the GitLab Pipeline Analyzer MCP Server with its 10 essential tools, MCP resources, and intelligent prompt system for effective CI/CD pipeline analysis and debugging.
 
 Next Steps
 ----------
 
-- Review :doc:`tools_and_resources` for complete tool reference
-- Check :doc:`environment_variables` for complete configuration options  
-- See :doc:`installation` for deployment guidance
-- Visit :doc:`troubleshooting` for common issues and solutions
+- Review :doc:`tools_and_resources` for complete tool reference and MCP resources
+- Check :doc:`prompts` for all 13+ intelligent prompts with usage examples
+- See :doc:`environment_variables` for complete configuration options  
+- Visit :doc:`installation` for deployment guidance
+- Read :doc:`troubleshooting` for common issues and solutions
