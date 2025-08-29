@@ -300,7 +300,7 @@ The MCP server uses SQLite for caching pipeline analysis results:
 
     # Database is created automatically on first run
     # Default location: analysis_cache.db
-    
+
     # Custom database location
     export MCP_DATABASE_PATH="/path/to/custom/cache.db"
     uv run gitlab-analyzer
@@ -314,10 +314,10 @@ The server includes automatic cache cleanup to manage storage:
 
     # Enable auto-cleanup (default: enabled)
     export AUTO_CLEANUP_ENABLED=true
-    
+
     # Cleanup every 12 hours (default: 24)
     export AUTO_CLEANUP_INTERVAL_HOURS=12
-    
+
     # Keep data for 3 days (default: 7)
     export AUTO_CLEANUP_MAX_AGE_DAYS=3
 
@@ -330,10 +330,10 @@ You can manually manage the cache using MCP tools:
 
     # Check cache status
     # Use cache_stats tool via MCP client
-    
+
     # Clear old data
     # Use clear_cache tool via MCP client
-    
+
     # Check cache health
     # Use cache_health tool via MCP client
 

@@ -13,7 +13,7 @@ Overview
 Environment variables provide flexible configuration for different deployment scenarios:
 
 - **Development**: Custom database paths, debug settings
-- **Production**: Persistent storage, optimized cleanup intervals  
+- **Production**: Persistent storage, optimized cleanup intervals
 - **Testing**: Isolated database locations, disabled cleanup
 - **Container Deployments**: Volume-mounted storage, network configuration
 
@@ -33,10 +33,10 @@ GITLAB_URL
 
     # GitLab.com (public)
     export GITLAB_URL="https://gitlab.com"
-    
+
     # GitLab Enterprise (self-hosted)
     export GITLAB_URL="https://gitlab.company.com"
-    
+
     # GitLab with custom port
     export GITLAB_URL="https://gitlab.internal:8443"
 
@@ -53,7 +53,7 @@ GITLAB_TOKEN
 
     # Standard personal access token
     export GITLAB_TOKEN="glpat-xxxxxxxxxxxxxxxxxxxx"
-    
+
     # Project access token
     export GITLAB_TOKEN="glpat-abcdefghijklmnopqrst"
 
@@ -75,20 +75,20 @@ MCP_DATABASE_PATH
 
     # Absolute path
     export MCP_DATABASE_PATH="/var/lib/gitlab-analyzer/cache.db"
-    
+
     # User data directory
     export MCP_DATABASE_PATH="$HOME/.local/share/gitlab-analyzer/analysis_cache.db"
-    
+
     # Temporary location (testing)
     export MCP_DATABASE_PATH="/tmp/gitlab_analyzer_test.db"
-    
+
     # Container volume
     export MCP_DATABASE_PATH="/data/analysis_cache.db"
 
 **Use Cases**:
 
 - **Development**: ``./dev_cache.db``
-- **Production**: ``/var/lib/gitlab-analyzer/production_cache.db``  
+- **Production**: ``/var/lib/gitlab-analyzer/production_cache.db``
 - **Testing**: ``/tmp/test_cache_${TEST_ID}.db``
 - **Docker**: ``/data/analysis_cache.db`` with volume mount
 
@@ -110,7 +110,7 @@ MCP_AUTO_CLEANUP_ENABLED
 
     # Enable automatic cleanup (default)
     export MCP_AUTO_CLEANUP_ENABLED="true"
-    
+
     # Disable automatic cleanup
     export MCP_AUTO_CLEANUP_ENABLED="false"
 
@@ -134,10 +134,10 @@ MCP_AUTO_CLEANUP_INTERVAL_MINUTES
 
     # Check every 30 minutes
     export MCP_AUTO_CLEANUP_INTERVAL_MINUTES="30"
-    
+
     # Check every 6 hours
     export MCP_AUTO_CLEANUP_INTERVAL_MINUTES="360"
-    
+
     # Check daily
     export MCP_AUTO_CLEANUP_INTERVAL_MINUTES="1440"
 
@@ -161,10 +161,10 @@ MCP_AUTO_CLEANUP_MAX_AGE_HOURS
 
     # Clean entries older than 12 hours
     export MCP_AUTO_CLEANUP_MAX_AGE_HOURS="12"
-    
+
     # Clean entries older than 7 days
     export MCP_AUTO_CLEANUP_MAX_AGE_HOURS="168"
-    
+
     # Clean entries older than 30 days
     export MCP_AUTO_CLEANUP_MAX_AGE_HOURS="720"
 
@@ -191,10 +191,10 @@ MCP_TRANSPORT
 
     # STDIO transport (default, for Claude Desktop)
     export MCP_TRANSPORT="stdio"
-    
+
     # HTTP transport (for web applications)
     export MCP_TRANSPORT="http"
-    
+
     # SSE transport (for real-time streaming)
     export MCP_TRANSPORT="sse"
 
@@ -216,10 +216,10 @@ MCP_HOST
 
     # Localhost only (default)
     export MCP_HOST="127.0.0.1"
-    
+
     # All interfaces (container/network access)
     export MCP_HOST="0.0.0.0"
-    
+
     # Specific interface
     export MCP_HOST="192.168.1.10"
 
@@ -243,10 +243,10 @@ MCP_PORT
 
     # Default port
     export MCP_PORT="8000"
-    
+
     # Alternative port
     export MCP_PORT="9000"
-    
+
     # Production port
     export MCP_PORT="80"   # Requires root/capabilities
 
@@ -263,10 +263,10 @@ MCP_PATH
 
     # Default path
     export MCP_PATH="/mcp"
-    
+
     # Custom path
     export MCP_PATH="/api/gitlab-analyzer"
-    
+
     # Root path
     export MCP_PATH="/"
 
@@ -281,15 +281,15 @@ Development Environment
     # .env.dev
     GITLAB_URL="https://gitlab.company.com"
     GITLAB_TOKEN="glpat-development-token"
-    
+
     # Development database
     MCP_DATABASE_PATH="./dev_cache.db"
-    
+
     # Frequent cleanup for active development
     MCP_AUTO_CLEANUP_ENABLED="true"
     MCP_AUTO_CLEANUP_INTERVAL_MINUTES="30"
     MCP_AUTO_CLEANUP_MAX_AGE_HOURS="12"
-    
+
     # STDIO transport for Claude Desktop
     MCP_TRANSPORT="stdio"
 
@@ -301,15 +301,15 @@ Production Environment
     # .env.prod
     GITLAB_URL="https://gitlab.company.com"
     GITLAB_TOKEN="glpat-production-token"
-    
+
     # Persistent production database
     MCP_DATABASE_PATH="/var/lib/gitlab-analyzer/production_cache.db"
-    
+
     # Conservative cleanup for production
     MCP_AUTO_CLEANUP_ENABLED="true"
     MCP_AUTO_CLEANUP_INTERVAL_MINUTES="360"  # 6 hours
     MCP_AUTO_CLEANUP_MAX_AGE_HOURS="168"     # 7 days
-    
+
     # HTTP transport for web access
     MCP_TRANSPORT="http"
     MCP_HOST="0.0.0.0"
@@ -324,13 +324,13 @@ Testing Environment
     # .env.test
     GITLAB_URL="https://gitlab-test.company.com"
     GITLAB_TOKEN="glpat-test-token"
-    
+
     # Isolated test database
     MCP_DATABASE_PATH="/tmp/test_cache_${CI_JOB_ID}.db"
-    
+
     # Disable cleanup during tests
     MCP_AUTO_CLEANUP_ENABLED="false"
-    
+
     # Test-specific transport
     MCP_TRANSPORT="stdio"
 
@@ -342,17 +342,17 @@ Docker Deployment
     # Dockerfile environment
     ENV GITLAB_URL="https://gitlab.company.com"
     # GITLAB_TOKEN set via secrets/runtime
-    
+
     ENV MCP_DATABASE_PATH="/data/analysis_cache.db"
     ENV MCP_AUTO_CLEANUP_ENABLED="true"
     ENV MCP_AUTO_CLEANUP_INTERVAL_MINUTES="240"  # 4 hours
     ENV MCP_AUTO_CLEANUP_MAX_AGE_HOURS="336"     # 14 days
-    
+
     ENV MCP_TRANSPORT="http"
     ENV MCP_HOST="0.0.0.0"
     ENV MCP_PORT="8000"
     ENV MCP_PATH="/mcp"
-    
+
     VOLUME ["/data"]
     EXPOSE 8000
 
@@ -377,7 +377,7 @@ Docker Deployment
           - "8000:8000"
         volumes:
           - gitlab_data:/data
-    
+
     volumes:
       gitlab_data:
 
@@ -387,7 +387,7 @@ Environment Variable Priority
 When multiple configuration methods are available:
 
 1. **Command-line arguments** (highest priority)
-2. **Environment variables** 
+2. **Environment variables**
 3. **Configuration files** (.env files)
 4. **Default values** (lowest priority)
 
@@ -397,7 +397,7 @@ When multiple configuration methods are available:
 
     # Environment variable
     export MCP_PORT="9000"
-    
+
     # Command-line override (takes precedence)
     gitlab-analyzer --port 8080
 
@@ -413,7 +413,7 @@ Use the built-in environment validation:
 
     # Check all environment variables
     make check-env
-    
+
     # Manual check
     env | grep -E "(GITLAB|MCP)_"
 
@@ -434,7 +434,7 @@ Common Issues
 
     # Check if port is available
     netstat -ln | grep ":$MCP_PORT"
-    
+
     # Use alternative port
     export MCP_PORT="9000"
 

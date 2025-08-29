@@ -26,7 +26,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 **When to use**: Pipeline shows "failed" status and you need comprehensive analysis
 
 **Key Features**:
-- Auto-detects pytest vs generic jobs  
+- Auto-detects pytest vs generic jobs
 - Intelligent parser selection
 - Real branch resolution for MR pipelines
 - Complete error extraction with context
@@ -35,7 +35,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
 **Parameters**:
 - ``project_id`` (str|int): The GitLab project ID or path
-- ``pipeline_id`` (int): The ID of the GitLab pipeline to analyze  
+- ``pipeline_id`` (int): The ID of the GitLab pipeline to analyze
 - ``store_in_db`` (bool, default=True): Whether to store results in database
 - ``exclude_file_patterns`` (list[str], optional): Additional file patterns to exclude
 - ``disable_file_filtering`` (bool, default=False): Disable all file filtering
@@ -45,7 +45,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 .. code-block:: python
 
     result = await client.call_tool("failed_pipeline_analysis", {
-        "project_id": "12345", 
+        "project_id": "12345",
         "pipeline_id": 67890,
         "exclude_file_patterns": ["migrations/", "vendor/"]
     })
@@ -62,7 +62,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
 **Key Features**:
 - Full-text search in code files
-- Branch-specific searching  
+- Branch-specific searching
 - File type filtering (extension, filename, path)
 - Wildcard support in filters
 - Line numbers and context for matches
@@ -72,7 +72,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 - ``search_keywords`` (str): Keywords to search for in code
 - ``branch`` (str, optional): Specific branch to search
 - ``filename_filter`` (str, optional): Filter by filename pattern (supports wildcards)
-- ``path_filter`` (str, optional): Filter by file path pattern  
+- ``path_filter`` (str, optional): Filter by file path pattern
 - ``extension_filter`` (str, optional): Filter by file extension
 - ``max_results`` (int, default=20): Maximum number of results
 - ``output_format`` (str, default="text"): Output format ("text" or "json")
@@ -87,10 +87,10 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
         "search_keywords": "async def process",
         "extension_filter": "py"
     })
-    
+
     # Search in specific directory
     result = await client.call_tool("search_repository_code", {
-        "project_id": "12345", 
+        "project_id": "12345",
         "search_keywords": "class UserModel",
         "path_filter": "models/*"
     })
@@ -124,7 +124,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
         "project_id": "12345",
         "search_keywords": "fix bug"
     })
-    
+
     # Search for specific ticket references
     result = await client.call_tool("search_repository_commits", {
         "project_id": "12345",
@@ -157,24 +157,24 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
     # Pipeline Resources
     gl://pipeline/{project_id}/{pipeline_id}
-    
-    # Job Resources  
+
+    # Job Resources
     gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success|/all]
     gl://job/{project_id}/{pipeline_id}/{job_id}
-    
+
     # File Resources
     gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]
     gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]
     gl://file/{project_id}/{job_id}/{file_path}
     gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace}
-    
+
     # Error Resources
     gl://error/{project_id}/{job_id}[?mode={mode}]
     gl://error/{project_id}/{job_id}/{error_id}
     gl://errors/{project_id}/{job_id}
     gl://errors/{project_id}/{job_id}/{file_path}
     gl://errors/{project_id}/pipeline/{pipeline_id}
-    
+
     # Analysis Resources
     gl://analysis/{project_id}[?mode={mode}]
     gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}]
@@ -188,7 +188,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
     result = await client.call_tool("get_mcp_resource", {
         "resource_uri": "gl://jobs/83/pipeline/1594344/failed"
     })
-    
+
     # Get specific file analysis with trace
     result = await client.call_tool("get_mcp_resource", {
         "resource_uri": "gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true"
@@ -225,10 +225,10 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
         "project_id": "83",
         "job_id": 76986695
     })
-    
+
     # Save trace to file
     result = await client.call_tool("get_clean_job_trace", {
-        "project_id": "83", 
+        "project_id": "83",
         "job_id": 76986695,
         "save_to_file": True
     })
@@ -246,7 +246,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 **Key Features**:
 - Total cache size and entry count
 - Breakdown by data type
-- Cache hit/miss statistics  
+- Cache hit/miss statistics
 - Storage file information
 - Memory usage details
 
@@ -295,9 +295,9 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
 **Parameters**:
 - ``cache_type`` (str, default="all"): Type of cache to clear
-  
+
   - "all": Clear all cached data
-  - "pipeline": Clear pipeline data only  
+  - "pipeline": Clear pipeline data only
   - "job": Clear job traces and analysis
   - "analysis": Clear analysis results
   - "error": Clear error data
@@ -312,16 +312,16 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
     # Clear all cache
     result = await client.call_tool("clear_cache")
-    
+
     # Clear job data for specific project
     result = await client.call_tool("clear_cache", {
         "cache_type": "job",
         "project_id": "83"
     })
-    
+
     # Clear old data
     result = await client.call_tool("clear_cache", {
-        "cache_type": "old", 
+        "cache_type": "old",
         "max_age_hours": 24
     })
 
@@ -353,7 +353,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 **When to use**: Job was re-run and you want fresh analysis
 
 **Parameters**:
-- ``project_id`` (str|int): The GitLab project ID  
+- ``project_id`` (str|int): The GitLab project ID
 - ``job_id`` (str|int): The specific job ID to clear
 
 **Example**:
@@ -400,7 +400,7 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 
 **Status Options**:
 - ``/failed`` - Only failed jobs
-- ``/success`` - Only successful jobs  
+- ``/success`` - Only successful jobs
 - ``/all`` - All jobs (default)
 
 **Contains**:
@@ -414,7 +414,7 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 
     # All jobs
     resource_uri = "gl://jobs/83/pipeline/1594344"
-    
+
     # Only failed jobs
     resource_uri = "gl://jobs/83/pipeline/1594344/failed"
 
@@ -454,7 +454,7 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 
     # First page, default limit
     resource_uri = "gl://files/83/pipeline/1594344"
-    
+
     # Specific page and limit
     resource_uri = "gl://files/83/pipeline/1594344/page/2/limit/10"
 
@@ -505,7 +505,7 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 
     resource_uri = "gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true"
 
-4. Error Resources  
+4. Error Resources
 ~~~~~~~~~~~~~~~~~~
 
 **gl://error/{project_id}/{job_id}[?mode={mode}]**
@@ -529,8 +529,8 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 .. code-block:: python
 
     # Default mode
-    resource_uri = "gl://error/83/76474172" 
-    
+    resource_uri = "gl://error/83/76474172"
+
     # Detailed mode
     resource_uri = "gl://error/83/76474172?mode=detailed"
 
@@ -734,7 +734,7 @@ Best Practices
 - Use search tools for finding patterns and solutions
 - Use cache tools for maintenance and optimization
 
-**Resource Usage**  
+**Resource Usage**
 - Start with high-level resources (pipeline, jobs)
 - Drill down to specific resources (files, errors) as needed
 - Use pagination for large datasets
