@@ -176,6 +176,7 @@ DEFAULT_EXCLUDE_PATHS = [
     ".venv",
     "site-packages",
     ".local",
+    "/builds/",  # CI/CD build directories
     "/root/.local",
     "/usr/lib/python",
     "/opt/python",

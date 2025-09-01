@@ -169,6 +169,8 @@ Thumbs.db
 .env
 .env.local
 .env.production
+.env.*
+!.env.example
 
 # Import linter cache
 .import_linter_cache/

@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.5.1] - 2025-09-01
+
+### 🐛 **Bug Fixes**
+
+- **Fixed File Path Filtering**: Added missing `/builds/` to `DEFAULT_EXCLUDE_PATHS` for proper CI/CD build directory filtering
+- **Enhanced .gitignore**: Added better patterns for environment files (`.env.*` while preserving `.env.example`)
+
+### 🔧 **Technical Improvements**
+
+- **Improved Error Analysis**: Better filtering of CI/CD build artifacts from error traces and file analysis
+- **Environment File Management**: Enhanced .gitignore patterns for better development workflow
+
 ## [0.5.0] - 2025-08-29
 
 ### 🚀 **Major Enhancement: Intelligent Prompt System**

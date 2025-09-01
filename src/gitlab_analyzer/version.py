@@ -45,4 +45,4 @@ def get_version() -> str:
         pass
 
     # Final fallback
-    return "0.5.0-fallback"
+    return "0.5.1-fallback"
