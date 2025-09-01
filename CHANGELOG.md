@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.6.0] - 2025-09-01
+
+### ✨ **New Features**
+
+- **Enhanced Resource Link Control**: Added new parameters to `failed_pipeline_analysis` tool:
+  - `include_jobs_resource`: Control display of failed jobs overview resource link
+  - `include_files_resource`: Control display of files with errors resource links
+  - `include_errors_resource`: Control display of error details resource links
+  - All parameters default to `False` for cleaner, more focused output
+- **Improved User Experience**: Cleaner tool responses with optional resource links reduce cognitive load
+- **Comprehensive Test Coverage**: Added 612 lines of new tests covering resource link functionality
+
+### 🛠 **Technical Improvements**
+
+- Enhanced test suite with comprehensive coverage of new resource link parameters
+- Improved code documentation and parameter descriptions
+- Better separation of concerns between core analysis and optional resource presentation
+
 ## [0.5.1] - 2025-09-01
 
 ### 🐛 **Bug Fixes**

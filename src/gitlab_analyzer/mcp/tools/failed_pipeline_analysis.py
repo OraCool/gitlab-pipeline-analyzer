@@ -55,6 +55,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         store_in_db: bool = True,
         exclude_file_patterns: list[str] | None = None,
         disable_file_filtering: bool = False,
+        include_jobs_resource: bool = False,
+        include_files_resource: bool = False,
+        include_errors_resource: bool = False,
     ) -> dict[str, Any]:
         """
         🚨 FAILED PIPELINE ANALYSIS: Efficient analysis focusing only on failed jobs.
@@ -96,6 +99,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             disable_file_filtering: If True, disables all file filtering including defaults.
                                   When True, all errors from all files (including system files) are included.
                                   Useful for comprehensive debugging or when you need to see everything.
+            include_jobs_resource: If True, includes failed jobs overview resource link in response.
+                                 Default: False for cleaner output. Set to True to include jobs resource link.
+            include_files_resource: If True, includes files resource links in response.
+                                   Default: False for cleaner output. Set to True to include files resource links.
+            include_errors_resource: If True, includes errors resource links in response.
+                                    Default: False for cleaner output. Set to True to include errors resource links.
 
         Returns:
             Failed pipeline analysis with efficient failed-job-only parsing and caching
@@ -482,15 +491,20 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     "resourceUri": f"gl://pipeline/{project_id}/{pipeline_id}",
                     "text": "Pipeline details & metadata",
                 },
-                {
-                    "type": "resource_link",
-                    "resourceUri": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
-                    "text": f"Failed jobs overview ({len(failed_jobs)} jobs)",
-                },
             ]
 
-            # Add files resource if we have files with errors
-            if total_files > 0:
+            # Add jobs resource if include_jobs_resource is True
+            if include_jobs_resource:
+                content.append(
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
+                        "text": f"Failed jobs overview ({len(failed_jobs)} jobs)",
+                    }
+                )
+
+            # Add files resource if we have files with errors and include_files_resource is True
+            if total_files > 0 and include_files_resource:
                 # Show pagination hint for large file sets
                 if total_files > 20:
                     content.append(
@@ -509,8 +523,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         }
                     )
 
-            # Add errors resource if we have errors
-            if total_errors > 0:
+            # Add errors resource if we have errors and include_errors_resource is True
+            if total_errors > 0 and include_errors_resource:
                 content.append(
                     {
                         "type": "resource_link",

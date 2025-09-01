@@ -237,7 +237,7 @@ Add the following to your VS Code Claude Desktop `claude_desktop_config.json` fi
       "command": "uvx",
       "args": [
         "--from",
-        "gitlab_pipeline_analyzer==0.2.6",
+        "gitlab_pipeline_analyzer==0.6.0",
         "gitlab-analyzer",
         "--transport",
         "${input:mcp_transport}"
@@ -721,7 +721,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **11 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.4.0):
+The MCP server provides **11 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.5.0):
 
 #### 🎯 Core Analysis Tool
 

@@ -897,3 +897,615 @@ class TestFailedPipelineAnalysisTools:
         # Verify result structure
         assert "content" in result
         assert "mcp_info" in result
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_default_resource_links(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with default resource link parameters (all False)"""
+        # Setup mocks
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with default parameters (all resource links should be False)
+        result = await analysis_func(project_id="test-project", pipeline_id=456)
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+        assert isinstance(result["content"], list)
+        assert len(result["content"]) > 0
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        # With default parameters (all False), we should only have:
+        # 1. Pipeline details resource
+        # 2. Complete analysis data resource
+        # NO jobs, files, or errors resources should be included
+        pipeline_resources = [
+            item for item in resource_links if "gl://pipeline/" in item["resourceUri"]
+        ]
+        jobs_resources = [
+            item for item in resource_links if "gl://jobs/" in item["resourceUri"]
+        ]
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+        analysis_resources = [
+            item for item in resource_links if "gl://analysis/" in item["resourceUri"]
+        ]
+
+        # Verify expected resources are present
+        assert len(pipeline_resources) == 1, "Should have pipeline details resource"
+        assert len(analysis_resources) == 1, "Should have analysis resource"
+
+        # Verify optional resources are NOT present (default behavior)
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource with default params"
+        )
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource with default params"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource with default params"
+        )
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_include_jobs_resource(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with include_jobs_resource=True"""
+        # Setup mocks
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with include_jobs_resource=True
+        result = await analysis_func(
+            project_id="test-project", pipeline_id=456, include_jobs_resource=True
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        jobs_resources = [
+            item for item in resource_links if "gl://jobs/" in item["resourceUri"]
+        ]
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+
+        # Verify jobs resource is included
+        assert len(jobs_resources) == 1, (
+            "Should have jobs resource when include_jobs_resource=True"
+        )
+        assert "Failed jobs overview" in jobs_resources[0]["text"]
+
+        # Verify other optional resources are still NOT present
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource unless explicitly enabled"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource unless explicitly enabled"
+        )
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_include_files_resource(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with include_files_resource=True"""
+        # Setup mocks with jobs that have file errors
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Mock job trace with file errors
+        mock_analyzer.get_job_trace.return_value = """
+            ERROR: src/main.py:42: AssertionError
+            ERROR: tests/test_app.py:10: ImportError
+        """
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with include_files_resource=True
+        result = await analysis_func(
+            project_id="test-project", pipeline_id=456, include_files_resource=True
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        jobs_resources = [
+            item for item in resource_links if "gl://jobs/" in item["resourceUri"]
+        ]
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+
+        # Verify files resource is included when files exist
+        assert len(files_resources) == 1, (
+            "Should have files resource when include_files_resource=True and files exist"
+        )
+        assert "Files with errors" in files_resources[0]["text"]
+
+        # Verify other optional resources are still NOT present
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource unless explicitly enabled"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource unless explicitly enabled"
+        )
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_include_errors_resource(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with include_errors_resource=True"""
+        # Setup mocks with jobs that have errors
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Mock job trace with errors
+        mock_analyzer.get_job_trace.return_value = """
+            ERROR: Build failed
+            ERROR: Tests failed
+            ERROR: Deployment failed
+        """
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with include_errors_resource=True
+        result = await analysis_func(
+            project_id="test-project", pipeline_id=456, include_errors_resource=True
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        jobs_resources = [
+            item for item in resource_links if "gl://jobs/" in item["resourceUri"]
+        ]
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+
+        # Verify errors resource is included when errors exist
+        assert len(errors_resources) == 1, (
+            "Should have errors resource when include_errors_resource=True and errors exist"
+        )
+        assert "Error details" in errors_resources[0]["text"]
+
+        # Verify other optional resources are still NOT present
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource unless explicitly enabled"
+        )
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource unless explicitly enabled"
+        )
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_include_all_resources(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with all resource links enabled"""
+        # Setup mocks with jobs that have file errors
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Mock job trace with file errors
+        mock_analyzer.get_job_trace.return_value = """
+            ERROR: src/main.py:42: AssertionError
+            ERROR: tests/test_app.py:10: ImportError
+            ERROR: Build compilation failed
+        """
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with all resource links enabled
+        result = await analysis_func(
+            project_id="test-project",
+            pipeline_id=456,
+            include_jobs_resource=True,
+            include_files_resource=True,
+            include_errors_resource=True,
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        pipeline_resources = [
+            item for item in resource_links if "gl://pipeline/" in item["resourceUri"]
+        ]
+        jobs_resources = [
+            item for item in resource_links if "gl://jobs/" in item["resourceUri"]
+        ]
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+        analysis_resources = [
+            item for item in resource_links if "gl://analysis/" in item["resourceUri"]
+        ]
+
+        # Verify all expected resources are present
+        assert len(pipeline_resources) == 1, "Should have pipeline details resource"
+        assert len(jobs_resources) == 1, (
+            "Should have jobs resource when include_jobs_resource=True"
+        )
+        assert len(files_resources) == 1, (
+            "Should have files resource when include_files_resource=True"
+        )
+        assert len(errors_resources) == 1, (
+            "Should have errors resource when include_errors_resource=True"
+        )
+        assert len(analysis_resources) == 1, "Should have analysis resource"
+
+        # Verify content of resource links
+        assert "Failed jobs overview" in jobs_resources[0]["text"]
+        assert "Files with errors" in files_resources[0]["text"]
+        assert "Error details" in errors_resources[0]["text"]
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.extract_file_path_from_message"
+    )
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.should_exclude_file_path"
+    )
+    async def test_failed_pipeline_analysis_no_files_no_files_resource(
+        self,
+        mock_should_exclude,
+        mock_extract_file_path,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with include_files_resource=True but no files with errors"""
+        # Setup mocks with jobs that have NO file errors (all errors filtered out)
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Mock job trace with only system file errors (will be filtered out)
+        mock_analyzer.get_job_trace.return_value = """
+            ERROR: /usr/local/lib/python3.8/site-packages/pytest.py:100: ImportError
+            ERROR: /.venv/lib/python3.8/site-packages/requests.py:50: ConnectionError
+        """
+
+        # Mock file path extraction to return system paths
+        def extract_system_paths(message):
+            if "/usr/local/lib/" in message:
+                return "/usr/local/lib/python3.8/site-packages/pytest.py"
+            elif "/.venv/" in message:
+                return "/.venv/lib/python3.8/site-packages/requests.py"
+            return None
+
+        mock_extract_file_path.side_effect = extract_system_paths
+
+        # Mock should_exclude_file_path to return True for system paths
+        def should_exclude_system_files(file_path, patterns):
+            return "/usr/local/" in file_path or "/.venv/" in file_path
+
+        mock_should_exclude.side_effect = should_exclude_system_files
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with include_files_resource=True but no actual files with errors
+        result = await analysis_func(
+            project_id="test-project", pipeline_id=456, include_files_resource=True
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        files_resources = [
+            item for item in resource_links if "gl://files/" in item["resourceUri"]
+        ]
+
+        # Verify NO files resource is included when no files have errors (total_files == 0)
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource when no files have errors, even with include_files_resource=True"
+        )
+
+    @patch(
+        "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
+    )
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_gitlab_analyzer")
+    @patch("gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_mcp_info")
+    async def test_failed_pipeline_analysis_no_errors_no_errors_resource(
+        self,
+        mock_get_mcp_info,
+        mock_get_analyzer,
+        mock_get_cache_manager,
+        mock_get_pipeline_info,
+        mock_cache_manager,
+        mock_analyzer,
+        mock_pipeline_info,
+        mock_mcp,
+    ):
+        """Test failed pipeline analysis with include_errors_resource=True but no errors"""
+        # Setup mocks with jobs that have NO errors
+        mock_get_analyzer.return_value = mock_analyzer
+        mock_get_cache_manager.return_value = mock_cache_manager
+        mock_get_pipeline_info.return_value = mock_pipeline_info
+        mock_get_mcp_info.return_value = {
+            "tool": "failed_pipeline_analysis",
+            "timestamp": "2025-01-01",
+        }
+
+        # Mock job trace with no errors (just info/warnings)
+        mock_analyzer.get_job_trace.return_value = """
+            INFO: Starting build process
+            WARNING: Deprecated feature used
+            INFO: Build completed successfully
+        """
+
+        # Register tools
+        register_failed_pipeline_analysis_tools(mock_mcp)
+
+        # Find the failed_pipeline_analysis function
+        analysis_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "failed_pipeline_analysis"
+            ):
+                analysis_func = call[0][0]
+                break
+
+        assert analysis_func is not None, "failed_pipeline_analysis function not found"
+
+        # Test analysis with include_errors_resource=True but no actual errors
+        result = await analysis_func(
+            project_id="test-project", pipeline_id=456, include_errors_resource=True
+        )
+
+        # Verify basic structure
+        assert "content" in result
+        assert "mcp_info" in result
+
+        # Count resource links by type
+        resource_links = [
+            item for item in result["content"] if item["type"] == "resource_link"
+        ]
+
+        errors_resources = [
+            item for item in resource_links if "gl://errors/" in item["resourceUri"]
+        ]
+
+        # Verify NO errors resource is included when no errors exist (total_errors == 0)
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource when no errors exist, even with include_errors_resource=True"
+        )
