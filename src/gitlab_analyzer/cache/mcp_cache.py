@@ -14,6 +14,7 @@ import gzip
 import json
 import os
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -55,10 +56,54 @@ class McpCache:
         self._init_database()
 
     def _init_database(self):
-        """Initialize database schema"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.executescript(
-                """
+        """Initialize database schema with comprehensive debug information"""
+        try:
+            # Debug info: Database path and environment
+            print(f"🔧 [DEBUG] Initializing database at: {self.db_path}")
+            print(f"🔧 [DEBUG] Database path type: {type(self.db_path)}")
+            print(f"🔧 [DEBUG] Database path absolute: {self.db_path.resolve()}")
+            print(f"🔧 [DEBUG] Database path exists: {self.db_path.exists()}")
+
+            # Check parent directory
+            parent_dir = self.db_path.parent
+            print(f"🔧 [DEBUG] Parent directory: {parent_dir}")
+            print(f"🔧 [DEBUG] Parent directory exists: {parent_dir.exists()}")
+            print(
+                f"🔧 [DEBUG] Parent directory writable: "
+                f"{os.access(parent_dir, os.W_OK) if parent_dir.exists() else 'N/A'}"
+            )
+
+            # Check file permissions if database exists
+            if self.db_path.exists():
+                print(
+                    f"🔧 [DEBUG] Database file readable: {os.access(self.db_path, os.R_OK)}"
+                )
+                print(
+                    f"🔧 [DEBUG] Database file writable: {os.access(self.db_path, os.W_OK)}"
+                )
+                print(
+                    f"🔧 [DEBUG] Database file size: {self.db_path.stat().st_size} bytes"
+                )
+
+            # Environment variables debug
+            mcp_db_path = os.environ.get("MCP_DATABASE_PATH")
+            print(f"🔧 [DEBUG] MCP_DATABASE_PATH env var: {mcp_db_path}")
+            print(f"🔧 [DEBUG] Current working directory: {Path.cwd()}")
+
+            print("🔧 [DEBUG] Attempting to connect to SQLite database...")
+
+        except Exception as e:
+            print(f"❌ [ERROR] Failed during database path checks: {e}")
+            print(f"❌ [ERROR] Exception type: {type(e).__name__}")
+            raise
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                print("✅ [DEBUG] Successfully connected to SQLite database")
+                print("🔧 [DEBUG] Creating database schema...")
+
+                conn.executescript(
+                    """
                 -- Pipelines table: pipeline metadata and branch resolution
                 CREATE TABLE IF NOT EXISTS pipelines (
                     pipeline_id INTEGER PRIMARY KEY,
@@ -140,28 +185,100 @@ class McpCache:
                 CREATE INDEX IF NOT EXISTS idx_errors_file ON errors(file);
                 CREATE INDEX IF NOT EXISTS idx_errors_error_type ON errors(error_type);
                 CREATE INDEX IF NOT EXISTS idx_file_index_path ON file_index(path);
-            """
+                """
+                )
+
+                # Migration: Add error_type column if it doesn't exist (for existing databases)
+                cursor = conn.execute(
+                    """
+                    PRAGMA table_info(errors)
+                    """
+                )
+                columns = [row[1] for row in cursor.fetchall()]
+                if "error_type" not in columns:
+                    conn.execute(
+                        """
+                        ALTER TABLE errors ADD COLUMN error_type TEXT DEFAULT 'unknown'
+                        """
+                    )
+                    conn.execute(
+                        """
+                        CREATE INDEX IF NOT EXISTS idx_errors_error_type ON errors(error_type)
+                        """
+                    )
+                    conn.commit()
+
+                print("✅ [DEBUG] Database schema created/verified successfully")
+                print(
+                    f"✅ [DEBUG] Database initialization completed at: {self.db_path}"
+                )
+
+        except sqlite3.OperationalError as e:
+            print("❌ [ERROR] SQLite Operational Error during database initialization:")
+            print(f"❌ [ERROR] Error message: {e}")
+            print(f"❌ [ERROR] Database path: {self.db_path}")
+            print(
+                "❌ [ERROR] This usually indicates permission issues or disk space problems"
             )
 
-            # Migration: Add error_type column if it doesn't exist (for existing databases)
-            cursor = conn.execute(
-                """
-                PRAGMA table_info(errors)
-            """
+            # Additional disk space check
+            try:
+                import shutil
+
+                free_space = shutil.disk_usage(self.db_path.parent).free
+                print(
+                    f"🔧 [DEBUG] Available disk space: {free_space / 1024 / 1024:.2f} MB"
+                )
+            except Exception as disk_e:
+                print(f"🔧 [DEBUG] Could not check disk space: {disk_e}")
+            raise
+
+        except sqlite3.DatabaseError as e:
+            print("❌ [ERROR] SQLite Database Error during initialization:")
+            print(f"❌ [ERROR] Error message: {e}")
+            print(f"❌ [ERROR] Database path: {self.db_path}")
+            print(
+                "❌ [ERROR] This might indicate database corruption or version incompatibility"
             )
-            columns = [row[1] for row in cursor.fetchall()]
-            if "error_type" not in columns:
-                conn.execute(
-                    """
-                    ALTER TABLE errors ADD COLUMN error_type TEXT DEFAULT 'unknown'
-                """
-                )
-                conn.execute(
-                    """
-                    CREATE INDEX IF NOT EXISTS idx_errors_error_type ON errors(error_type)
-                """
-                )
-                conn.commit()
+            raise
+
+        except PermissionError as e:
+            print("❌ [ERROR] Permission Error during database initialization:")
+            print(f"❌ [ERROR] Error message: {e}")
+            print(f"❌ [ERROR] Database path: {self.db_path}")
+            print("❌ [ERROR] Check file/directory permissions for the database path")
+
+            # Show detailed permission info
+            if self.db_path.exists():
+                stat_info = self.db_path.stat()
+                import stat as stat_module
+
+                mode = stat_module.filemode(stat_info.st_mode)
+                print(f"🔧 [DEBUG] Current file permissions: {mode}")
+                print(f"🔧 [DEBUG] File owner UID: {stat_info.st_uid}")
+                print(f"🔧 [DEBUG] Current process UID: {os.getuid()}")
+            raise
+
+        except OSError as e:
+            print("❌ [ERROR] OS Error during database initialization:")
+            print(f"❌ [ERROR] Error message: {e}")
+            print(f"❌ [ERROR] Error code: {e.errno if hasattr(e, 'errno') else 'N/A'}")
+            print(f"❌ [ERROR] Database path: {self.db_path}")
+            print("❌ [ERROR] This might indicate filesystem issues or path problems")
+            raise
+
+        except Exception as e:
+            print("❌ [ERROR] Unexpected error during database initialization:")
+            print(f"❌ [ERROR] Error type: {type(e).__name__}")
+            print(f"❌ [ERROR] Error message: {e}")
+            print(f"❌ [ERROR] Database path: {self.db_path}")
+
+            # Add traceback for debugging
+            import traceback
+
+            print("❌ [ERROR] Traceback:")
+            traceback.print_exc()
+            raise
 
     def is_job_cached(self, job_id: int, trace_hash: str) -> bool:
         """Check if job is already cached with current parser version"""
@@ -1338,11 +1455,56 @@ class McpCache:
             return {"error": -1, "message": str(e)}
 
     async def check_health(self) -> dict[str, Any]:
-        """Check cache system health"""
+        """Check cache system health with comprehensive diagnostics"""
         try:
+            print("🔍 [HEALTH] Starting cache health check...")
+
+            # Basic file system checks
+            db_exists = self.db_path.exists()
+            db_size = self.db_path.stat().st_size if db_exists else 0
+
+            # Parent directory checks
+            parent_dir = self.db_path.parent
+            parent_exists = parent_dir.exists()
+            parent_writable = os.access(parent_dir, os.W_OK) if parent_exists else False
+
+            # File permission checks (if database exists)
+            file_permissions: dict[str, Any] = {}
+            if db_exists:
+                file_permissions = {
+                    "readable": os.access(self.db_path, os.R_OK),
+                    "writable": os.access(self.db_path, os.W_OK),
+                    "size_bytes": db_size,
+                    "size_mb": round(db_size / 1024 / 1024, 2),
+                }
+
+                # Get detailed file permissions
+                stat_info = self.db_path.stat()
+                import stat as stat_module
+
+                file_permissions["mode"] = stat_module.filemode(stat_info.st_mode)
+                file_permissions["owner_uid"] = stat_info.st_uid
+                file_permissions["current_uid"] = os.getuid()  # Disk space check
+            disk_space: dict[str, Any] = {}
+            try:
+                import shutil
+
+                usage = shutil.disk_usage(parent_dir if parent_exists else "/")
+                disk_space = {
+                    "total_mb": round(usage.total / 1024 / 1024, 2),
+                    "free_mb": round(usage.free / 1024 / 1024, 2),
+                    "used_mb": round(usage.used / 1024 / 1024, 2),
+                    "free_percent": round((usage.free / usage.total) * 100, 1),
+                }
+            except Exception as e:
+                disk_space = {"error": str(e)}
+
+            print("🔍 [HEALTH] Checking database connectivity...")
+
             async with aiosqlite.connect(self.db_path) as conn:
                 # Check database connectivity
                 await conn.execute("SELECT 1")
+                print("✅ [HEALTH] Database connectivity OK")
 
                 # Check table schemas
                 tables = [
@@ -1359,28 +1521,166 @@ class McpCache:
                         cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
-                        table_status[table] = {"status": "ok", "count": count}
+
+                        # Get table info for schema validation
+                        info_cursor = await conn.execute(f"PRAGMA table_info({table})")  # nosec B608
+                        columns = await info_cursor.fetchall()
+
+                        table_status[table] = {
+                            "status": "ok",
+                            "count": count,
+                            "columns": len(list(columns)),
+                            "column_names": [col[1] for col in columns],
+                        }
+                        print(
+                            f"✅ [HEALTH] Table {table}: {count} records, {len(list(columns))} columns"
+                        )
                     except Exception as e:
                         table_status[table] = {"status": "error", "error": str(e)}
+                        print(f"❌ [HEALTH] Table {table}: ERROR - {e}")
 
-                # Check database file size
-                db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
+                # Check for any orphaned records
+                orphaned_checks = {}
+                try:
+                    # Check for errors without corresponding jobs
+                    cursor = await conn.execute(
+                        """
+                        SELECT COUNT(*) FROM errors e
+                        LEFT JOIN jobs j ON e.job_id = j.job_id
+                        WHERE j.job_id IS NULL
+                    """
+                    )
+                    result = await cursor.fetchone()
+                    orphaned_errors = result[0] if result else 0
+
+                    # Check for file_index without corresponding jobs
+                    cursor = await conn.execute(
+                        """
+                        SELECT COUNT(*) FROM file_index fi
+                        LEFT JOIN jobs j ON fi.job_id = j.job_id
+                        WHERE j.job_id IS NULL
+                    """
+                    )
+                    result = await cursor.fetchone()
+                    orphaned_files = result[0] if result else 0
+
+                    # Check for trace_segments without corresponding jobs
+                    cursor = await conn.execute(
+                        """
+                        SELECT COUNT(*) FROM trace_segments ts
+                        LEFT JOIN jobs j ON ts.job_id = j.job_id
+                        WHERE j.job_id IS NULL
+                    """
+                    )
+                    result = await cursor.fetchone()
+                    orphaned_traces = result[0] if result else 0
+
+                    orphaned_checks = {
+                        "orphaned_errors": orphaned_errors,
+                        "orphaned_files": orphaned_files,
+                        "orphaned_traces": orphaned_traces,
+                        "total_orphaned": orphaned_errors
+                        + orphaned_files
+                        + orphaned_traces,
+                    }
+
+                    if orphaned_checks["total_orphaned"] > 0:
+                        print(
+                            f"⚠️ [HEALTH] Found {orphaned_checks['total_orphaned']} orphaned records"
+                        )
+                    else:
+                        print("✅ [HEALTH] No orphaned records found")
+
+                except Exception as e:
+                    orphaned_checks = {"error": str(e)}
+
+                print("✅ [HEALTH] Cache health check completed")
 
                 return {
                     "status": "healthy",
                     "database_connectivity": "ok",
+                    "database_path": str(self.db_path.resolve()),
+                    "database_exists": db_exists,
+                    "file_system": {
+                        "parent_directory_exists": parent_exists,
+                        "parent_directory_writable": parent_writable,
+                        "file_permissions": file_permissions,
+                        "disk_space": disk_space,
+                    },
                     "database_size_bytes": db_size,
                     "database_size_mb": round(db_size / 1024 / 1024, 2),
                     "tables": table_status,
+                    "orphaned_records": orphaned_checks,
                     "parser_version": self.parser_version,
+                    "environment": {
+                        "MCP_DATABASE_PATH": os.environ.get("MCP_DATABASE_PATH"),
+                        "current_working_directory": str(Path.cwd()),
+                        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                    },
+                    "recommendations": self._generate_health_recommendations(
+                        table_status, orphaned_checks, disk_space
+                    ),
                 }
 
         except Exception as e:
+            print(f"❌ [HEALTH] Health check failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+
             return {
                 "status": "unhealthy",
                 "error": str(e),
+                "error_type": type(e).__name__,
                 "database_connectivity": "failed",
+                "database_path": (
+                    str(self.db_path.resolve())
+                    if hasattr(self, "db_path")
+                    else "unknown"
+                ),
             }
+
+    def _generate_health_recommendations(
+        self, table_status: dict, orphaned_checks: dict, disk_space: dict
+    ) -> list[str]:
+        """Generate health recommendations based on check results"""
+        recommendations = []
+
+        # Check for table issues
+        for table, status in table_status.items():
+            if status.get("status") == "error":
+                recommendations.append(
+                    f"Table {table} has errors - consider rebuilding database"
+                )
+            elif status.get("count", 0) == 0 and table != "pipelines":
+                recommendations.append(
+                    f"Table {table} is empty - run pipeline analysis to populate data"
+                )
+
+        # Check for orphaned records
+        if (
+            isinstance(orphaned_checks, dict)
+            and orphaned_checks.get("total_orphaned", 0) > 0
+        ):
+            recommendations.append(
+                "Found orphaned records - consider running cache cleanup"
+            )
+
+        # Check disk space
+        if isinstance(disk_space, dict) and disk_space.get("free_percent", 100) < 10:
+            recommendations.append(
+                "Low disk space - consider clearing old cache entries"
+            )
+        elif isinstance(disk_space, dict) and disk_space.get("free_percent", 100) < 5:
+            recommendations.append(
+                "CRITICAL: Very low disk space - immediate cleanup required"
+            )
+
+        # General recommendations
+        if not recommendations:
+            recommendations.append("Cache system is healthy - no action required")
+
+        return recommendations
 
     async def get_or_compute(
         self,
@@ -1412,7 +1712,7 @@ class McpCache:
         """Set a value in the cache (compatibility method for resources)"""
         # For now, just log that we're setting a value
         # The actual storage is handled by store_pipeline_info_async method
-        pass
+        # No implementation needed for compatibility method
 
 
 # Global cache instance for compatibility with old CacheManager
@@ -1430,7 +1730,20 @@ def get_cache_manager(db_path: str | None = None) -> McpCache:
     """
     global _global_cache
     if _global_cache is None:
-        _global_cache = McpCache(db_path)
+        try:
+            print("🔧 [DEBUG] Creating new global McpCache instance...")
+            _global_cache = McpCache(db_path)
+            print("✅ [DEBUG] Global McpCache instance created successfully")
+        except Exception as e:
+            print(f"❌ [ERROR] Failed to create global McpCache instance: {e}")
+            print(f"❌ [ERROR] Exception type: {type(e).__name__}")
+            import traceback
+
+            print("❌ [ERROR] Traceback:")
+            traceback.print_exc()
+            raise
+    else:
+        print("🔧 [DEBUG] Using existing global McpCache instance")
     return _global_cache
 
 

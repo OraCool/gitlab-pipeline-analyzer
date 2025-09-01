@@ -400,9 +400,8 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             ] = {}  # Global error registry with trace references
 
             for job_result in job_analysis_results:
-                job_result_typed = cast("dict[str, Any]", job_result)
-                job_id = job_result_typed["job_id"]
-                job_name = job_result_typed["job_name"]
+                job_id = job_result["job_id"]
+                job_name = job_result["job_name"]
 
                 # Add job-specific resources
                 resources["jobs_detail"][str(job_id)] = {
@@ -413,7 +412,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Process file groups for this job
                 file_groups_data = cast(
-                    "list[dict[str, Any]]", job_result_typed.get("file_groups", [])
+                    "list[dict[str, Any]]", job_result.get("file_groups", [])
                 )
                 for file_group in file_groups_data:
                     file_path = file_group["file_path"]

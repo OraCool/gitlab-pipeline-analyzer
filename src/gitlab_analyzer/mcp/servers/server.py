@@ -91,15 +91,56 @@ def main() -> None:
 
     # Initialize cache before running server
     async def startup():
-        """Initialize cache when server starts"""
-        from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+        """Initialize cache when server starts with comprehensive debug information"""
+        try:
+            print(
+                f"🚀 [STARTUP] Initializing GitLab Pipeline Analyzer MCP Server (transport: {args.transport})..."
+            )
 
-        # Get database path from environment variable or use default
-        db_path = os.environ.get("MCP_DATABASE_PATH")
+            from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
-        # Cache is initialized in constructor, just ensure it's created
-        get_cache_manager(db_path)
-        # No need to call initialize() - it's done in __init__
+            # Get database path from environment variable or use default
+            db_path = os.environ.get("MCP_DATABASE_PATH")
+            print(f"🔧 [DEBUG] Database path from env: {db_path}")
+
+            if db_path:
+                print(f"🔧 [DEBUG] Using custom database path: {db_path}")
+            else:
+                print("🔧 [DEBUG] Using default database path: analysis_cache.db")
+
+            # Debug environment variables
+            print("🔧 [DEBUG] Environment variables:")
+            for key in [
+                "MCP_DATABASE_PATH",
+                "GITLAB_URL",
+                "GITLAB_TOKEN",
+                "MCP_HOST",
+                "MCP_PORT",
+                "MCP_PATH",
+                "MCP_TRANSPORT",
+            ]:
+                value = os.environ.get(key)
+                if key == "GITLAB_TOKEN" and value:
+                    # Mask token for security
+                    masked_value = f"{value[:8]}..." if len(value) > 8 else "***"
+                    print(f"🔧 [DEBUG]   {key}: {masked_value}")
+                else:
+                    print(f"🔧 [DEBUG]   {key}: {value}")
+
+            print("🔧 [DEBUG] Attempting to initialize cache manager...")
+            # Cache is initialized in constructor, just ensure it's created
+            get_cache_manager(db_path)
+            print("✅ [STARTUP] Cache manager initialized successfully")
+            # No need to call initialize() - it's done in __init__
+
+        except Exception as e:
+            print(f"❌ [STARTUP ERROR] Failed to initialize server: {e}")
+            print(f"❌ [STARTUP ERROR] Exception type: {type(e).__name__}")
+            import traceback
+
+            print("❌ [STARTUP ERROR] Traceback:")
+            traceback.print_exc()
+            raise
 
     # Run server with proper cache initialization
     if args.transport == "stdio":

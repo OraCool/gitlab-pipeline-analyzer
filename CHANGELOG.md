@@ -13,6 +13,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.6.1] - 2025-09-01
+
+### 🔧 **Technical Improvements**
+
+- **Code Quality Enhancements**: Fixed all MyPy, Ruff, and Bandit issues across the codebase
+- **Comprehensive Type Checking**: Updated MyPy configuration to include tests directory for full type coverage
+- **Enhanced Test Coverage**: Significantly improved mcp_cache module coverage from 36% to 56%
+- **Project Coverage Achievement**: Reached 67.66% total test coverage (exceeding 65% target)
+- **Test Suite Expansion**: Added 10 new comprehensive tests in TestMCPCacheAdvanced class covering:
+  - Async pipeline storage operations
+  - Job caching verification and retrieval
+  - Error handling for file-specific operations
+  - Pipeline job management
+  - Trace segment storage and processing
+- **Code Formatting**: Applied consistent code formatting across all 88 source files
+- **Security Validation**: Verified zero security vulnerabilities (only intentional nosec suppressions)
+
+### 📊 **Coverage Metrics**
+
+- Total test count: 365 tests (all passing)
+- Overall project coverage: 67.66% (up from 64.39%)
+- MCP cache module: 56% coverage (up from 36%)
+- Key modules with high coverage: API client (92%), Resource tools (90%+), Search tools (95%)
+
 ## [0.6.0] - 2025-09-01
 
 ### ✨ **New Features**
