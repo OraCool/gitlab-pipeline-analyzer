@@ -13,6 +13,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.7.0] - 2025-09-02
+
+### 🚀 **New Features**
+
+- **Enhanced File Grouping**: Added comprehensive file grouping capabilities with improved error categorization
+- **Pipeline Resource Support**: Enhanced file resource retrieval with pipeline-level support for better analysis workflows
+- **Comprehensive Test Coverage**: Added extensive test coverage across multiple modules for increased reliability
+
+### ✨ **Enhanced Features**
+
+- **Improved Error Handling**: Refactored error handling and logging throughout the analysis functions
+- **Better File Analysis**: Enhanced file resource retrieval with pipeline support for more comprehensive error analysis
+- **Increased Test Coverage**: Boosted overall test coverage to 66.68% with 444 comprehensive tests
+
+### 🔧 **Technical Improvements**
+
+- **Code Quality**: Refactored error handling patterns for better maintainability
+- **Test Suite Expansion**: Added comprehensive tests across cache, resources, and tools modules
+- **Enhanced Logging**: Improved logging mechanisms in analysis functions for better debugging
+- **Tool Count**: Now includes 12 essential tools for GitLab CI/CD pipeline analysis
+
+### 📊 **Quality Metrics**
+
+- **Test Coverage**: 66.68% overall coverage (exceeding 65% requirement)
+- **Test Count**: 444 comprehensive tests (all passing)
+- **Code Quality**: All linting, type checking, and security checks passing
+- **Zero Security Issues**: Clean security audit with only intentional suppressions
+
 ## [0.6.2] - 2025-09-02
 
 ### ✨ **Enhanced Features**
