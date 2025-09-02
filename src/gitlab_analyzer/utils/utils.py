@@ -479,8 +479,8 @@ def _extract_error_location(error: dict[str, Any]) -> str:
 
 def _categorize_error_for_fixing(error: dict[str, Any]) -> str:
     """Categorize error for fixing guidance."""
-    exception_type = error.get("exception_type", "").lower()
-    exception_message = error.get("exception_message", "").lower()
+    exception_type = (error.get("exception_type") or "").lower()
+    exception_message = (error.get("exception_message") or "").lower()
 
     if "assertion" in exception_type:
         return "test_assertion"
@@ -633,8 +633,8 @@ def _extract_fixing_context(error: dict[str, Any]) -> dict[str, Any]:
 
 def _generate_fix_guidance(error: dict[str, Any]) -> dict[str, Any]:
     """Generate comprehensive guidance for fixing the specific error."""
-    exception_type = error.get("exception_type", "").lower()
-    exception_message = error.get("exception_message", "")
+    exception_type = (error.get("exception_type") or "").lower()
+    exception_message = error.get("exception_message") or ""
 
     guidance = {
         "error_category": _categorize_error_for_fixing(error),
@@ -1005,8 +1005,8 @@ def _calculate_fix_priority(
     """Calculate priority information for fixing this error."""
     priority = {"urgency": "medium", "complexity": "medium", "confidence": "medium"}
 
-    exception_type = error.get("exception_type", "").lower()
-    exception_message = error.get("exception_message", "")
+    exception_type = (error.get("exception_type") or "").lower()
+    exception_message = error.get("exception_message") or ""
 
     # Determine urgency based on error type
     if "syntax" in exception_type:
