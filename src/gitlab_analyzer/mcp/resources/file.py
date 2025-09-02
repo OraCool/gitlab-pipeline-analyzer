@@ -130,9 +130,9 @@ async def get_file_resource_with_trace(
             result,
         )
 
-    except Exception as e:
+    except (ValueError, KeyError, TypeError) as e:
         logger.error(
-            f"Error getting file resource {project_id}/{job_id}/{file_path}: {e}"
+            "Error getting file resource %s/%s/%s: %s", project_id, job_id, file_path, e
         )
         error_result = {
             "error": str(e),
@@ -231,6 +231,224 @@ async def get_files_resource(
         data_type="job_files",
         project_id=project_id,
         job_id=int(job_id),
+    )
+
+
+async def get_pipeline_files_resource_enhanced(
+    project_id: str,
+    pipeline_id: str,
+    page: int = 1,
+    limit: int = 20,
+    mode: str = "balanced",
+    include_trace: bool = False,
+    max_errors_per_file: int = 5,
+) -> dict[str, Any]:
+    """Get all files with errors across all jobs in a pipeline with enhanced mode and trace support."""
+    from gitlab_analyzer.utils.utils import _generate_fix_guidance
+
+    cache_manager = get_cache_manager()
+    cache_key = f"pipeline_files_enhanced_{project_id}_{pipeline_id}_{page}_{limit}_{mode}_{include_trace}_{max_errors_per_file}"
+
+    async def compute_enhanced_pipeline_files_data() -> dict[str, Any]:
+        # Check pipeline analysis status first
+        analysis_status = await cache_manager.check_pipeline_analysis_status(
+            int(project_id), int(pipeline_id)
+        )
+
+        if not analysis_status["pipeline_exists"]:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "error": "Pipeline not found in database",
+                "recommendation": analysis_status["recommendation"],
+                "suggested_action": analysis_status["suggested_action"],
+                "data_source": "database_only",
+                "mode": mode,
+            }
+
+        if analysis_status["jobs_count"] == 0:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "warning": "No jobs found for this pipeline",
+                "recommendation": analysis_status["recommendation"],
+                "suggested_action": analysis_status["suggested_action"],
+                "analysis_status": analysis_status,
+                "data_source": "database_only",
+                "mode": mode,
+            }
+
+        if analysis_status["files_count"] == 0:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "info": f"Pipeline has {analysis_status['jobs_count']} jobs and {analysis_status['errors_count']} errors, but no files with errors found",
+                "recommendation": analysis_status["recommendation"],
+                "analysis_status": analysis_status,
+                "data_source": "database_only",
+                "mode": mode,
+            }
+
+        # Get all jobs for this pipeline
+        pipeline_jobs = await cache_manager.get_pipeline_jobs(int(pipeline_id))
+
+        if not pipeline_jobs:
+            return {
+                "files": [],
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": 0,
+                    "total_pages": 0,
+                },
+                "jobs_analyzed": 0,
+                "data_source": "database_only",
+                "mode": mode,
+            }
+
+        # Get files with errors from all jobs with enhanced processing
+        all_files_with_errors = {}  # Use dict to deduplicate by file path
+        jobs_with_errors = 0
+
+        for job in pipeline_jobs:
+            job_id = job.get("job_id")
+            if not job_id:
+                continue
+
+            job_files = await cache_manager.get_job_files_with_errors(int(job_id))
+            if job_files:
+                jobs_with_errors += 1
+                for file_info in job_files:
+                    file_path = file_info.get("file_path")
+                    if file_path:
+                        if file_path not in all_files_with_errors:
+                            all_files_with_errors[file_path] = {
+                                "file_path": file_path,
+                                "total_errors": 0,
+                                "jobs_with_errors": [],
+                                "first_error": None,
+                                "enhanced_errors": [],  # New: Enhanced error details
+                                "file_type": _classify_file_type(
+                                    file_path
+                                ),  # New: File classification
+                            }
+
+                        # Process errors with enhancement based on mode
+                        file_errors = file_info.get("errors", [])
+                        enhanced_errors = []
+
+                        for error in file_errors[
+                            :max_errors_per_file
+                        ]:  # Limit errors per file
+                            enhanced_error = error.copy()
+
+                            # Add trace information if requested
+                            if include_trace:
+                                error_id = error.get("error_id")
+                                if error_id:
+                                    trace_excerpt = cache_manager.get_job_trace_excerpt(
+                                        int(job_id), error_id, mode
+                                    )
+                                    if trace_excerpt:
+                                        enhanced_error["trace_excerpt"] = trace_excerpt
+
+                            # Add fix guidance for fixing mode
+                            if mode == "fixing":
+                                fix_guidance_error = {
+                                    "exception_type": error.get("exception", ""),
+                                    "exception_message": error.get("message", ""),
+                                    "line": error.get("line", 0),
+                                    "file_path": error.get("file_path", ""),
+                                    **error.get("detail", {}),
+                                }
+                                enhanced_error["fix_guidance"] = _generate_fix_guidance(
+                                    fix_guidance_error
+                                )
+
+                            # Add job context
+                            enhanced_error["job_context"] = {
+                                "job_id": job_id,
+                                "job_name": job.get("name"),
+                                "job_stage": job.get("stage"),
+                            }
+
+                            enhanced_errors.append(enhanced_error)
+
+                        # Aggregate error info
+                        all_files_with_errors[file_path]["total_errors"] += len(
+                            file_errors
+                        )
+                        all_files_with_errors[file_path]["enhanced_errors"].extend(
+                            enhanced_errors
+                        )
+                        all_files_with_errors[file_path]["jobs_with_errors"].append(
+                            {
+                                "job_id": job_id,
+                                "job_name": job.get("name"),
+                                "job_stage": job.get("stage"),
+                                "error_count": len(file_errors),
+                            }
+                        )
+
+                        # Store first error for reference
+                        if (
+                            not all_files_with_errors[file_path]["first_error"]
+                            and enhanced_errors
+                        ):
+                            all_files_with_errors[file_path]["first_error"] = (
+                                enhanced_errors[0]
+                            )
+
+        # Convert to list and sort by total errors (most problematic first)
+        files_list = list(all_files_with_errors.values())
+        files_list.sort(key=lambda x: x["total_errors"], reverse=True)
+
+        # Apply pagination
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_files = files_list[start_idx:end_idx]
+
+        return {
+            "files": paginated_files,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": len(files_list),
+                "total_pages": (len(files_list) + limit - 1) // limit,
+            },
+            "summary": {
+                "total_files_with_errors": len(files_list),
+                "total_jobs_in_pipeline": len(pipeline_jobs),
+                "jobs_with_errors": jobs_with_errors,
+                "total_errors": sum(f["total_errors"] for f in files_list),
+            },
+            "analysis_mode": mode,
+            "include_trace": include_trace,
+            "max_errors_per_file": max_errors_per_file,
+            "data_source": "database_only",
+        }
+
+    return await cache_manager.get_or_compute(
+        key=cache_key,
+        compute_func=compute_enhanced_pipeline_files_data,
+        data_type="pipeline_files_enhanced",
+        project_id=project_id,
+        pipeline_id=int(pipeline_id),
     )
 
 
@@ -431,6 +649,89 @@ def register_file_resources(mcp) -> None:
         )
         return create_text_resource(
             f"gl://files/{project_id}/pipeline/{pipeline_id}/page/{page}/limit/{limit}",
+            result,
+        )
+
+    @mcp.resource(
+        "gl://files/{project_id}/pipeline/{pipeline_id}/enhanced?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}"
+    )
+    async def get_pipeline_files_resource_enhanced_handler(
+        project_id: str,
+        pipeline_id: str,
+        mode: str,
+        include_trace: str,
+        max_errors_per_file: str,
+    ) -> TextResourceContents:
+        """
+        Get enhanced list of files with errors across all jobs in a pipeline.
+
+        Args:
+            mode: Analysis mode (minimal, balanced, fixing, detailed)
+            include_trace: Whether to include trace context (true/false)
+            max_errors_per_file: Maximum errors to show per file (number)
+        """
+        try:
+            include_trace_bool = include_trace.lower() == "true"
+            max_errors_num = int(max_errors_per_file)
+        except (ValueError, AttributeError):
+            return create_text_resource(
+                f"gl://files/{project_id}/pipeline/{pipeline_id}/enhanced?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}",
+                {
+                    "error": "Invalid parameters: include_trace must be 'true'/'false', max_errors_per_file must be a number"
+                },
+            )
+
+        result = await get_pipeline_files_resource_enhanced(
+            project_id,
+            pipeline_id,
+            page=1,
+            limit=20,
+            mode=mode,
+            include_trace=include_trace_bool,
+            max_errors_per_file=max_errors_num,
+        )
+        return create_text_resource(
+            f"gl://files/{project_id}/pipeline/{pipeline_id}/enhanced?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}",
+            result,
+        )
+
+    @mcp.resource(
+        "gl://files/{project_id}/pipeline/{pipeline_id}/enhanced/page/{page}/limit/{limit}?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}"
+    )
+    async def get_pipeline_files_resource_enhanced_paginated(
+        project_id: str,
+        pipeline_id: str,
+        page: str,
+        limit: str,
+        mode: str,
+        include_trace: str,
+        max_errors_per_file: str,
+    ) -> TextResourceContents:
+        """
+        Get enhanced paginated list of files with errors across all jobs in a pipeline.
+        """
+        try:
+            page_num = int(page)
+            limit_num = int(limit)
+            include_trace_bool = include_trace.lower() == "true"
+            max_errors_num = int(max_errors_per_file)
+        except (ValueError, AttributeError):
+            return create_text_resource(
+                f"gl://files/{project_id}/pipeline/{pipeline_id}/enhanced/page/{page}/limit/{limit}?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}",
+                {"error": "Invalid parameters"},
+            )
+
+        result = await get_pipeline_files_resource_enhanced(
+            project_id,
+            pipeline_id,
+            page_num,
+            limit_num,
+            mode=mode,
+            include_trace=include_trace_bool,
+            max_errors_per_file=max_errors_num,
+        )
+        return create_text_resource(
+            f"gl://files/{project_id}/pipeline/{pipeline_id}/enhanced/page/{page}/limit/{limit}?mode={mode}&include_trace={include_trace}&max_errors_per_file={max_errors_per_file}",
             result,
         )
 

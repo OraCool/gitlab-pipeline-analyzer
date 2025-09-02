@@ -34,6 +34,7 @@ from gitlab_analyzer.mcp.resources.file import (
     get_file_resource_with_trace,
     get_files_resource,
     get_pipeline_files_resource,
+    get_pipeline_files_resource_enhanced,
 )
 from gitlab_analyzer.mcp.resources.job import (
     get_job_resource,
@@ -147,23 +148,55 @@ async def _handle_files_resource(
         project_id = parts[1]
         if len(parts) >= 4 and parts[2] == "pipeline":
             # gl://files/123/pipeline/123 or gl://files/123/pipeline/123/page/2/limit/50
+            # or gl://files/123/pipeline/123/enhanced?mode=detailed&include_trace=true
             pipeline_id = parts[3]
-            # Check for pagination parameters from query string or path
-            page = int(query_params.get("page", 1))
-            limit = int(query_params.get("limit", 20))
-            # Also support path-based pagination for backward compatibility
-            if len(parts) >= 6 and parts[4] == "page":
-                page = int(parts[5])
-            if len(parts) >= 8 and parts[6] == "limit":
-                limit = int(parts[7])
-            debug_print(
-                f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
-            )
-            result = await get_pipeline_files_resource(
-                project_id, pipeline_id, page, limit
-            )
-            verbose_debug_print("✅ Pipeline files resource retrieved successfully")
-            return result
+
+            # Check if this is the enhanced version
+            if len(parts) >= 5 and parts[4] == "enhanced":
+                # Enhanced pipeline files with mode and trace support
+                mode = query_params.get("mode", "balanced")
+                include_trace = (
+                    query_params.get("include_trace", "false").lower() == "true"
+                )
+                max_errors_per_file = int(query_params.get("max_errors", "5"))
+                page = int(query_params.get("page", "1"))
+                limit = int(query_params.get("limit", "20"))
+
+                debug_print(
+                    f"🔍 Accessing enhanced pipeline files for pipeline {pipeline_id} in project {project_id} "
+                    f"(mode={mode}, include_trace={include_trace}, max_errors={max_errors_per_file}, page={page}, limit={limit})"
+                )
+                result = await get_pipeline_files_resource_enhanced(
+                    project_id,
+                    pipeline_id,
+                    page,
+                    limit,
+                    mode,
+                    include_trace,
+                    max_errors_per_file,
+                )
+                verbose_debug_print(
+                    "✅ Enhanced pipeline files resource retrieved successfully"
+                )
+                return result
+            else:
+                # Standard pipeline files
+                # Check for pagination parameters from query string or path
+                page = int(query_params.get("page", 1))
+                limit = int(query_params.get("limit", 20))
+                # Also support path-based pagination for backward compatibility
+                if len(parts) >= 6 and parts[4] == "page":
+                    page = int(parts[5])
+                if len(parts) >= 8 and parts[6] == "limit":
+                    limit = int(parts[7])
+                debug_print(
+                    f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
+                )
+                result = await get_pipeline_files_resource(
+                    project_id, pipeline_id, page, limit
+                )
+                verbose_debug_print("✅ Pipeline files resource retrieved successfully")
+                return result
         else:
             # gl://files/123/456 (job files) - support query parameters
             job_id = parts[2]
@@ -341,7 +374,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
         verbose_debug_print(f"✅ Cleanup check completed: {cleanup_status}")
 
-    except Exception as e:
+    except (RuntimeError, ValueError, ImportError) as e:
         error_print(f"❌ Auto-cleanup failed during resource access: {e}")
         cleanup_status = {"status": "failed", "reason": str(e)}
 
@@ -393,6 +426,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     "gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success]",
                     "gl://job/{project_id}/{pipeline_id}/{job_id}",
                     "gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]",
+                    "gl://files/{project_id}/pipeline/{pipeline_id}/enhanced[?mode={mode}&include_trace={trace}&max_errors={max}]",
                     "gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]",
                     "gl://file/{project_id}/{job_id}/{file_path}",
                     "gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace}",
@@ -429,7 +463,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             "mcp_info": get_mcp_info("get_mcp_resource", error=True),
             "auto_cleanup": cleanup_status,
         }
-    except Exception as e:
+    except (KeyError, TypeError, AttributeError) as e:
         end_time = time.time()
         duration = end_time - start_time
         error_print(
@@ -444,10 +478,6 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         }
 
 
-# Create an alias for backward compatibility
-get_mcp_resource = get_mcp_resource_impl
-
-
 def register_resource_access_tools(mcp: FastMCP) -> None:
     """Register resource access tools with MCP server"""
 
@@ -456,17 +486,26 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         """
         🔗 RESOURCE ACCESS: Get data from MCP resource URI without re-running analysis.
 
+        ⭐ ALWAYS TRY THIS FIRST for any pipeline/job/error data requests!
+
         WHEN TO USE:
+        - Get pipeline info, job details, errors (try before analysis tools)
         - Access previously analyzed pipeline data
         - Retrieve cached results efficiently
         - Navigate between related resources
         - Avoid unnecessary re-analysis
+
+        WORKFLOW:
+        1. Try get_mcp_resource first
+        2. If returns "pipeline_not_analyzed" → use failed_pipeline_analysis
+        3. Then use get_mcp_resource again for efficient access
 
         SUPPORTED RESOURCE PATTERNS:
         - gl://pipeline/{project_id}/{pipeline_id} - Pipeline analysis
         - gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success] - Pipeline jobs
         - gl://job/{project_id}/{pipeline_id}/{job_id} - Individual job analysis
         - gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}] - Pipeline files
+        - gl://files/{project_id}/pipeline/{pipeline_id}/enhanced[?mode={mode}&include_trace={trace}&max_errors={max}] - Enhanced pipeline files
         - gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}] - Job files
         - gl://file/{project_id}/{job_id}/{file_path} - Specific file analysis
         - gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace} - File with trace
@@ -497,6 +536,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://jobs/123/pipeline/1594344/failed") - Get failed jobs
         - get_mcp_resource("gl://pipeline/123/1594344") - Get pipeline analysis
         - get_mcp_resource("gl://files/123/pipeline/1594344") - Get files with errors
+        - get_mcp_resource("gl://files/123/pipeline/1594344/enhanced?mode=detailed&include_trace=true") - Enhanced files with trace
         - get_mcp_resource("gl://error/123/76474172") - Get job error analysis
         - get_mcp_resource("gl://errors/123/76474172/src/main.py") - Get file-specific errors
         - get_mcp_resource("gl://errors/123/pipeline/1594344") - Get pipeline-wide errors

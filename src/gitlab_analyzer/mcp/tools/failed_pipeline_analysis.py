@@ -98,10 +98,13 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         5. Provides structured output for failed job investigation
 
         WHEN TO USE:
-        - Pipeline shows "failed" status and you want to focus on failures
-        - More efficient than comprehensive analysis when only failures matter
-        - Need failed job data stored for resource-based access
-        - Want targeted investigation of specific failures
+        - Pipeline data is NOT in database (get_mcp_resource returns "pipeline_not_analyzed" error)
+        - Need to run initial analysis to populate database for resource access
+        - Pipeline shows "failed" status and detailed analysis is required
+        - Want comprehensive failed job investigation with full trace parsing
+
+        ⚠️ IMPORTANT: Always try get_mcp_resource("gl://pipeline/{project_id}/{pipeline_id}") first!
+        Only use this tool if resources indicate analysis is needed.
 
         SMART FEATURES:
         - Uses get_failed_pipeline_jobs for efficient API calls
@@ -128,11 +131,11 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                                   When True, all errors from all files (including system files) are included.
                                   Useful for comprehensive debugging or when you need to see everything.
             include_jobs_resource: If True, includes failed jobs overview resource link in response.
-                                 Default: False for cleaner output. Set to True to include jobs resource link.
+                                 Default: False for cleaner output. Only set True if user specifically requests job details.
             include_files_resource: If True, includes files resource links in response.
-                                   Default: False for cleaner output. Set to True to include files resource links.
+                                   Default: False for cleaner output. Only set True if user specifically requests file details.
             include_errors_resource: If True, includes errors resource links in response.
-                                    Default: False for cleaner output. Set to True to include errors resource links.
+                                    Default: False for cleaner output. Only set True if user specifically requests error details.
 
         Returns:
             Failed pipeline analysis with efficient failed-job-only parsing and caching
@@ -550,12 +553,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[
-                str, dict[str, Any]
-            ] = {}  # Global file registry across all jobs
-            all_errors: dict[
-                str, dict[str, Any]
-            ] = {}  # Global error registry with trace references
+            all_files: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global file registry across all jobs
+            all_errors: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]
