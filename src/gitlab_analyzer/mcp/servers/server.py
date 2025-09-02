@@ -93,23 +93,32 @@ def main() -> None:
     async def startup():
         """Initialize cache when server starts with comprehensive debug information"""
         try:
+            import sys
+
+            # Use stderr for debug output to avoid interfering with STDIO protocol
             print(
-                f"🚀 [STARTUP] Initializing GitLab Pipeline Analyzer MCP Server (transport: {args.transport})..."
+                f"🚀 [STARTUP] Initializing GitLab Pipeline Analyzer MCP Server (transport: {args.transport})...",
+                file=sys.stderr,
             )
 
             from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
             # Get database path from environment variable or use default
             db_path = os.environ.get("MCP_DATABASE_PATH")
-            print(f"🔧 [DEBUG] Database path from env: {db_path}")
+            print(f"🔧 [DEBUG] Database path from env: {db_path}", file=sys.stderr)
 
             if db_path:
-                print(f"🔧 [DEBUG] Using custom database path: {db_path}")
+                print(
+                    f"🔧 [DEBUG] Using custom database path: {db_path}", file=sys.stderr
+                )
             else:
-                print("🔧 [DEBUG] Using default database path: analysis_cache.db")
+                print(
+                    "🔧 [DEBUG] Using default database path: analysis_cache.db",
+                    file=sys.stderr,
+                )
 
             # Debug environment variables
-            print("🔧 [DEBUG] Environment variables:")
+            print("🔧 [DEBUG] Environment variables:", file=sys.stderr)
             for key in [
                 "MCP_DATABASE_PATH",
                 "GITLAB_URL",
@@ -123,22 +132,31 @@ def main() -> None:
                 if key == "GITLAB_TOKEN" and value:
                     # Mask token for security
                     masked_value = f"{value[:8]}..." if len(value) > 8 else "***"
-                    print(f"🔧 [DEBUG]   {key}: {masked_value}")
+                    print(f"🔧 [DEBUG]   {key}: {masked_value}", file=sys.stderr)
                 else:
-                    print(f"🔧 [DEBUG]   {key}: {value}")
+                    print(f"🔧 [DEBUG]   {key}: {value}", file=sys.stderr)
 
-            print("🔧 [DEBUG] Attempting to initialize cache manager...")
+            print(
+                "🔧 [DEBUG] Attempting to initialize cache manager...", file=sys.stderr
+            )
             # Cache is initialized in constructor, just ensure it's created
             get_cache_manager(db_path)
-            print("✅ [STARTUP] Cache manager initialized successfully")
+            print(
+                "✅ [STARTUP] Cache manager initialized successfully", file=sys.stderr
+            )
             # No need to call initialize() - it's done in __init__
 
         except Exception as e:
-            print(f"❌ [STARTUP ERROR] Failed to initialize server: {e}")
-            print(f"❌ [STARTUP ERROR] Exception type: {type(e).__name__}")
+            print(
+                f"❌ [STARTUP ERROR] Failed to initialize server: {e}", file=sys.stderr
+            )
+            print(
+                f"❌ [STARTUP ERROR] Exception type: {type(e).__name__}",
+                file=sys.stderr,
+            )
             import traceback
 
-            print("❌ [STARTUP ERROR] Traceback:")
+            print("❌ [STARTUP ERROR] Traceback:", file=sys.stderr)
             traceback.print_exc()
             raise
 
