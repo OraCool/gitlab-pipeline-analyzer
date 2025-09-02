@@ -6,12 +6,14 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import json
+import time
 from typing import Any
 
 import httpx
 from fastmcp import FastMCP
 
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
 
 
 def register_search_tools(mcp: FastMCP) -> None:
@@ -65,8 +67,16 @@ def register_search_tools(mcp: FastMCP) -> None:
             Search results with file paths, line numbers, and code snippets
             Format: Text (readable) or JSON (structured with file, branch, start_line, search_content)
         """
+        start_time = time.time()
+        debug_print(f"🔍 Starting repository code search for '{search_keywords}' in project {project_id}")
+        verbose_debug_print(f"📋 Search filters: branch={branch}, filename={filename_filter}, path={path_filter}, extension={extension_filter}")
+        verbose_debug_print(f"⚙️ Search options: max_results={max_results}, output_format={output_format}")
+        
         try:
             gitlab_client = get_gitlab_analyzer()
+            verbose_debug_print("🔗 GitLab client instance obtained")
+            
+            debug_print(f"🔎 Executing search in GitLab project {project_id}...")
             results = await gitlab_client.search_project_code(
                 project_id=project_id,
                 search_term=search_keywords,
@@ -77,12 +87,14 @@ def register_search_tools(mcp: FastMCP) -> None:
             )
 
             if not results:
+                debug_print(f"📭 No search results found for '{search_keywords}'")
                 no_results_msg = (
                     f"No code matches found for '{search_keywords}' in project {project_id}"
                     + (f" on branch '{branch}'" if branch else "")
                 )
 
                 if output_format == "json":
+                    verbose_debug_print("📝 Formatting empty results as JSON")
                     return json.dumps(
                         {
                             "search_keywords": search_keywords,
@@ -98,15 +110,23 @@ def register_search_tools(mcp: FastMCP) -> None:
                             "results": [],
                             "message": no_results_msg,
                             "mcp_info": get_mcp_info("search_repository_code"),
+                            "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
                         },
                         indent=2,
                     )
                 return no_results_msg
 
+            total_found = len(results)
+            debug_print(f"📊 Found {total_found} search results")
+            
             # Limit results to max_results
             limited_results = results[:max_results]
+            showing_count = len(limited_results)
+            if showing_count < total_found:
+                verbose_debug_print(f"📋 Limiting display to {showing_count} out of {total_found} results")
 
             if output_format == "json":
+                verbose_debug_print("📝 Formatting results as JSON...")
                 # Structure results in JSON format
                 json_results = []
                 for result in limited_results:
@@ -140,10 +160,12 @@ def register_search_tools(mcp: FastMCP) -> None:
                         },
                         "results": json_results,
                         "mcp_info": get_mcp_info("search_repository_code"),
+                        "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
                     },
                     indent=2,
                 )
 
+            verbose_debug_print("📝 Formatting results as text...")
             # Format search results in text format (existing implementation)
             output_lines = [
                 f"🔍 Code Search Results for '{search_keywords}' in project {project_id}",
@@ -204,11 +226,20 @@ def register_search_tools(mcp: FastMCP) -> None:
                 )
                 output_lines.append("Use max_results parameter to see more results")
 
+            end_time = time.time()
+            duration = end_time - start_time
+            debug_print(f"✅ Code search completed successfully in {duration:.3f}s")
             return "\n".join(output_lines)
 
         except (httpx.HTTPError, ValueError, KeyError) as e:
+            end_time = time.time()
+            duration = end_time - start_time
+            error_print(f"❌ Error searching repository code after {duration:.3f}s: {e}")
             return f"Error searching repository code: {str(e)}"
         except Exception as e:  # noqa: BLE001
+            end_time = time.time()
+            duration = end_time - start_time
+            error_print(f"❌ Unexpected error searching repository code after {duration:.3f}s: {e}")
             return f"Error searching repository code: {str(e)}"
 
     @mcp.tool

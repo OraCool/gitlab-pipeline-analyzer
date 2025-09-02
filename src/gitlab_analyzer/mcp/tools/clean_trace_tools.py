@@ -8,12 +8,14 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
+import time
 from typing import Any
 
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.base_parser import BaseParser
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
 
 
 def register_clean_trace_tools(mcp: FastMCP) -> None:
@@ -54,13 +56,20 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
         - get_clean_job_trace(83, 76986695) - Get cleaned trace
         - get_clean_job_trace(83, 76986695, save_to_file=True) - Save cleaned trace to file
         """
+        start_time = time.time()
+        debug_print(f"🧹 Starting clean trace retrieval for job {job_id} in project {project_id}")
+        verbose_debug_print(f"📋 Clean trace options: save_to_file={save_to_file}, output_format={output_format}")
+        
         try:
             analyzer = get_gitlab_analyzer()
+            verbose_debug_print("🔗 GitLab analyzer instance obtained")
 
             # Get raw trace from GitLab
+            debug_print(f"📥 Fetching raw trace from GitLab for job {job_id}...")
             trace_content = await analyzer.get_job_trace(project_id, job_id)
 
             if not trace_content:
+                error_print(f"❌ No trace found for job {job_id} in project {project_id}")
                 return {
                     "status": "no_trace",
                     "message": f"No trace found for job {job_id}",
@@ -68,15 +77,21 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                     "job_id": str(job_id),
                     "trace_length": 0,
                     "trace_lines": 0,
+                    "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
                 }
 
+            raw_length = len(trace_content)
+            verbose_debug_print(f"📊 Raw trace retrieved: {raw_length} characters")
+
             # Clean ANSI escape sequences to make trace readable
+            debug_print("🧹 Cleaning ANSI escape sequences from trace...")
             cleaned_trace = BaseParser.clean_ansi_sequences(trace_content)
 
             # Calculate basic stats
             lines = cleaned_trace.split("\n")
             trace_length = len(cleaned_trace)
             trace_lines = len(lines)
+            verbose_debug_print(f"📊 Cleaned trace: {trace_length} characters, {trace_lines} lines")
 
             result = {
                 "status": "success",
@@ -89,14 +104,18 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
 
             # Save to file if requested
             if save_to_file:
+                debug_print("💾 Saving cleaned trace to file...")
                 from pathlib import Path
 
                 output_file = Path(f"clean_trace_{project_id}_{job_id}.log")
                 output_file.write_text(cleaned_trace, encoding="utf-8")
                 result["saved_to"] = str(output_file)
+                verbose_debug_print(f"✅ Trace saved to: {output_file}")
 
             # Format output
+            debug_print(f"📝 Formatting output as: {output_format}")
             if output_format == "json":
+                verbose_debug_print("📊 Building JSON format with preview and error indicators...")
                 # For JSON format, include trace excerpts
                 result.update(
                     {
@@ -129,21 +148,33 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                         "Traceback (most recent call last):" in line for line in lines
                     ),
                 }
+                verbose_debug_print(f"🔍 Error indicators found: {len(syntax_errors)} syntax errors, {len(make_errors)} make errors")
             else:
+                verbose_debug_print("📄 Including full trace content in text format")
                 # For text format, include cleaned trace
                 result["trace_content"] = cleaned_trace
 
             result["mcp_info"] = get_mcp_info("get_clean_job_trace")
+            
+            # Add timing information
+            end_time = time.time()
+            duration = end_time - start_time
+            result["debug_timing"] = {"duration_seconds": round(duration, 3)}
+            debug_print(f"✅ Clean trace retrieval completed in {duration:.3f}s")
 
             return result
 
         except Exception as e:
+            end_time = time.time()
+            duration = end_time - start_time
+            error_print(f"❌ Error retrieving clean trace for job {job_id} after {duration:.3f}s: {e}")
             return {
                 "status": "error",
                 "message": str(e),
                 "project_id": str(project_id),
                 "job_id": str(job_id),
                 "mcp_info": get_mcp_info("get_clean_job_trace"),
+                "debug_timing": {"duration_seconds": round(duration, 3)},
             }
 
     @mcp.resource("trace://{project_id}/{job_id}")
