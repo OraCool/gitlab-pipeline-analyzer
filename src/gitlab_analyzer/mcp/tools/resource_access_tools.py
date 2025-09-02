@@ -46,7 +46,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
     """
     start_time = time.time()
     debug_print(f"🔗 Starting resource access for URI: {resource_uri}")
-    
+
     # Store cleanup status to add to final response
     cleanup_status = {}
 
@@ -66,7 +66,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
     # Parse resource URI
     verbose_debug_print(f"🔍 Parsing resource URI: {resource_uri}")
     if not resource_uri.startswith("gl://"):
-        error_print(f"❌ Invalid resource URI format - missing gl:// scheme: {resource_uri}")
+        error_print(
+            f"❌ Invalid resource URI format - missing gl:// scheme: {resource_uri}"
+        )
         return {
             "error": f"Invalid resource URI format: {resource_uri}",
             "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -88,7 +90,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     key, value = param.split("=", 1)
                     query_params[key] = value
             verbose_debug_print(f"📋 Parsed query parameters: {query_params}")
-        
+
         debug_print(f"🎯 Final path for processing: {path}")
 
         # Handle different resource types
@@ -100,11 +102,15 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             if len(parts) >= 3:
                 project_id = parts[1]
                 pipeline_id = parts[2]
-                debug_print(f"🔍 Accessing pipeline {pipeline_id} in project {project_id}")
+                debug_print(
+                    f"🔍 Accessing pipeline {pipeline_id} in project {project_id}"
+                )
                 result = await get_pipeline_resource(project_id, pipeline_id)
                 verbose_debug_print("✅ Pipeline resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid pipeline URI format - insufficient parts: {resource_uri}")
+                error_print(
+                    f"❌ Invalid pipeline URI format - insufficient parts: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid pipeline URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -122,13 +128,17 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 status = "all"
                 if len(parts) > 4:
                     status = parts[4]  # e.g., "failed"
-                debug_print(f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}")
+                debug_print(
+                    f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}"
+                )
                 result = await get_pipeline_jobs_resource(
                     project_id, pipeline_id, status
                 )
                 verbose_debug_print("✅ Jobs resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid jobs URI format - expected jobs/project/pipeline/id: {resource_uri}")
+                error_print(
+                    f"❌ Invalid jobs URI format - expected jobs/project/pipeline/id: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid jobs URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -143,11 +153,15 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 project_id = parts[1]
                 pipeline_id = parts[2]
                 job_id = parts[3]
-                debug_print(f"🔍 Accessing job {job_id} in pipeline {pipeline_id} in project {project_id}")
+                debug_print(
+                    f"🔍 Accessing job {job_id} in pipeline {pipeline_id} in project {project_id}"
+                )
                 result = await get_job_resource(project_id, pipeline_id, job_id)
                 verbose_debug_print("✅ Job resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid job URI format - expected job/project/pipeline/job: {resource_uri}")
+                error_print(
+                    f"❌ Invalid job URI format - expected job/project/pipeline/job: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid job URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -171,21 +185,29 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                         page = int(parts[5])
                     if len(parts) >= 8 and parts[6] == "limit":
                         limit = int(parts[7])
-                    debug_print(f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})")
+                    debug_print(
+                        f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
+                    )
                     result = await get_pipeline_files_resource(
                         project_id, pipeline_id, page, limit
                     )
-                    verbose_debug_print("✅ Pipeline files resource retrieved successfully")
+                    verbose_debug_print(
+                        "✅ Pipeline files resource retrieved successfully"
+                    )
                 else:
                     # gl://files/83/456 (job files) - support query parameters
                     job_id = parts[2]
                     page = int(query_params.get("page", 1))
                     limit = int(query_params.get("limit", 20))
-                    debug_print(f"🔍 Accessing job files for job {job_id} in project {project_id} (page={page}, limit={limit})")
+                    debug_print(
+                        f"🔍 Accessing job files for job {job_id} in project {project_id} (page={page}, limit={limit})"
+                    )
                     result = await get_files_resource(project_id, job_id, page, limit)
                     verbose_debug_print("✅ Job files resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid files URI format - insufficient parts: {resource_uri}")
+                error_print(
+                    f"❌ Invalid files URI format - insufficient parts: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid files URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -200,7 +222,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 project_id = parts[1]
                 job_id = parts[2]
                 file_path = "/".join(parts[3:])
-                debug_print(f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}")
+                debug_print(
+                    f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}"
+                )
 
                 # Check if it's a trace request
                 if "/trace?" in file_path:
@@ -215,7 +239,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     include_trace = "false"
                     if len(file_parts) > 1:
                         trace_query_params = file_parts[1]
-                        verbose_debug_print(f"🔧 Trace query params: {trace_query_params}")
+                        verbose_debug_print(
+                            f"🔧 Trace query params: {trace_query_params}"
+                        )
                         for param in trace_query_params.split("&"):
                             if "=" in param:
                                 key, value = param.split("=", 1)
@@ -223,7 +249,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                                     mode = value
                                 elif key == "include_trace":
                                     include_trace = value
-                    debug_print(f"⚙️ Trace options: mode={mode}, include_trace={include_trace}")
+                    debug_print(
+                        f"⚙️ Trace options: mode={mode}, include_trace={include_trace}"
+                    )
 
                     # The function returns TextResourceContents, so we need to handle it differently
                     trace_result = await get_file_resource_with_trace(
@@ -231,12 +259,16 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     )
                     # Convert TextResourceContents to dict for consistency
                     result = json.loads(trace_result.text)
-                    verbose_debug_print("✅ File resource with trace retrieved successfully")
+                    verbose_debug_print(
+                        "✅ File resource with trace retrieved successfully"
+                    )
                 else:
                     result = await get_file_resource(project_id, job_id, file_path)
                     verbose_debug_print("✅ File resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid file URI format - expected file/project/job/path: {resource_uri}")
+                error_print(
+                    f"❌ Invalid file URI format - expected file/project/job/path: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid file URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -267,18 +299,26 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 if len(parts) >= 4:
                     # gl://error/83/456/123_0
                     error_id = parts[3]
-                    debug_print(f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})")
+                    debug_print(
+                        f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})"
+                    )
                     result = await get_individual_error_data(
                         project_id, job_id, error_id, mode
                     )
-                    verbose_debug_print("✅ Individual error resource retrieved successfully")
+                    verbose_debug_print(
+                        "✅ Individual error resource retrieved successfully"
+                    )
                 else:
                     # gl://error/83/456
-                    debug_print(f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})")
+                    debug_print(
+                        f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})"
+                    )
                     result = await get_error_resource_data(project_id, job_id, mode)
                     verbose_debug_print("✅ Job errors resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid error URI format - expected error/project/job: {resource_uri}")
+                error_print(
+                    f"❌ Invalid error URI format - expected error/project/job: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid error URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -294,25 +334,37 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 if len(parts) >= 4 and parts[2] == "pipeline":
                     # gl://errors/83/pipeline/123
                     pipeline_id = parts[3]
-                    debug_print(f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}")
+                    debug_print(
+                        f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
+                    )
                     result = await get_pipeline_errors_resource_data(
                         project_id, pipeline_id
                     )
-                    verbose_debug_print("✅ Pipeline errors resource retrieved successfully")
+                    verbose_debug_print(
+                        "✅ Pipeline errors resource retrieved successfully"
+                    )
                 else:
                     # gl://errors/83/456/src/main.py
                     job_id = parts[2]
                     file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
                     if file_path:
-                        debug_print(f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}")
+                        debug_print(
+                            f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}"
+                        )
                     else:
-                        debug_print(f"🔍 Accessing all errors in job {job_id} in project {project_id}")
+                        debug_print(
+                            f"🔍 Accessing all errors in job {job_id} in project {project_id}"
+                        )
                     result = await get_file_errors_resource_data(
                         project_id, job_id, file_path
                     )
-                    verbose_debug_print("✅ Job/file errors resource retrieved successfully")
+                    verbose_debug_print(
+                        "✅ Job/file errors resource retrieved successfully"
+                    )
             else:
-                error_print(f"❌ Invalid errors URI format - expected errors/project/...: {resource_uri}")
+                error_print(
+                    f"❌ Invalid errors URI format - expected errors/project/...: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid errors URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -338,7 +390,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                             pipeline_id, query_string = pipeline_id_with_query.split(
                                 "?", 1
                             )
-                            verbose_debug_print(f"🔧 Analysis query params: {query_string}")
+                            verbose_debug_print(
+                                f"🔧 Analysis query params: {query_string}"
+                            )
                             for param in query_string.split("&"):
                                 if "=" in param:
                                     key, value = param.split("=", 1)
@@ -346,13 +400,17 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                                         mode = value
                         else:
                             pipeline_id = pipeline_id_with_query
-                        debug_print(f"🔍 Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})")
+                        debug_print(
+                            f"🔍 Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
+                        )
                     elif parts[2] == "job":
                         # gl://analysis/83/job/456?mode=minimal
                         job_id_with_query = parts[3]
                         if "?" in job_id_with_query:
                             job_id, query_string = job_id_with_query.split("?", 1)
-                            verbose_debug_print(f"🔧 Analysis query params: {query_string}")
+                            verbose_debug_print(
+                                f"🔧 Analysis query params: {query_string}"
+                            )
                             for param in query_string.split("&"):
                                 if "=" in param:
                                     key, value = param.split("=", 1)
@@ -360,16 +418,22 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                                         mode = value
                         else:
                             job_id = job_id_with_query
-                        debug_print(f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})")
+                        debug_print(
+                            f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})"
+                        )
                 else:
-                    debug_print(f"🔍 Accessing project analysis for project {project_id} (mode={mode})")
+                    debug_print(
+                        f"🔍 Accessing project analysis for project {project_id} (mode={mode})"
+                    )
 
                 result = await get_analysis_resource_data(
                     project_id, pipeline_id, job_id, mode
                 )
                 verbose_debug_print("✅ Analysis resource retrieved successfully")
             else:
-                error_print(f"❌ Invalid analysis URI format - expected analysis/project: {resource_uri}")
+                error_print(
+                    f"❌ Invalid analysis URI format - expected analysis/project: {resource_uri}"
+                )
                 return {
                     "error": f"Invalid analysis URI format: {resource_uri}",
                     "mcp_info": get_mcp_info("get_mcp_resource", error=True),
@@ -417,7 +481,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
-        error_print(f"❌ Error accessing resource {resource_uri} after {duration:.3f}s: {e}")
+        error_print(
+            f"❌ Error accessing resource {resource_uri} after {duration:.3f}s: {e}"
+        )
         return {
             "error": f"Failed to access resource: {str(e)}",
             "mcp_info": get_mcp_info("get_mcp_resource", error=True),

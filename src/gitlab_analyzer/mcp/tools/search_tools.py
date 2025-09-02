@@ -68,14 +68,20 @@ def register_search_tools(mcp: FastMCP) -> None:
             Format: Text (readable) or JSON (structured with file, branch, start_line, search_content)
         """
         start_time = time.time()
-        debug_print(f"🔍 Starting repository code search for '{search_keywords}' in project {project_id}")
-        verbose_debug_print(f"📋 Search filters: branch={branch}, filename={filename_filter}, path={path_filter}, extension={extension_filter}")
-        verbose_debug_print(f"⚙️ Search options: max_results={max_results}, output_format={output_format}")
-        
+        debug_print(
+            f"🔍 Starting repository code search for '{search_keywords}' in project {project_id}"
+        )
+        verbose_debug_print(
+            f"📋 Search filters: branch={branch}, filename={filename_filter}, path={path_filter}, extension={extension_filter}"
+        )
+        verbose_debug_print(
+            f"⚙️ Search options: max_results={max_results}, output_format={output_format}"
+        )
+
         try:
             gitlab_client = get_gitlab_analyzer()
             verbose_debug_print("🔗 GitLab client instance obtained")
-            
+
             debug_print(f"🔎 Executing search in GitLab project {project_id}...")
             results = await gitlab_client.search_project_code(
                 project_id=project_id,
@@ -110,7 +116,9 @@ def register_search_tools(mcp: FastMCP) -> None:
                             "results": [],
                             "message": no_results_msg,
                             "mcp_info": get_mcp_info("search_repository_code"),
-                            "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
+                            "debug_timing": {
+                                "duration_seconds": round(time.time() - start_time, 3)
+                            },
                         },
                         indent=2,
                     )
@@ -118,12 +126,14 @@ def register_search_tools(mcp: FastMCP) -> None:
 
             total_found = len(results)
             debug_print(f"📊 Found {total_found} search results")
-            
+
             # Limit results to max_results
             limited_results = results[:max_results]
             showing_count = len(limited_results)
             if showing_count < total_found:
-                verbose_debug_print(f"📋 Limiting display to {showing_count} out of {total_found} results")
+                verbose_debug_print(
+                    f"📋 Limiting display to {showing_count} out of {total_found} results"
+                )
 
             if output_format == "json":
                 verbose_debug_print("📝 Formatting results as JSON...")
@@ -160,7 +170,9 @@ def register_search_tools(mcp: FastMCP) -> None:
                         },
                         "results": json_results,
                         "mcp_info": get_mcp_info("search_repository_code"),
-                        "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
+                        "debug_timing": {
+                            "duration_seconds": round(time.time() - start_time, 3)
+                        },
                     },
                     indent=2,
                 )
@@ -234,12 +246,16 @@ def register_search_tools(mcp: FastMCP) -> None:
         except (httpx.HTTPError, ValueError, KeyError) as e:
             end_time = time.time()
             duration = end_time - start_time
-            error_print(f"❌ Error searching repository code after {duration:.3f}s: {e}")
+            error_print(
+                f"❌ Error searching repository code after {duration:.3f}s: {e}"
+            )
             return f"Error searching repository code: {str(e)}"
         except Exception as e:  # noqa: BLE001
             end_time = time.time()
             duration = end_time - start_time
-            error_print(f"❌ Unexpected error searching repository code after {duration:.3f}s: {e}")
+            error_print(
+                f"❌ Unexpected error searching repository code after {duration:.3f}s: {e}"
+            )
             return f"Error searching repository code: {str(e)}"
 
     @mcp.tool

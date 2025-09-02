@@ -115,9 +115,15 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         """
 
         start_time = time.time()
-        debug_print(f"🚨 Starting failed pipeline analysis for pipeline {pipeline_id} in project {project_id}")
-        verbose_debug_print(f"📋 Analysis options: store_in_db={store_in_db}, disable_file_filtering={disable_file_filtering}")
-        verbose_debug_print(f"📋 Resource includes: jobs={include_jobs_resource}, files={include_files_resource}, errors={include_errors_resource}")
+        debug_print(
+            f"🚨 Starting failed pipeline analysis for pipeline {pipeline_id} in project {project_id}"
+        )
+        verbose_debug_print(
+            f"📋 Analysis options: store_in_db={store_in_db}, disable_file_filtering={disable_file_filtering}"
+        )
+        verbose_debug_print(
+            f"📋 Resource includes: jobs={include_jobs_resource}, files={include_files_resource}, errors={include_errors_resource}"
+        )
         if exclude_file_patterns:
             verbose_debug_print(f"🔧 Custom exclude patterns: {exclude_file_patterns}")
 
@@ -142,7 +148,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             pipeline_info = await get_comprehensive_pipeline_info(
                 analyzer=analyzer, project_id=project_id, pipeline_id=pipeline_id
             )
-            verbose_debug_print(f"✅ Pipeline info retrieved: status={pipeline_info.get('status')}, branch={pipeline_info.get('source_branch')}")
+            verbose_debug_print(
+                f"✅ Pipeline info retrieved: status={pipeline_info.get('status')}, branch={pipeline_info.get('source_branch')}"
+            )
 
             if store_in_db:
                 verbose_debug_print("💾 Storing pipeline info in database...")
@@ -155,7 +163,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 verbose_debug_print("✅ Pipeline info stored in database")
 
             # Step 2: Get only failed jobs (more efficient than all jobs)
-            debug_print(f"📊 Step 2: Fetching failed jobs for pipeline {pipeline_id}...")
+            debug_print(
+                f"📊 Step 2: Fetching failed jobs for pipeline {pipeline_id}..."
+            )
             failed_jobs = await analyzer.get_failed_pipeline_jobs(
                 project_id=project_id, pipeline_id=pipeline_id
             )
@@ -184,36 +194,48 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 debug_print("🔧 File filtering disabled - analyzing all files")
             else:
                 exclude_patterns = combine_exclude_file_patterns(exclude_file_patterns)
-                verbose_debug_print(f"🔧 File exclusion patterns: {len(exclude_patterns)} patterns configured")
+                verbose_debug_print(
+                    f"🔧 File exclusion patterns: {len(exclude_patterns)} patterns configured"
+                )
 
             for job_index, job in enumerate(failed_jobs, 1):
-                debug_print(f"🔍 [{job_index}/{len(failed_jobs)}] Analyzing job {job.name} (ID: {job.id})")
-                verbose_debug_print(f"📋 Job details: stage={job.stage}, status={job.status}")
-                
+                debug_print(
+                    f"🔍 [{job_index}/{len(failed_jobs)}] Analyzing job {job.name} (ID: {job.id})"
+                )
+                verbose_debug_print(
+                    f"📋 Job details: stage={job.stage}, status={job.status}"
+                )
+
                 job_start_time = time.time()
                 debug_print(f"📥 Fetching trace for job {job.id}...")
                 trace = await analyzer.get_job_trace(project_id, job.id)
                 trace_length = len(trace) if trace else 0
                 verbose_debug_print(f"📊 Trace retrieved: {trace_length} characters")
-                
+
                 parser_type = (
                     "pytest"
                     if _should_use_pytest_parser(trace, job.name, job.stage)
                     else "generic"
                 )
                 debug_print(f"🔧 Selected parser type: {parser_type}")
-                
+
                 if parser_type == "pytest":
-                    verbose_debug_print("🧪 Using pytest parser for detailed test failure analysis...")
+                    verbose_debug_print(
+                        "🧪 Using pytest parser for detailed test failure analysis..."
+                    )
                     pytest_parser = PytestLogParser()
                     parsed = pytest_parser.parse_pytest_log(trace)
-                    debug_print(f"📊 Pytest parsing found {len(parsed.detailed_failures)} detailed failures")
-                    
+                    debug_print(
+                        f"📊 Pytest parsing found {len(parsed.detailed_failures)} detailed failures"
+                    )
+
                     # Convert PytestFailureDetail objects to error dict format
                     errors: list[dict[str, Any]] = []
                     for failure_index, failure in enumerate(parsed.detailed_failures):
-                        verbose_debug_print(f"🔍 Processing failure {failure_index + 1}: {failure.test_name}")
-                        
+                        verbose_debug_print(
+                            f"🔍 Processing failure {failure_index + 1}: {failure.test_name}"
+                        )
+
                         # Classify the error type using the shared BaseParser method
                         error_message = (
                             f"{failure.exception_type}: {failure.exception_message}"
@@ -240,7 +262,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     # CRITICAL FIX: Use generic LogParser as fallback for pytest jobs
                     # to catch import-time errors (SyntaxError, etc.) that occur before pytest runs
-                    verbose_debug_print("🔍 Running generic parser as fallback to catch import-time errors...")
+                    verbose_debug_print(
+                        "🔍 Running generic parser as fallback to catch import-time errors..."
+                    )
                     log_parser = LogParser()
                     log_entries = log_parser.extract_log_entries(trace)
                     generic_errors = [
@@ -258,7 +282,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         for entry in log_entries
                         if entry.level == "error"
                     ]
-                    verbose_debug_print(f"📊 Generic parser found {len(generic_errors)} additional errors")
+                    verbose_debug_print(
+                        f"📊 Generic parser found {len(generic_errors)} additional errors"
+                    )
                     # Combine pytest errors with generic errors to catch all failure types
                     errors.extend(generic_errors)
                     debug_print(f"📊 Total errors after combining: {len(errors)}")
@@ -285,14 +311,18 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     debug_print(f"📊 Generic parser found {len(errors)} errors")
 
                 # Group errors by file and filter out system files
-                debug_print(f"🔍 Processing {len(errors)} errors for file grouping and filtering...")
+                debug_print(
+                    f"🔍 Processing {len(errors)} errors for file grouping and filtering..."
+                )
                 file_groups: dict[str, dict[str, Any]] = {}
                 filtered_errors: list[dict[str, Any]] = (
                     []
                 )  # Track errors after filtering system files
 
                 for error_index, error in enumerate(errors):
-                    verbose_debug_print(f"🔍 Processing error {error_index + 1}/{len(errors)}")
+                    verbose_debug_print(
+                        f"🔍 Processing error {error_index + 1}/{len(errors)}"
+                    )
                     message = (
                         error.get("exception_message", "")
                         or error.get("message", "")
@@ -341,7 +371,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                             should_filter = not has_valuable_context
 
                     if should_filter:
-                        verbose_debug_print(f"🚫 Filtering out error from {file_path} (excluded path)")
+                        verbose_debug_print(
+                            f"🚫 Filtering out error from {file_path} (excluded path)"
+                        )
                         continue  # Skip this error if the file should be excluded
 
                     verbose_debug_print(f"✅ Keeping error from {file_path}")
@@ -373,18 +405,24 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 original_error_count = len(errors)
                 filtered_error_count = len(filtered_errors)
                 filtered_out_count = original_error_count - filtered_error_count
-                debug_print(f"📊 Error filtering results: {original_error_count} → {filtered_error_count} errors (filtered out: {filtered_out_count})")
+                debug_print(
+                    f"📊 Error filtering results: {original_error_count} → {filtered_error_count} errors (filtered out: {filtered_out_count})"
+                )
                 debug_print(f"📁 Files with errors: {len(file_groups)}")
 
                 categorized = categorize_files_by_type(list(file_groups.values()))
-                verbose_debug_print(f"📊 File categorization: {len(categorized)} categories")
+                verbose_debug_print(
+                    f"📊 File categorization: {len(categorized)} categories"
+                )
 
                 # Store file and error info in DB (using filtered data)
                 if store_in_db:
                     verbose_debug_print("💾 Storing job analysis data in database...")
                     # Calculate trace hash for consistency tracking
                     trace_hash = hashlib.sha256(trace.encode("utf-8")).hexdigest()
-                    verbose_debug_print(f"🔒 Calculated trace hash: {trace_hash[:12]}...")
+                    verbose_debug_print(
+                        f"🔒 Calculated trace hash: {trace_hash[:12]}..."
+                    )
 
                     # Convert error dictionaries to ErrorRecord objects for trace storage
                     error_records = []
@@ -393,7 +431,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                             job_id=job.id, error_data=error_dict, error_index=i
                         )
                         error_records.append(error_record)
-                    verbose_debug_print(f"📋 Created {len(error_records)} error records for storage")
+                    verbose_debug_print(
+                        f"📋 Created {len(error_records)} error records for storage"
+                    )
 
                     # Store trace segments per error with context
                     verbose_debug_print("💾 Storing error trace segments...")
@@ -426,7 +466,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     verbose_debug_print("✅ Database storage completed")
 
                 job_duration = time.time() - job_start_time
-                debug_print(f"✅ Job {job.name} analysis completed in {job_duration:.2f}s")
+                debug_print(
+                    f"✅ Job {job.name} analysis completed in {job_duration:.2f}s"
+                )
 
                 job_analysis_results.append(
                     {
@@ -444,7 +486,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     }
                 )
 
-            debug_print("📊 Step 5: Building analysis results and resource structure...")
+            debug_print(
+                "📊 Step 5: Building analysis results and resource structure..."
+            )
             # Prepare analysis results - store in resources for later access
             # (failed_stages and failure_reasons are available in the stored data)
 
@@ -546,7 +590,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             total_files = len(all_files)
             total_errors = len(all_errors)
 
-            debug_print(f"📊 Analysis summary: {len(failed_jobs)} failed jobs, {total_files} files, {total_errors} errors")
+            debug_print(
+                f"📊 Analysis summary: {len(failed_jobs)} failed jobs, {total_files} files, {total_errors} errors"
+            )
             verbose_debug_print(f"📋 Pipeline: {source_branch} @ {pipeline_sha}")
 
             # Create lightweight content-based response
@@ -623,7 +669,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             # Add timing information
             end_time = time.time()
             total_duration = end_time - start_time
-            debug_print(f"✅ Failed pipeline analysis completed successfully in {total_duration:.2f}s")
+            debug_print(
+                f"✅ Failed pipeline analysis completed successfully in {total_duration:.2f}s"
+            )
             if isinstance(result, dict):
                 result["debug_timing"] = {"duration_seconds": round(total_duration, 3)}
 
@@ -632,7 +680,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
             end_time = time.time()
             total_duration = end_time - start_time
-            error_print(f"❌ Failed pipeline analysis error after {total_duration:.2f}s: {e}")
+            error_print(
+                f"❌ Failed pipeline analysis error after {total_duration:.2f}s: {e}"
+            )
             return {
                 "content": [
                     {

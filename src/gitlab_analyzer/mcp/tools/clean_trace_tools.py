@@ -57,9 +57,13 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
         - get_clean_job_trace(83, 76986695, save_to_file=True) - Save cleaned trace to file
         """
         start_time = time.time()
-        debug_print(f"🧹 Starting clean trace retrieval for job {job_id} in project {project_id}")
-        verbose_debug_print(f"📋 Clean trace options: save_to_file={save_to_file}, output_format={output_format}")
-        
+        debug_print(
+            f"🧹 Starting clean trace retrieval for job {job_id} in project {project_id}"
+        )
+        verbose_debug_print(
+            f"📋 Clean trace options: save_to_file={save_to_file}, output_format={output_format}"
+        )
+
         try:
             analyzer = get_gitlab_analyzer()
             verbose_debug_print("🔗 GitLab analyzer instance obtained")
@@ -69,7 +73,9 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
             trace_content = await analyzer.get_job_trace(project_id, job_id)
 
             if not trace_content:
-                error_print(f"❌ No trace found for job {job_id} in project {project_id}")
+                error_print(
+                    f"❌ No trace found for job {job_id} in project {project_id}"
+                )
                 return {
                     "status": "no_trace",
                     "message": f"No trace found for job {job_id}",
@@ -77,7 +83,9 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                     "job_id": str(job_id),
                     "trace_length": 0,
                     "trace_lines": 0,
-                    "debug_timing": {"duration_seconds": round(time.time() - start_time, 3)},
+                    "debug_timing": {
+                        "duration_seconds": round(time.time() - start_time, 3)
+                    },
                 }
 
             raw_length = len(trace_content)
@@ -91,7 +99,9 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
             lines = cleaned_trace.split("\n")
             trace_length = len(cleaned_trace)
             trace_lines = len(lines)
-            verbose_debug_print(f"📊 Cleaned trace: {trace_length} characters, {trace_lines} lines")
+            verbose_debug_print(
+                f"📊 Cleaned trace: {trace_length} characters, {trace_lines} lines"
+            )
 
             result = {
                 "status": "success",
@@ -115,7 +125,9 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
             # Format output
             debug_print(f"📝 Formatting output as: {output_format}")
             if output_format == "json":
-                verbose_debug_print("📊 Building JSON format with preview and error indicators...")
+                verbose_debug_print(
+                    "📊 Building JSON format with preview and error indicators..."
+                )
                 # For JSON format, include trace excerpts
                 result.update(
                     {
@@ -148,14 +160,16 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
                         "Traceback (most recent call last):" in line for line in lines
                     ),
                 }
-                verbose_debug_print(f"🔍 Error indicators found: {len(syntax_errors)} syntax errors, {len(make_errors)} make errors")
+                verbose_debug_print(
+                    f"🔍 Error indicators found: {len(syntax_errors)} syntax errors, {len(make_errors)} make errors"
+                )
             else:
                 verbose_debug_print("📄 Including full trace content in text format")
                 # For text format, include cleaned trace
                 result["trace_content"] = cleaned_trace
 
             result["mcp_info"] = get_mcp_info("get_clean_job_trace")
-            
+
             # Add timing information
             end_time = time.time()
             duration = end_time - start_time
@@ -167,7 +181,9 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
         except Exception as e:
             end_time = time.time()
             duration = end_time - start_time
-            error_print(f"❌ Error retrieving clean trace for job {job_id} after {duration:.3f}s: {e}")
+            error_print(
+                f"❌ Error retrieving clean trace for job {job_id} after {duration:.3f}s: {e}"
+            )
             return {
                 "status": "error",
                 "message": str(e),
