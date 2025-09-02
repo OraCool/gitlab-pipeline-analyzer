@@ -33,7 +33,9 @@ from gitlab_analyzer.mcp.resources.file import (
     get_file_resource,
     get_file_resource_with_trace,
     get_files_resource,
+    get_pipeline_file_errors_resource,
     get_pipeline_files_resource,
+    get_pipeline_files_resource_enhanced,
 )
 from gitlab_analyzer.mcp.resources.job import (
     get_job_resource,
@@ -67,28 +69,37 @@ def _parse_resource_uri(resource_uri: str) -> tuple[str, dict[str, str]]:
     return path, query_params
 
 
-def _parse_file_path(file_path: str) -> tuple[str, bool]:
+def _parse_file_path(file_path: str) -> tuple[str, str]:
     """
-    Parse file path to extract actual file path and detect trace requests.
+    Parse file path to extract actual file path and detect special requests.
 
     Returns:
-        tuple: (actual_file_path, is_trace_request)
+        tuple: (actual_file_path, request_type)
+        request_type can be: "normal", "trace", "jobs"
     """
     # First decode the entire path to handle URL encoding properly
     decoded_file_path = unquote(file_path)
 
-    # Check if it's a trace request - look for either /trace? or ending with /trace
-    if "/trace?" in decoded_file_path:
+    # Check for special endpoints
+    if "/jobs?" in decoded_file_path or decoded_file_path.endswith("/jobs"):
+        # Parse jobs request: src/main.py/jobs or src/main.py/jobs?param=value
+        if "/jobs?" in decoded_file_path:
+            file_parts = decoded_file_path.split("/jobs?")
+            actual_file_path = file_parts[0]
+        else:
+            actual_file_path = decoded_file_path[:-5]  # Remove "/jobs"
+        return actual_file_path, "jobs"
+    elif "/trace?" in decoded_file_path:
         # Parse trace parameters: src/main.py/trace?mode=detailed&include_trace=true
         file_parts = decoded_file_path.split("/trace?")
         actual_file_path = file_parts[0]  # Already decoded
-        return actual_file_path, True
+        return actual_file_path, "trace"
     elif decoded_file_path.endswith("/trace"):
         # Remove the /trace suffix
         actual_file_path = decoded_file_path[:-6]  # Remove "/trace"
-        return actual_file_path, True
+        return actual_file_path, "trace"
     else:
-        return decoded_file_path, False
+        return decoded_file_path, "normal"
 
 
 async def _handle_pipeline_resource(parts: list[str]) -> dict[str, Any]:
@@ -147,23 +158,56 @@ async def _handle_files_resource(
         project_id = parts[1]
         if len(parts) >= 4 and parts[2] == "pipeline":
             # gl://files/123/pipeline/123 or gl://files/123/pipeline/123/page/2/limit/50
+            # or gl://files/123/pipeline/123/enhanced?mode=detailed&include_trace=true
             pipeline_id = parts[3]
-            # Check for pagination parameters from query string or path
-            page = int(query_params.get("page", 1))
-            limit = int(query_params.get("limit", 20))
-            # Also support path-based pagination for backward compatibility
-            if len(parts) >= 6 and parts[4] == "page":
-                page = int(parts[5])
-            if len(parts) >= 8 and parts[6] == "limit":
-                limit = int(parts[7])
-            debug_print(
-                f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
-            )
-            result = await get_pipeline_files_resource(
-                project_id, pipeline_id, page, limit
-            )
-            verbose_debug_print("✅ Pipeline files resource retrieved successfully")
-            return result
+
+            # Check if this is the enhanced version
+            if len(parts) >= 5 and parts[4] == "enhanced":
+                # Enhanced pipeline files with mode and trace support
+                mode = query_params.get("mode", "balanced")
+                include_trace_str = (
+                    query_params.get("include_trace", "false") or "false"
+                )
+                include_trace = str(include_trace_str).lower() == "true"
+                max_errors_per_file = int(query_params.get("max_errors", "5"))
+                page = int(query_params.get("page", "1"))
+                limit = int(query_params.get("limit", "20"))
+
+                debug_print(
+                    f"🔍 Accessing enhanced pipeline files for pipeline {pipeline_id} in project {project_id} "
+                    f"(mode={mode}, include_trace={include_trace}, max_errors={max_errors_per_file}, page={page}, limit={limit})"
+                )
+                result = await get_pipeline_files_resource_enhanced(
+                    project_id,
+                    pipeline_id,
+                    page,
+                    limit,
+                    mode,
+                    include_trace,
+                    max_errors_per_file,
+                )
+                verbose_debug_print(
+                    "✅ Enhanced pipeline files resource retrieved successfully"
+                )
+                return result
+            else:
+                # Standard pipeline files
+                # Check for pagination parameters from query string or path
+                page = int(query_params.get("page", 1))
+                limit = int(query_params.get("limit", 20))
+                # Also support path-based pagination for backward compatibility
+                if len(parts) >= 6 and parts[4] == "page":
+                    page = int(parts[5])
+                if len(parts) >= 8 and parts[6] == "limit":
+                    limit = int(parts[7])
+                debug_print(
+                    f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
+                )
+                result = await get_pipeline_files_resource(
+                    project_id, pipeline_id, page, limit
+                )
+                verbose_debug_print("✅ Pipeline files resource retrieved successfully")
+                return result
         else:
             # gl://files/123/456 (job files) - support query parameters
             job_id = parts[2]
@@ -185,38 +229,109 @@ async def _handle_file_resource(
     """Handle individual file resource requests."""
     if len(parts) >= 5:
         project_id = parts[1]
-        job_id = parts[2]
-        file_path = "/".join(parts[3:])
-        debug_print(
-            f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}"
-        )
 
-        # Parse file path and check for trace request
-        actual_file_path, is_trace_request = _parse_file_path(file_path)
-        debug_print(f"📁 Actual file path: {actual_file_path}")
-
-        if is_trace_request:
-            verbose_debug_print("🔍 Detected trace request in file URI")
-
-            # Get query parameters for trace
-            mode = query_params.get("mode", "balanced")
-            include_trace = query_params.get("include_trace", "false")
-            debug_print(f"⚙️ Trace options: mode={mode}, include_trace={include_trace}")
-
-            # The function returns TextResourceContents, so we need to handle it differently
-            trace_result = await get_file_resource_with_trace(
-                project_id, job_id, actual_file_path, mode, include_trace
+        # Check if this is a pipeline-wide file request
+        if parts[2] == "pipeline" and len(parts) >= 5:
+            # gl://file/123/pipeline/456/path/to/file.py or gl://file/123/pipeline/456/path/to/file.py/trace
+            pipeline_id = parts[3]
+            file_path = "/".join(parts[4:])
+            debug_print(
+                f"🔍 Accessing file '{file_path}' across pipeline {pipeline_id} in project {project_id}"
             )
-            # Convert TextResourceContents to dict for consistency
-            result = json.loads(trace_result.text)
-            verbose_debug_print("✅ File resource with trace retrieved successfully")
-            return result
+
+            # Parse file path and check for special requests
+            actual_file_path, request_type = _parse_file_path(file_path)
+            debug_print(f"📁 Actual file path: {actual_file_path}")
+            debug_print(f"🔧 Request type: {request_type}")
+
+            if request_type == "jobs":
+                # Handle jobs request for pipeline file
+                from gitlab_analyzer.mcp.resources.file import (
+                    get_pipeline_file_jobs_resource,
+                )
+
+                debug_print("👥 Getting jobs for file in pipeline")
+                result = await get_pipeline_file_jobs_resource(
+                    project_id, pipeline_id, actual_file_path
+                )
+                verbose_debug_print(
+                    "✅ Pipeline file jobs resource retrieved successfully"
+                )
+                return result
+            elif request_type == "trace":
+                # Get query parameters for trace
+                mode = query_params.get("mode", "fixing")  # Default to fixing for trace
+                include_trace_str = (
+                    query_params.get("include_trace", "true") or "true"
+                )  # Default to true for trace
+                include_trace = str(include_trace_str).lower() == "true"
+                debug_print(
+                    f"⚙️ Pipeline file trace options: mode={mode}, include_trace={include_trace}"
+                )
+
+                result = await get_pipeline_file_errors_resource(
+                    project_id, pipeline_id, actual_file_path, mode, include_trace
+                )
+                verbose_debug_print(
+                    "✅ Pipeline file resource with trace retrieved successfully"
+                )
+                return result
+            else:
+                # Normal file request - check for query parameters
+                mode = query_params.get("mode", "balanced")  # Default mode
+                include_trace_str = (
+                    query_params.get("include_trace", "false") or "false"
+                )
+                include_trace = str(include_trace_str).lower() == "true"
+                debug_print(
+                    f"⚙️ Pipeline file options: mode={mode}, include_trace={include_trace}"
+                )
+
+                result = await get_pipeline_file_errors_resource(
+                    project_id, pipeline_id, actual_file_path, mode, include_trace
+                )
+                verbose_debug_print("✅ Pipeline file resource retrieved successfully")
+                return result
         else:
-            result = await get_file_resource(project_id, job_id, actual_file_path)
-            verbose_debug_print("✅ File resource retrieved successfully")
-            return result
+            # Original job-specific file request: gl://file/123/456/path/to/file.py
+            job_id = parts[2]
+            file_path = "/".join(parts[3:])
+            debug_print(
+                f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}"
+            )
+
+            # Parse file path and check for special requests
+            actual_file_path, request_type = _parse_file_path(file_path)
+            debug_print(f"📁 Actual file path: {actual_file_path}")
+
+            if request_type == "trace":
+                verbose_debug_print("🔍 Detected trace request in file URI")
+
+                # Get query parameters for trace
+                mode = query_params.get("mode", "balanced")
+                include_trace_str = query_params.get("include_trace", "false")
+                debug_print(
+                    f"⚙️ Trace options: mode={mode}, include_trace={include_trace_str}"
+                )
+
+                # The function returns TextResourceContents, so we need to handle it differently
+                trace_result = await get_file_resource_with_trace(
+                    project_id, job_id, actual_file_path, mode, include_trace_str
+                )
+                # Convert TextResourceContents to dict for consistency
+                result = json.loads(trace_result.text)
+                verbose_debug_print(
+                    "✅ File resource with trace retrieved successfully"
+                )
+                return result
+            else:
+                result = await get_file_resource(project_id, job_id, actual_file_path)
+                verbose_debug_print("✅ File resource retrieved successfully")
+                return result
     else:
-        raise ValueError("Invalid file URI format - expected file/project/job/path")
+        raise ValueError(
+            "Invalid file URI format - expected file/project/job/path or file/project/pipeline/id/path"
+        )
 
 
 async def _handle_error_resource(
@@ -341,7 +456,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
         verbose_debug_print(f"✅ Cleanup check completed: {cleanup_status}")
 
-    except Exception as e:
+    except (RuntimeError, ValueError, ImportError) as e:
         error_print(f"❌ Auto-cleanup failed during resource access: {e}")
         cleanup_status = {"status": "failed", "reason": str(e)}
 
@@ -393,6 +508,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     "gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success]",
                     "gl://job/{project_id}/{pipeline_id}/{job_id}",
                     "gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]",
+                    "gl://files/{project_id}/pipeline/{pipeline_id}/enhanced[?mode={mode}&include_trace={trace}&max_errors={max}]",
                     "gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]",
                     "gl://file/{project_id}/{job_id}/{file_path}",
                     "gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace}",
@@ -429,7 +545,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             "mcp_info": get_mcp_info("get_mcp_resource", error=True),
             "auto_cleanup": cleanup_status,
         }
-    except Exception as e:
+    except (KeyError, TypeError, AttributeError) as e:
         end_time = time.time()
         duration = end_time - start_time
         error_print(
@@ -442,10 +558,20 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             "resource_uri": resource_uri,
             "debug_timing": {"duration_seconds": round(duration, 3)},
         }
-
-
-# Create an alias for backward compatibility
-get_mcp_resource = get_mcp_resource_impl
+    except Exception as e:
+        # Handle any other unexpected exceptions
+        end_time = time.time()
+        duration = end_time - start_time
+        error_print(
+            f"❌ Unexpected error accessing resource {resource_uri} after {duration:.3f}s: {e}"
+        )
+        return {
+            "error": f"Failed to access resource: {str(e)}",
+            "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+            "auto_cleanup": cleanup_status,
+            "resource_uri": resource_uri,
+            "debug_timing": {"duration_seconds": round(duration, 3)},
+        }
 
 
 def register_resource_access_tools(mcp: FastMCP) -> None:
@@ -456,17 +582,26 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         """
         🔗 RESOURCE ACCESS: Get data from MCP resource URI without re-running analysis.
 
+        ⭐ ALWAYS TRY THIS FIRST for any pipeline/job/error data requests!
+
         WHEN TO USE:
+        - Get pipeline info, job details, errors (try before analysis tools)
         - Access previously analyzed pipeline data
         - Retrieve cached results efficiently
         - Navigate between related resources
         - Avoid unnecessary re-analysis
+
+        WORKFLOW:
+        1. Try get_mcp_resource first
+        2. If returns "pipeline_not_analyzed" → use failed_pipeline_analysis
+        3. Then use get_mcp_resource again for efficient access
 
         SUPPORTED RESOURCE PATTERNS:
         - gl://pipeline/{project_id}/{pipeline_id} - Pipeline analysis
         - gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success] - Pipeline jobs
         - gl://job/{project_id}/{pipeline_id}/{job_id} - Individual job analysis
         - gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}] - Pipeline files
+        - gl://files/{project_id}/pipeline/{pipeline_id}/enhanced[?mode={mode}&include_trace={trace}&max_errors={max}] - Enhanced pipeline files
         - gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}] - Job files
         - gl://file/{project_id}/{job_id}/{file_path} - Specific file analysis
         - gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace} - File with trace
@@ -497,6 +632,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://jobs/123/pipeline/1594344/failed") - Get failed jobs
         - get_mcp_resource("gl://pipeline/123/1594344") - Get pipeline analysis
         - get_mcp_resource("gl://files/123/pipeline/1594344") - Get files with errors
+        - get_mcp_resource("gl://files/123/pipeline/1594344/enhanced?mode=detailed&include_trace=true") - Enhanced files with trace
         - get_mcp_resource("gl://error/123/76474172") - Get job error analysis
         - get_mcp_resource("gl://errors/123/76474172/src/main.py") - Get file-specific errors
         - get_mcp_resource("gl://errors/123/pipeline/1594344") - Get pipeline-wide errors
@@ -508,3 +644,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         return await get_mcp_resource_impl(resource_uri)
 
     debug_print("🔗 Resource access tools registered successfully")
+
+
+# Export the implementation function for testing and direct usage
+get_mcp_resource = get_mcp_resource_impl

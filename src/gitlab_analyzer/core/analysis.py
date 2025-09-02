@@ -119,12 +119,15 @@ async def store_job_analysis_step(
                 )
 
             await conn.commit()
-            print(
-                f"DEBUG: Stored analysis for job {job_id} - {len(errors)} errors, {len(file_errors)} files"
+            logger.debug(
+                "Stored analysis for job %s - %d errors, %d files",
+                job_id,
+                len(errors),
+                len(file_errors),
             )
 
     except Exception as e:
-        print(f"DEBUG: Error storing job analysis for {job_id}: {e}")
+        logger.error("Error storing job analysis for %s: %s", job_id, e)
 
 
 def is_pytest_job(
@@ -458,7 +461,7 @@ async def analyze_pipeline_jobs(
 
     # Store job metadata immediately (Step 2A: Job List)
     if cache_manager:
-        print(f"DEBUG: Storing metadata for {len(jobs)} jobs")
+        logger.debug("Storing metadata for %d jobs", len(jobs))
         await store_jobs_metadata_step(cache_manager, project_id, pipeline_id, jobs)
 
     analyzed_jobs = []
