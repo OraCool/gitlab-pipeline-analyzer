@@ -20,6 +20,13 @@ from typing import Any
 
 import aiosqlite
 
+from gitlab_analyzer.utils.debug import (
+    debug_print,
+    error_print,
+    startup_print,
+    verbose_debug_print,
+)
+
 from .models import ErrorRecord, JobRecord, PipelineRecord, generate_standard_error_id
 
 
@@ -59,77 +66,54 @@ class McpCache:
         """Initialize database schema with comprehensive debug information"""
         try:
             # Debug info: Database path and environment
-            print(
-                f"🔧 [DEBUG] Initializing database at: {self.db_path}", file=sys.stderr
+            debug_print(f"🔧 [DEBUG] Initializing database at: {self.db_path}")
+            verbose_debug_print(f"🔧 [DEBUG] Database path type: {type(self.db_path)}")
+            verbose_debug_print(
+                f"🔧 [DEBUG] Database path absolute: {self.db_path.resolve()}"
             )
-            print(
-                f"🔧 [DEBUG] Database path type: {type(self.db_path)}", file=sys.stderr
-            )
-            print(
-                f"🔧 [DEBUG] Database path absolute: {self.db_path.resolve()}",
-                file=sys.stderr,
-            )
-            print(
-                f"🔧 [DEBUG] Database path exists: {self.db_path.exists()}",
-                file=sys.stderr,
+            verbose_debug_print(
+                f"🔧 [DEBUG] Database path exists: {self.db_path.exists()}"
             )
 
             # Check parent directory
             parent_dir = self.db_path.parent
-            print(f"🔧 [DEBUG] Parent directory: {parent_dir}", file=sys.stderr)
-            print(
-                f"🔧 [DEBUG] Parent directory exists: {parent_dir.exists()}",
-                file=sys.stderr,
+            verbose_debug_print(f"🔧 [DEBUG] Parent directory: {parent_dir}")
+            verbose_debug_print(
+                f"🔧 [DEBUG] Parent directory exists: {parent_dir.exists()}"
             )
-            print(
+            verbose_debug_print(
                 f"🔧 [DEBUG] Parent directory writable: "
-                f"{os.access(parent_dir, os.W_OK) if parent_dir.exists() else 'N/A'}",
-                file=sys.stderr,
+                f"{os.access(parent_dir, os.W_OK) if parent_dir.exists() else 'N/A'}"
             )
 
             # Check file permissions if database exists
             if self.db_path.exists():
-                print(
-                    f"🔧 [DEBUG] Database file readable: {os.access(self.db_path, os.R_OK)}",
-                    file=sys.stderr,
+                verbose_debug_print(
+                    f"🔧 [DEBUG] Database file readable: {os.access(self.db_path, os.R_OK)}"
                 )
-                print(
-                    f"🔧 [DEBUG] Database file writable: {os.access(self.db_path, os.W_OK)}",
-                    file=sys.stderr,
+                verbose_debug_print(
+                    f"🔧 [DEBUG] Database file writable: {os.access(self.db_path, os.W_OK)}"
                 )
-                print(
-                    f"🔧 [DEBUG] Database file size: {self.db_path.stat().st_size} bytes",
-                    file=sys.stderr,
+                verbose_debug_print(
+                    f"🔧 [DEBUG] Database file size: {self.db_path.stat().st_size} bytes"
                 )
 
             # Environment variables debug
             mcp_db_path = os.environ.get("MCP_DATABASE_PATH")
-            print(
-                f"🔧 [DEBUG] MCP_DATABASE_PATH env var: {mcp_db_path}", file=sys.stderr
-            )
-            print(
-                f"🔧 [DEBUG] Current working directory: {Path.cwd()}", file=sys.stderr
-            )
+            verbose_debug_print(f"🔧 [DEBUG] MCP_DATABASE_PATH env var: {mcp_db_path}")
+            verbose_debug_print(f"🔧 [DEBUG] Current working directory: {Path.cwd()}")
 
-            print(
-                "🔧 [DEBUG] Attempting to connect to SQLite database...",
-                file=sys.stderr,
-            )
+            debug_print("🔧 [DEBUG] Attempting to connect to SQLite database...")
 
         except Exception as e:
-            print(
-                f"❌ [ERROR] Failed during database path checks: {e}", file=sys.stderr
-            )
-            print(f"❌ [ERROR] Exception type: {type(e).__name__}", file=sys.stderr)
+            error_print(f"❌ [ERROR] Failed during database path checks: {e}")
+            error_print(f"❌ [ERROR] Exception type: {type(e).__name__}")
             raise
 
         try:
             with sqlite3.connect(self.db_path) as conn:
-                print(
-                    "✅ [DEBUG] Successfully connected to SQLite database",
-                    file=sys.stderr,
-                )
-                print("🔧 [DEBUG] Creating database schema...", file=sys.stderr)
+                debug_print("✅ [DEBUG] Successfully connected to SQLite database")
+                debug_print("🔧 [DEBUG] Creating database schema...")
 
                 conn.executescript(
                     """
@@ -237,20 +221,18 @@ class McpCache:
                     )
                     conn.commit()
 
-                print(
-                    "✅ [DEBUG] Database schema created/verified successfully",
-                    file=sys.stderr,
-                )
-                print(
-                    f"✅ [DEBUG] Database initialization completed at: {self.db_path}",
-                    file=sys.stderr,
+                debug_print("✅ [DEBUG] Database schema created/verified successfully")
+                debug_print(
+                    f"✅ [DEBUG] Database initialization completed at: {self.db_path}"
                 )
 
         except sqlite3.OperationalError as e:
-            print("❌ [ERROR] SQLite Operational Error during database initialization:")
-            print(f"❌ [ERROR] Error message: {e}")
-            print(f"❌ [ERROR] Database path: {self.db_path}")
-            print(
+            error_print(
+                "❌ [ERROR] SQLite Operational Error during database initialization:"
+            )
+            error_print(f"❌ [ERROR] Error message: {e}")
+            error_print(f"❌ [ERROR] Database path: {self.db_path}")
+            error_print(
                 "❌ [ERROR] This usually indicates permission issues or disk space problems"
             )
 
@@ -259,27 +241,29 @@ class McpCache:
                 import shutil
 
                 free_space = shutil.disk_usage(self.db_path.parent).free
-                print(
+                verbose_debug_print(
                     f"🔧 [DEBUG] Available disk space: {free_space / 1024 / 1024:.2f} MB"
                 )
             except Exception as disk_e:
-                print(f"🔧 [DEBUG] Could not check disk space: {disk_e}")
+                verbose_debug_print(f"🔧 [DEBUG] Could not check disk space: {disk_e}")
             raise
 
         except sqlite3.DatabaseError as e:
-            print("❌ [ERROR] SQLite Database Error during initialization:")
-            print(f"❌ [ERROR] Error message: {e}")
-            print(f"❌ [ERROR] Database path: {self.db_path}")
-            print(
+            error_print("❌ [ERROR] SQLite Database Error during initialization:")
+            error_print(f"❌ [ERROR] Error message: {e}")
+            error_print(f"❌ [ERROR] Database path: {self.db_path}")
+            error_print(
                 "❌ [ERROR] This might indicate database corruption or version incompatibility"
             )
             raise
 
         except PermissionError as e:
-            print("❌ [ERROR] Permission Error during database initialization:")
-            print(f"❌ [ERROR] Error message: {e}")
-            print(f"❌ [ERROR] Database path: {self.db_path}")
-            print("❌ [ERROR] Check file/directory permissions for the database path")
+            error_print("❌ [ERROR] Permission Error during database initialization:")
+            error_print(f"❌ [ERROR] Error message: {e}")
+            error_print(f"❌ [ERROR] Database path: {self.db_path}")
+            error_print(
+                "❌ [ERROR] Check file/directory permissions for the database path"
+            )
 
             # Show detailed permission info
             if self.db_path.exists():
@@ -287,29 +271,33 @@ class McpCache:
                 import stat as stat_module
 
                 mode = stat_module.filemode(stat_info.st_mode)
-                print(f"🔧 [DEBUG] Current file permissions: {mode}")
-                print(f"🔧 [DEBUG] File owner UID: {stat_info.st_uid}")
-                print(f"🔧 [DEBUG] Current process UID: {os.getuid()}")
+                verbose_debug_print(f"🔧 [DEBUG] Current file permissions: {mode}")
+                verbose_debug_print(f"🔧 [DEBUG] File owner UID: {stat_info.st_uid}")
+                verbose_debug_print(f"🔧 [DEBUG] Current process UID: {os.getuid()}")
             raise
 
         except OSError as e:
-            print("❌ [ERROR] OS Error during database initialization:")
-            print(f"❌ [ERROR] Error message: {e}")
-            print(f"❌ [ERROR] Error code: {e.errno if hasattr(e, 'errno') else 'N/A'}")
-            print(f"❌ [ERROR] Database path: {self.db_path}")
-            print("❌ [ERROR] This might indicate filesystem issues or path problems")
+            error_print("❌ [ERROR] OS Error during database initialization:")
+            error_print(f"❌ [ERROR] Error message: {e}")
+            error_print(
+                f"❌ [ERROR] Error code: {e.errno if hasattr(e, 'errno') else 'N/A'}"
+            )
+            error_print(f"❌ [ERROR] Database path: {self.db_path}")
+            error_print(
+                "❌ [ERROR] This might indicate filesystem issues or path problems"
+            )
             raise
 
         except Exception as e:
-            print("❌ [ERROR] Unexpected error during database initialization:")
-            print(f"❌ [ERROR] Error type: {type(e).__name__}")
-            print(f"❌ [ERROR] Error message: {e}")
-            print(f"❌ [ERROR] Database path: {self.db_path}")
+            error_print("❌ [ERROR] Unexpected error during database initialization:")
+            error_print(f"❌ [ERROR] Error type: {type(e).__name__}")
+            error_print(f"❌ [ERROR] Error message: {e}")
+            error_print(f"❌ [ERROR] Database path: {self.db_path}")
 
             # Add traceback for debugging
             import traceback
 
-            print("❌ [ERROR] Traceback:")
+            error_print("❌ [ERROR] Traceback:")
             traceback.print_exc()
             raise
 
@@ -519,7 +507,7 @@ class McpCache:
                 await db.commit()
 
         except Exception as e:
-            print(f"Error storing pipeline info: {e}")
+            error_print(f"Error storing pipeline info: {e}")
 
     async def store_failed_jobs_basic(
         self,
@@ -572,7 +560,7 @@ class McpCache:
                 await db.commit()
 
         except Exception as e:
-            print(f"ERROR: Failed to store failed jobs: {e}")
+            error_print(f"ERROR: Failed to store failed jobs: {e}")
             import traceback
 
             traceback.print_exc()
@@ -642,7 +630,7 @@ class McpCache:
                 await db.commit()
 
         except Exception as e:
-            print(f"ERROR: Failed to store job file errors: {e}")
+            error_print(f"ERROR: Failed to store job file errors: {e}")
             import traceback
 
             traceback.print_exc()
@@ -700,7 +688,7 @@ class McpCache:
                 await db.commit()
 
         except Exception as e:
-            print(f"ERROR: Failed to store trace segments: {e}")
+            error_print(f"ERROR: Failed to store trace segments: {e}")
             import traceback
 
             traceback.print_exc()
@@ -1494,7 +1482,7 @@ class McpCache:
     async def check_health(self) -> dict[str, Any]:
         """Check cache system health with comprehensive diagnostics"""
         try:
-            print("🔍 [HEALTH] Starting cache health check...")
+            startup_print("🔍 [HEALTH] Starting cache health check...")
 
             # Basic file system checks
             db_exists = self.db_path.exists()
@@ -1536,12 +1524,12 @@ class McpCache:
             except Exception as e:
                 disk_space = {"error": str(e)}
 
-            print("🔍 [HEALTH] Checking database connectivity...")
+            debug_print("🔍 [HEALTH] Checking database connectivity...")
 
             async with aiosqlite.connect(self.db_path) as conn:
                 # Check database connectivity
                 await conn.execute("SELECT 1")
-                print("✅ [HEALTH] Database connectivity OK")
+                debug_print("✅ [HEALTH] Database connectivity OK")
 
                 # Check table schemas
                 tables = [
@@ -1573,12 +1561,12 @@ class McpCache:
                             "columns": len(list(columns)),
                             "column_names": [col[1] for col in columns],
                         }
-                        print(
+                        verbose_debug_print(
                             f"✅ [HEALTH] Table {table}: {count} records, {len(list(columns))} columns"
                         )
                     except Exception as e:
                         table_status[table] = {"status": "error", "error": str(e)}
-                        print(f"❌ [HEALTH] Table {table}: ERROR - {e}")
+                        error_print(f"❌ [HEALTH] Table {table}: ERROR - {e}")
 
                 # Check for any orphaned records
                 orphaned_checks = {}
@@ -1626,16 +1614,16 @@ class McpCache:
                     }
 
                     if orphaned_checks["total_orphaned"] > 0:
-                        print(
+                        verbose_debug_print(
                             f"⚠️ [HEALTH] Found {orphaned_checks['total_orphaned']} orphaned records"
                         )
                     else:
-                        print("✅ [HEALTH] No orphaned records found")
+                        verbose_debug_print("✅ [HEALTH] No orphaned records found")
 
                 except Exception as e:
                     orphaned_checks = {"error": str(e)}
 
-                print("✅ [HEALTH] Cache health check completed")
+                debug_print("✅ [HEALTH] Cache health check completed")
 
                 return {
                     "status": "healthy",
@@ -1664,7 +1652,7 @@ class McpCache:
                 }
 
         except Exception as e:
-            print(f"❌ [HEALTH] Health check failed: {e}")
+            error_print(f"❌ [HEALTH] Health check failed: {e}")
             import traceback
 
             traceback.print_exc()
@@ -1772,27 +1760,19 @@ def get_cache_manager(db_path: str | None = None) -> McpCache:
     global _global_cache
     if _global_cache is None:
         try:
-            print(
-                "🔧 [DEBUG] Creating new global McpCache instance...", file=sys.stderr
-            )
+            debug_print("🔧 [DEBUG] Creating new global McpCache instance...")
             _global_cache = McpCache(db_path)
-            print(
-                "✅ [DEBUG] Global McpCache instance created successfully",
-                file=sys.stderr,
-            )
+            debug_print("✅ [DEBUG] Global McpCache instance created successfully")
         except Exception as e:
-            print(
-                f"❌ [ERROR] Failed to create global McpCache instance: {e}",
-                file=sys.stderr,
-            )
-            print(f"❌ [ERROR] Exception type: {type(e).__name__}", file=sys.stderr)
+            error_print(f"❌ [ERROR] Failed to create global McpCache instance: {e}")
+            error_print(f"❌ [ERROR] Exception type: {type(e).__name__}")
             import traceback
 
-            print("❌ [ERROR] Traceback:", file=sys.stderr)
+            error_print("❌ [ERROR] Traceback:")
             traceback.print_exc()
             raise
     else:
-        print("🔧 [DEBUG] Using existing global McpCache instance", file=sys.stderr)
+        debug_print("🔧 [DEBUG] Using existing global McpCache instance")
     return _global_cache
 
 

@@ -14,6 +14,12 @@ from fastmcp import FastMCP
 from gitlab_analyzer.mcp.prompts import register_all_prompts
 from gitlab_analyzer.mcp.resources import register_all_resources
 from gitlab_analyzer.mcp.tools import register_tools
+from gitlab_analyzer.utils.debug import (
+    debug_print,
+    error_print,
+    startup_print,
+    verbose_debug_print,
+)
 from gitlab_analyzer.version import get_version
 
 
@@ -93,32 +99,23 @@ def main() -> None:
     async def startup():
         """Initialize cache when server starts with comprehensive debug information"""
         try:
-            import sys
-
-            # Use stderr for debug output to avoid interfering with STDIO protocol
-            print(
-                f"🚀 [STARTUP] Initializing GitLab Pipeline Analyzer MCP Server (transport: {args.transport})...",
-                file=sys.stderr,
+            startup_print(
+                f"🚀 [STARTUP] Initializing GitLab Pipeline Analyzer MCP Server (transport: {args.transport})..."
             )
 
             from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 
             # Get database path from environment variable or use default
             db_path = os.environ.get("MCP_DATABASE_PATH")
-            print(f"🔧 [DEBUG] Database path from env: {db_path}", file=sys.stderr)
+            debug_print(f"🔧 [DEBUG] Database path from env: {db_path}")
 
             if db_path:
-                print(
-                    f"🔧 [DEBUG] Using custom database path: {db_path}", file=sys.stderr
-                )
+                debug_print(f"🔧 [DEBUG] Using custom database path: {db_path}")
             else:
-                print(
-                    "🔧 [DEBUG] Using default database path: analysis_cache.db",
-                    file=sys.stderr,
-                )
+                debug_print("🔧 [DEBUG] Using default database path: analysis_cache.db")
 
             # Debug environment variables
-            print("🔧 [DEBUG] Environment variables:", file=sys.stderr)
+            debug_print("🔧 [DEBUG] Environment variables:")
             for key in [
                 "MCP_DATABASE_PATH",
                 "GITLAB_URL",
@@ -127,36 +124,28 @@ def main() -> None:
                 "MCP_PORT",
                 "MCP_PATH",
                 "MCP_TRANSPORT",
+                "MCP_DEBUG_LEVEL",
             ]:
                 value = os.environ.get(key)
                 if key == "GITLAB_TOKEN" and value:
                     # Mask token for security
                     masked_value = f"{value[:8]}..." if len(value) > 8 else "***"
-                    print(f"🔧 [DEBUG]   {key}: {masked_value}", file=sys.stderr)
+                    debug_print(f"🔧 [DEBUG]   {key}: {masked_value}")
                 else:
-                    print(f"🔧 [DEBUG]   {key}: {value}", file=sys.stderr)
+                    debug_print(f"🔧 [DEBUG]   {key}: {value}")
 
-            print(
-                "🔧 [DEBUG] Attempting to initialize cache manager...", file=sys.stderr
-            )
+            debug_print("🔧 [DEBUG] Attempting to initialize cache manager...")
             # Cache is initialized in constructor, just ensure it's created
             get_cache_manager(db_path)
-            print(
-                "✅ [STARTUP] Cache manager initialized successfully", file=sys.stderr
-            )
+            startup_print("✅ [STARTUP] Cache manager initialized successfully")
             # No need to call initialize() - it's done in __init__
 
         except Exception as e:
-            print(
-                f"❌ [STARTUP ERROR] Failed to initialize server: {e}", file=sys.stderr
-            )
-            print(
-                f"❌ [STARTUP ERROR] Exception type: {type(e).__name__}",
-                file=sys.stderr,
-            )
+            error_print(f"❌ [STARTUP ERROR] Failed to initialize server: {e}")
+            error_print(f"❌ [STARTUP ERROR] Exception type: {type(e).__name__}")
             import traceback
 
-            print("❌ [STARTUP ERROR] Traceback:", file=sys.stderr)
+            error_print("❌ [STARTUP ERROR] Traceback:")
             traceback.print_exc()
             raise
 

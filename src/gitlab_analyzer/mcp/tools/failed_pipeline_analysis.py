@@ -43,6 +43,7 @@ from gitlab_analyzer.utils.utils import (
     get_mcp_info,
     should_exclude_file_path,
 )
+from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
 
 
 def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
@@ -120,9 +121,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             # This prevents freezing when re-analyzing pipelines that already have data
             try:
                 await cache_manager.clear_cache_by_pipeline(project_id, pipeline_id)
-                print(f"✅ Cleared existing cache for pipeline {pipeline_id}")
+                debug_print(f"✅ Cleared existing cache for pipeline {pipeline_id}")
             except Exception as cache_error:
-                print(f"⚠️ Warning: Could not clear cache: {cache_error}")
+                verbose_debug_print(f"⚠️ Warning: Could not clear cache: {cache_error}")
                 # Continue anyway - cache clearing failure shouldn't stop analysis
 
             # Step 1: Get comprehensive pipeline info and store it
@@ -239,9 +240,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                 # Group errors by file and filter out system files
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[
-                    dict[str, Any]
-                ] = []  # Track errors after filtering system files
+                filtered_errors: list[dict[str, Any]] = (
+                    []
+                )  # Track errors after filtering system files
 
                 for error in errors:
                     message = (
@@ -385,19 +386,18 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             resources: dict[str, Any] = {
                 "pipeline": f"gl://pipeline/{project_id}/{pipeline_id}",
                 "jobs": f"gl://jobs/{project_id}/pipeline/{pipeline_id}",
-                "analysis": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
                 "files": {},
                 "jobs_detail": {},
                 "errors": {},
             }
 
             # Create file hierarchy with error links
-            all_files: dict[
-                str, dict[str, Any]
-            ] = {}  # Global file registry across all jobs
-            all_errors: dict[
-                str, dict[str, Any]
-            ] = {}  # Global error registry with trace references
+            all_files: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global file registry across all jobs
+            all_errors: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]
@@ -532,14 +532,14 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     }
                 )
 
-            # Add analysis resource for comprehensive data
-            content.append(
-                {
-                    "type": "resource_link",
-                    "resourceUri": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
-                    "text": "Complete analysis data",
-                }
-            )
+            # # Add analysis resource for comprehensive data
+            # content.append(
+            #     {
+            #         "type": "resource_link",
+            #         "resourceUri": f"gl://analysis/{project_id}/pipeline/{pipeline_id}",
+            #         "text": "Complete analysis data",
+            #     }
+            # )
 
             result = {
                 "content": content,

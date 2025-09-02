@@ -67,6 +67,15 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         # Remove the scheme and split the path
         path = resource_uri[5:]  # Remove "gl://"
 
+        # Parse query parameters if present
+        query_params = {}
+        if "?" in path:
+            path, query_string = path.split("?", 1)
+            for param in query_string.split("&"):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    query_params[key] = value
+
         # Handle different resource types
         if path.startswith("pipeline/"):
             # Parse: gl://pipeline/83/123 -> project_id=83, pipeline_id=123
@@ -122,9 +131,10 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 if len(parts) >= 4 and parts[2] == "pipeline":
                     # gl://files/83/pipeline/123 or gl://files/83/pipeline/123/page/2/limit/50
                     pipeline_id = parts[3]
-                    # Check for pagination parameters
-                    page = 1
-                    limit = 20
+                    # Check for pagination parameters from query string or path
+                    page = int(query_params.get("page", 1))
+                    limit = int(query_params.get("limit", 20))
+                    # Also support path-based pagination for backward compatibility
                     if len(parts) >= 6 and parts[4] == "page":
                         page = int(parts[5])
                     if len(parts) >= 8 and parts[6] == "limit":
@@ -133,9 +143,11 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                         project_id, pipeline_id, page, limit
                     )
                 else:
-                    # gl://files/83/456 (job files)
+                    # gl://files/83/456 (job files) - support query parameters
                     job_id = parts[2]
-                    result = await get_files_resource(project_id, job_id)
+                    page = int(query_params.get("page", 1))
+                    limit = int(query_params.get("limit", 20))
+                    result = await get_files_resource(project_id, job_id, page, limit)
             else:
                 return {
                     "error": f"Invalid files URI format: {resource_uri}",
