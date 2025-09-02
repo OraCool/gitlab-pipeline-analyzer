@@ -281,20 +281,10 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             verbose_debug_print(f"📊 Error URI parts: {parts}")
             if len(parts) >= 3:
                 project_id = parts[1]
-                job_id_with_query = parts[2]
+                job_id = parts[2]
 
-                # Parse query parameters
-                mode = "balanced"
-                if "?" in job_id_with_query:
-                    job_id, query_string = job_id_with_query.split("?", 1)
-                    verbose_debug_print(f"🔧 Error query params: {query_string}")
-                    for param in query_string.split("&"):
-                        if "=" in param:
-                            key, value = param.split("=", 1)
-                            if key == "mode":
-                                mode = value
-                else:
-                    job_id = job_id_with_query
+                # Use global query parameters for mode
+                mode = query_params.get("mode", "balanced")
 
                 if len(parts) >= 4:
                     # gl://error/83/456/123_0
@@ -379,45 +369,19 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 project_id = parts[1]
                 pipeline_id = None
                 job_id = None
-                mode = "balanced"
+                mode = query_params.get("mode", "balanced")
 
                 # Parse additional path components
                 if len(parts) >= 4:
                     if parts[2] == "pipeline":
                         # gl://analysis/83/pipeline/123?mode=detailed
-                        pipeline_id_with_query = parts[3]
-                        if "?" in pipeline_id_with_query:
-                            pipeline_id, query_string = pipeline_id_with_query.split(
-                                "?", 1
-                            )
-                            verbose_debug_print(
-                                f"🔧 Analysis query params: {query_string}"
-                            )
-                            for param in query_string.split("&"):
-                                if "=" in param:
-                                    key, value = param.split("=", 1)
-                                    if key == "mode":
-                                        mode = value
-                        else:
-                            pipeline_id = pipeline_id_with_query
+                        pipeline_id = parts[3]
                         debug_print(
-                            f"🔍 Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
+                            f" Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
                         )
                     elif parts[2] == "job":
                         # gl://analysis/83/job/456?mode=minimal
-                        job_id_with_query = parts[3]
-                        if "?" in job_id_with_query:
-                            job_id, query_string = job_id_with_query.split("?", 1)
-                            verbose_debug_print(
-                                f"🔧 Analysis query params: {query_string}"
-                            )
-                            for param in query_string.split("&"):
-                                if "=" in param:
-                                    key, value = param.split("=", 1)
-                                    if key == "mode":
-                                        mode = value
-                        else:
-                            job_id = job_id_with_query
+                        job_id = parts[3]
                         debug_print(
                             f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})"
                         )

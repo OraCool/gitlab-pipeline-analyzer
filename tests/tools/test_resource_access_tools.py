@@ -161,7 +161,7 @@ class TestResourceAccessTools:
         # Test job files resource access
         result = await get_mcp_resource_func("gl://files/83/456")
         assert "files" in result
-        mock_get_file.assert_called_once_with("83", "456")
+        mock_get_file.assert_called_once_with("83", "456", 1, 20)
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource")
     async def test_get_mcp_resource_specific_file(self, mock_get_file, mock_mcp):
