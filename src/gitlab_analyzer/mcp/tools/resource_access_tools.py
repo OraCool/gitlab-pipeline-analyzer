@@ -4,6 +4,12 @@ Resource access tools for MCP server
 Provides direct access to MCP resources without needing to re-run analysis.
 This allows agents to retrieve cached pipeline data efficiently.
 
+URL Encoding for File Paths:
+File paths in URIs should be URL-encoded to handle special characters,
+spaces, and Unicode characters properly. For example:
+- "src/main.py" becomes "src%2Fmain.py"
+- "path with spaces/file.py" becomes "path%20with%20spaces%2Ffile.py"
+
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
@@ -12,6 +18,7 @@ import json
 import logging
 import time
 from typing import Any
+from urllib.parse import unquote
 
 from fastmcp import FastMCP
 
@@ -37,6 +44,281 @@ from gitlab_analyzer.utils import get_mcp_info
 from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_resource_uri(resource_uri: str) -> tuple[str, dict[str, str]]:
+    """Parse resource URI into path and query parameters."""
+    if not resource_uri.startswith("gl://"):
+        raise ValueError(f"Invalid resource URI format: {resource_uri}")
+
+    # Remove the scheme and split the path
+    path = resource_uri[5:]  # Remove "gl://"
+
+    # Parse query parameters if present
+    query_params = {}
+    if "?" in path:
+        path, query_string = path.split("?", 1)
+        verbose_debug_print(f"🔧 Found query string: {query_string}")
+        for param in query_string.split("&"):
+            if "=" in param:
+                key, value = param.split("=", 1)
+                query_params[key] = value
+
+    return path, query_params
+
+
+def _parse_file_path(file_path: str) -> tuple[str, bool]:
+    """
+    Parse file path to extract actual file path and detect trace requests.
+
+    Returns:
+        tuple: (actual_file_path, is_trace_request)
+    """
+    # First decode the entire path to handle URL encoding properly
+    decoded_file_path = unquote(file_path)
+
+    # Check if it's a trace request - look for either /trace? or ending with /trace
+    if "/trace?" in decoded_file_path:
+        # Parse trace parameters: src/main.py/trace?mode=detailed&include_trace=true
+        file_parts = decoded_file_path.split("/trace?")
+        actual_file_path = file_parts[0]  # Already decoded
+        return actual_file_path, True
+    elif decoded_file_path.endswith("/trace"):
+        # Remove the /trace suffix
+        actual_file_path = decoded_file_path[:-6]  # Remove "/trace"
+        return actual_file_path, True
+    else:
+        return decoded_file_path, False
+
+
+async def _handle_pipeline_resource(parts: list[str]) -> dict[str, Any]:
+    """Handle pipeline resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        pipeline_id = parts[2]
+        debug_print(f"🔍 Accessing pipeline {pipeline_id} in project {project_id}")
+        result = await get_pipeline_resource(project_id, pipeline_id)
+        verbose_debug_print("✅ Pipeline resource retrieved successfully")
+        return result
+    else:
+        raise ValueError("Invalid pipeline URI format - insufficient parts")
+
+
+async def _handle_jobs_resource(parts: list[str]) -> dict[str, Any]:
+    """Handle jobs resource requests."""
+    if len(parts) >= 4 and parts[2] == "pipeline":
+        project_id = parts[1]
+        pipeline_id = parts[3]
+        # Check for status filter (e.g., /failed)
+        status = "all"
+        if len(parts) > 4:
+            status = parts[4]  # e.g., "failed"
+        debug_print(
+            f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}"
+        )
+        result = await get_pipeline_jobs_resource(project_id, pipeline_id, status)
+        verbose_debug_print("✅ Jobs resource retrieved successfully")
+        return result
+    else:
+        raise ValueError("Invalid jobs URI format - expected jobs/project/pipeline/id")
+
+
+async def _handle_job_resource(parts: list[str]) -> dict[str, Any]:
+    """Handle individual job resource requests."""
+    if len(parts) >= 4:
+        project_id = parts[1]
+        pipeline_id = parts[2]
+        job_id = parts[3]
+        debug_print(
+            f"🔍 Accessing job {job_id} in pipeline {pipeline_id} in project {project_id}"
+        )
+        result = await get_job_resource(project_id, pipeline_id, job_id)
+        verbose_debug_print("✅ Job resource retrieved successfully")
+        return result
+    else:
+        raise ValueError("Invalid job URI format - expected job/project/pipeline/job")
+
+
+async def _handle_files_resource(
+    parts: list[str], query_params: dict[str, str]
+) -> dict[str, Any]:
+    """Handle files resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        if len(parts) >= 4 and parts[2] == "pipeline":
+            # gl://files/83/pipeline/123 or gl://files/83/pipeline/123/page/2/limit/50
+            pipeline_id = parts[3]
+            # Check for pagination parameters from query string or path
+            page = int(query_params.get("page", 1))
+            limit = int(query_params.get("limit", 20))
+            # Also support path-based pagination for backward compatibility
+            if len(parts) >= 6 and parts[4] == "page":
+                page = int(parts[5])
+            if len(parts) >= 8 and parts[6] == "limit":
+                limit = int(parts[7])
+            debug_print(
+                f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
+            )
+            result = await get_pipeline_files_resource(
+                project_id, pipeline_id, page, limit
+            )
+            verbose_debug_print("✅ Pipeline files resource retrieved successfully")
+            return result
+        else:
+            # gl://files/83/456 (job files) - support query parameters
+            job_id = parts[2]
+            page = int(query_params.get("page", 1))
+            limit = int(query_params.get("limit", 20))
+            debug_print(
+                f"🔍 Accessing job files for job {job_id} in project {project_id} (page={page}, limit={limit})"
+            )
+            result = await get_files_resource(project_id, job_id, page, limit)
+            verbose_debug_print("✅ Job files resource retrieved successfully")
+            return result
+    else:
+        raise ValueError("Invalid files URI format - insufficient parts")
+
+
+async def _handle_file_resource(
+    parts: list[str], query_params: dict[str, str]
+) -> dict[str, Any]:
+    """Handle individual file resource requests."""
+    if len(parts) >= 5:
+        project_id = parts[1]
+        job_id = parts[2]
+        file_path = "/".join(parts[3:])
+        debug_print(
+            f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}"
+        )
+
+        # Parse file path and check for trace request
+        actual_file_path, is_trace_request = _parse_file_path(file_path)
+        debug_print(f"📁 Actual file path: {actual_file_path}")
+
+        if is_trace_request:
+            verbose_debug_print("🔍 Detected trace request in file URI")
+
+            # Get query parameters for trace
+            mode = query_params.get("mode", "balanced")
+            include_trace = query_params.get("include_trace", "false")
+            debug_print(f"⚙️ Trace options: mode={mode}, include_trace={include_trace}")
+
+            # The function returns TextResourceContents, so we need to handle it differently
+            trace_result = await get_file_resource_with_trace(
+                project_id, job_id, actual_file_path, mode, include_trace
+            )
+            # Convert TextResourceContents to dict for consistency
+            result = json.loads(trace_result.text)
+            verbose_debug_print("✅ File resource with trace retrieved successfully")
+            return result
+        else:
+            result = await get_file_resource(project_id, job_id, actual_file_path)
+            verbose_debug_print("✅ File resource retrieved successfully")
+            return result
+    else:
+        raise ValueError("Invalid file URI format - expected file/project/job/path")
+
+
+async def _handle_error_resource(
+    parts: list[str], query_params: dict[str, str]
+) -> dict[str, Any]:
+    """Handle error resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        job_id = parts[2]
+
+        # Use global query parameters for mode
+        mode = query_params.get("mode", "balanced")
+
+        if len(parts) >= 4:
+            # gl://error/83/456/123_0
+            error_id = parts[3]
+            debug_print(
+                f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})"
+            )
+            result = await get_individual_error_data(project_id, job_id, error_id, mode)
+            verbose_debug_print("✅ Individual error resource retrieved successfully")
+            return result
+        else:
+            # gl://error/83/456
+            debug_print(
+                f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})"
+            )
+            result = await get_error_resource_data(project_id, job_id, mode)
+            verbose_debug_print("✅ Job errors resource retrieved successfully")
+            return result
+    else:
+        raise ValueError("Invalid error URI format - expected error/project/job")
+
+
+async def _handle_errors_resource(parts: list[str]) -> dict[str, Any]:
+    """Handle errors collection resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        if len(parts) >= 4 and parts[2] == "pipeline":
+            # gl://errors/83/pipeline/123
+            pipeline_id = parts[3]
+            debug_print(
+                f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
+            )
+            result = await get_pipeline_errors_resource_data(project_id, pipeline_id)
+            verbose_debug_print("✅ Pipeline errors resource retrieved successfully")
+            return result
+        else:
+            # gl://errors/83/456/src/main.py
+            job_id = parts[2]
+            file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
+            # URL decode the file path
+            if file_path:
+                file_path = unquote(file_path)
+                debug_print(
+                    f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}"
+                )
+            else:
+                debug_print(
+                    f"🔍 Accessing all errors in job {job_id} in project {project_id}"
+                )
+            result = await get_file_errors_resource_data(project_id, job_id, file_path)
+            verbose_debug_print("✅ Job/file errors resource retrieved successfully")
+            return result
+    else:
+        raise ValueError("Invalid errors URI format - expected errors/project/...")
+
+
+async def _handle_analysis_resource(
+    parts: list[str], query_params: dict[str, str]
+) -> dict[str, Any]:
+    """Handle analysis resource requests."""
+    if len(parts) >= 2:
+        project_id = parts[1]
+        pipeline_id = None
+        job_id = None
+        mode = query_params.get("mode", "balanced")
+
+        # Parse additional path components
+        if len(parts) >= 4:
+            if parts[2] == "pipeline":
+                # gl://analysis/83/pipeline/123?mode=detailed
+                pipeline_id = parts[3]
+                debug_print(
+                    f"🔍 Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
+                )
+            elif parts[2] == "job":
+                # gl://analysis/83/job/456?mode=minimal
+                job_id = parts[3]
+                debug_print(
+                    f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})"
+                )
+        else:
+            debug_print(
+                f"🔍 Accessing project analysis for project {project_id} (mode={mode})"
+            )
+
+        result = await get_analysis_resource_data(project_id, pipeline_id, job_id, mode)
+        verbose_debug_print("✅ Analysis resource retrieved successfully")
+        return result
+    else:
+        raise ValueError("Invalid analysis URI format - expected analysis/project")
 
 
 async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
@@ -65,344 +347,41 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
 
     # Parse resource URI
     verbose_debug_print(f"🔍 Parsing resource URI: {resource_uri}")
-    if not resource_uri.startswith("gl://"):
-        error_print(
-            f"❌ Invalid resource URI format - missing gl:// scheme: {resource_uri}"
-        )
-        return {
-            "error": f"Invalid resource URI format: {resource_uri}",
-            "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-            "auto_cleanup": cleanup_status,
-        }
 
     try:
-        # Remove the scheme and split the path
-        path = resource_uri[5:]  # Remove "gl://"
-        debug_print(f"📍 Extracted URI path: {path}")
-
-        # Parse query parameters if present
-        query_params = {}
-        if "?" in path:
-            path, query_string = path.split("?", 1)
-            verbose_debug_print(f"🔧 Found query string: {query_string}")
-            for param in query_string.split("&"):
-                if "=" in param:
-                    key, value = param.split("=", 1)
-                    query_params[key] = value
-            verbose_debug_print(f"📋 Parsed query parameters: {query_params}")
-
+        path, query_params = _parse_resource_uri(resource_uri)
+        verbose_debug_print(f"📋 Parsed query parameters: {query_params}")
         debug_print(f"🎯 Final path for processing: {path}")
 
-        # Handle different resource types
+        # Split path into parts for routing
+        parts = path.split("/")
+        verbose_debug_print(f"📊 URI parts: {parts}")
+
+        # Route to appropriate handler based on resource type
         if path.startswith("pipeline/"):
             debug_print("🏗️  Processing pipeline resource request")
-            # Parse: gl://pipeline/83/123 -> project_id=83, pipeline_id=123
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Pipeline URI parts: {parts}")
-            if len(parts) >= 3:
-                project_id = parts[1]
-                pipeline_id = parts[2]
-                debug_print(
-                    f"🔍 Accessing pipeline {pipeline_id} in project {project_id}"
-                )
-                result = await get_pipeline_resource(project_id, pipeline_id)
-                verbose_debug_print("✅ Pipeline resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid pipeline URI format - insufficient parts: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid pipeline URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_pipeline_resource(parts)
         elif path.startswith("jobs/"):
             debug_print("👥 Processing jobs resource request")
-            # Parse: gl://jobs/83/pipeline/123 or gl://jobs/83/pipeline/123/failed
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Jobs URI parts: {parts}")
-            if len(parts) >= 4 and parts[2] == "pipeline":
-                project_id = parts[1]
-                pipeline_id = parts[3]
-                # Check for status filter (e.g., /failed)
-                status = "all"
-                if len(parts) > 4:
-                    status = parts[4]  # e.g., "failed"
-                debug_print(
-                    f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}"
-                )
-                result = await get_pipeline_jobs_resource(
-                    project_id, pipeline_id, status
-                )
-                verbose_debug_print("✅ Jobs resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid jobs URI format - expected jobs/project/pipeline/id: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid jobs URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_jobs_resource(parts)
         elif path.startswith("job/"):
             debug_print("🔧 Processing individual job resource request")
-            # Parse: gl://job/83/123/456 -> project_id=83, pipeline_id=123, job_id=456
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Job URI parts: {parts}")
-            if len(parts) >= 4:
-                project_id = parts[1]
-                pipeline_id = parts[2]
-                job_id = parts[3]
-                debug_print(
-                    f"🔍 Accessing job {job_id} in pipeline {pipeline_id} in project {project_id}"
-                )
-                result = await get_job_resource(project_id, pipeline_id, job_id)
-                verbose_debug_print("✅ Job resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid job URI format - expected job/project/pipeline/job: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid job URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_job_resource(parts)
         elif path.startswith("files/"):
             debug_print("📁 Processing files resource request")
-            # Parse: gl://files/83/pipeline/123 or gl://files/83/456
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Files URI parts: {parts}")
-            if len(parts) >= 3:
-                project_id = parts[1]
-                if len(parts) >= 4 and parts[2] == "pipeline":
-                    # gl://files/83/pipeline/123 or gl://files/83/pipeline/123/page/2/limit/50
-                    pipeline_id = parts[3]
-                    # Check for pagination parameters from query string or path
-                    page = int(query_params.get("page", 1))
-                    limit = int(query_params.get("limit", 20))
-                    # Also support path-based pagination for backward compatibility
-                    if len(parts) >= 6 and parts[4] == "page":
-                        page = int(parts[5])
-                    if len(parts) >= 8 and parts[6] == "limit":
-                        limit = int(parts[7])
-                    debug_print(
-                        f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
-                    )
-                    result = await get_pipeline_files_resource(
-                        project_id, pipeline_id, page, limit
-                    )
-                    verbose_debug_print(
-                        "✅ Pipeline files resource retrieved successfully"
-                    )
-                else:
-                    # gl://files/83/456 (job files) - support query parameters
-                    job_id = parts[2]
-                    page = int(query_params.get("page", 1))
-                    limit = int(query_params.get("limit", 20))
-                    debug_print(
-                        f"🔍 Accessing job files for job {job_id} in project {project_id} (page={page}, limit={limit})"
-                    )
-                    result = await get_files_resource(project_id, job_id, page, limit)
-                    verbose_debug_print("✅ Job files resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid files URI format - insufficient parts: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid files URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_files_resource(parts, query_params)
         elif path.startswith("file/"):
             debug_print("📄 Processing individual file resource request")
-            # Parse: gl://file/83/456/src/main.py or gl://file/83/456/src/main.py/trace?...
-            parts = path.split("/")
-            verbose_debug_print(f"📊 File URI parts: {parts}")
-            if len(parts) >= 5:
-                project_id = parts[1]
-                job_id = parts[2]
-                file_path = "/".join(parts[3:])
-                debug_print(
-                    f"🔍 Accessing file '{file_path}' in job {job_id} in project {project_id}"
-                )
-
-                # Check if it's a trace request
-                if "/trace?" in file_path:
-                    verbose_debug_print("🔍 Detected trace request in file URI")
-                    # Parse trace parameters: src/main.py/trace?mode=detailed&include_trace=true
-                    file_parts = file_path.split("/trace?")
-                    actual_file_path = file_parts[0]
-                    debug_print(f"📁 Actual file path: {actual_file_path}")
-
-                    # Parse query parameters
-                    mode = "balanced"
-                    include_trace = "false"
-                    if len(file_parts) > 1:
-                        trace_query_params = file_parts[1]
-                        verbose_debug_print(
-                            f"🔧 Trace query params: {trace_query_params}"
-                        )
-                        for param in trace_query_params.split("&"):
-                            if "=" in param:
-                                key, value = param.split("=", 1)
-                                if key == "mode":
-                                    mode = value
-                                elif key == "include_trace":
-                                    include_trace = value
-                    debug_print(
-                        f"⚙️ Trace options: mode={mode}, include_trace={include_trace}"
-                    )
-
-                    # The function returns TextResourceContents, so we need to handle it differently
-                    trace_result = await get_file_resource_with_trace(
-                        project_id, job_id, actual_file_path, mode, include_trace
-                    )
-                    # Convert TextResourceContents to dict for consistency
-                    result = json.loads(trace_result.text)
-                    verbose_debug_print(
-                        "✅ File resource with trace retrieved successfully"
-                    )
-                else:
-                    result = await get_file_resource(project_id, job_id, file_path)
-                    verbose_debug_print("✅ File resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid file URI format - expected file/project/job/path: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid file URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_file_resource(parts, query_params)
         elif path.startswith("error/"):
             debug_print("⚠️  Processing error resource request")
-            # Parse: gl://error/83/456 or gl://error/83/456/123_0 or gl://error/83/456?mode=detailed
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Error URI parts: {parts}")
-            if len(parts) >= 3:
-                project_id = parts[1]
-                job_id = parts[2]
-
-                # Use global query parameters for mode
-                mode = query_params.get("mode", "balanced")
-
-                if len(parts) >= 4:
-                    # gl://error/83/456/123_0
-                    error_id = parts[3]
-                    debug_print(
-                        f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})"
-                    )
-                    result = await get_individual_error_data(
-                        project_id, job_id, error_id, mode
-                    )
-                    verbose_debug_print(
-                        "✅ Individual error resource retrieved successfully"
-                    )
-                else:
-                    # gl://error/83/456
-                    debug_print(
-                        f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})"
-                    )
-                    result = await get_error_resource_data(project_id, job_id, mode)
-                    verbose_debug_print("✅ Job errors resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid error URI format - expected error/project/job: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid error URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_error_resource(parts, query_params)
         elif path.startswith("errors/"):
             debug_print("⚠️📋 Processing errors collection resource request")
-            # Parse: gl://errors/83/pipeline/123 or gl://errors/83/456/src/main.py
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Errors URI parts: {parts}")
-            if len(parts) >= 3:
-                project_id = parts[1]
-                if len(parts) >= 4 and parts[2] == "pipeline":
-                    # gl://errors/83/pipeline/123
-                    pipeline_id = parts[3]
-                    debug_print(
-                        f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
-                    )
-                    result = await get_pipeline_errors_resource_data(
-                        project_id, pipeline_id
-                    )
-                    verbose_debug_print(
-                        "✅ Pipeline errors resource retrieved successfully"
-                    )
-                else:
-                    # gl://errors/83/456/src/main.py
-                    job_id = parts[2]
-                    file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
-                    if file_path:
-                        debug_print(
-                            f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}"
-                        )
-                    else:
-                        debug_print(
-                            f"🔍 Accessing all errors in job {job_id} in project {project_id}"
-                        )
-                    result = await get_file_errors_resource_data(
-                        project_id, job_id, file_path
-                    )
-                    verbose_debug_print(
-                        "✅ Job/file errors resource retrieved successfully"
-                    )
-            else:
-                error_print(
-                    f"❌ Invalid errors URI format - expected errors/project/...: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid errors URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_errors_resource(parts)
         elif path.startswith("analysis/"):
             debug_print("📊 Processing analysis resource request")
-            # Parse: gl://analysis/83, gl://analysis/83/pipeline/123, gl://analysis/83/job/456
-            parts = path.split("/")
-            verbose_debug_print(f"📊 Analysis URI parts: {parts}")
-            if len(parts) >= 2:
-                project_id = parts[1]
-                pipeline_id = None
-                job_id = None
-                mode = query_params.get("mode", "balanced")
-
-                # Parse additional path components
-                if len(parts) >= 4:
-                    if parts[2] == "pipeline":
-                        # gl://analysis/83/pipeline/123?mode=detailed
-                        pipeline_id = parts[3]
-                        debug_print(
-                            f" Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
-                        )
-                    elif parts[2] == "job":
-                        # gl://analysis/83/job/456?mode=minimal
-                        job_id = parts[3]
-                        debug_print(
-                            f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})"
-                        )
-                else:
-                    debug_print(
-                        f"🔍 Accessing project analysis for project {project_id} (mode={mode})"
-                    )
-
-                result = await get_analysis_resource_data(
-                    project_id, pipeline_id, job_id, mode
-                )
-                verbose_debug_print("✅ Analysis resource retrieved successfully")
-            else:
-                error_print(
-                    f"❌ Invalid analysis URI format - expected analysis/project: {resource_uri}"
-                )
-                return {
-                    "error": f"Invalid analysis URI format: {resource_uri}",
-                    "mcp_info": get_mcp_info("get_mcp_resource", error=True),
-                    "auto_cleanup": cleanup_status,
-                }
+            result = await _handle_analysis_resource(parts, query_params)
         else:
             error_print(f"❌ Unsupported resource URI pattern: {resource_uri}")
             return {
@@ -442,6 +421,14 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         debug_print(f"✅ Resource access completed successfully for {resource_uri}")
         return result
 
+    except ValueError as e:
+        # Handle URI parsing errors specifically
+        error_print(f"❌ Resource URI parsing error: {e}")
+        return {
+            "error": str(e),
+            "mcp_info": get_mcp_info("get_mcp_resource", error=True),
+            "auto_cleanup": cleanup_status,
+        }
     except Exception as e:
         end_time = time.time()
         duration = end_time - start_time
@@ -492,7 +479,9 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - gl://error/{project_id}/{job_id}/{error_id} - Specific error details
         - gl://analysis/{project_id}[?mode={mode}] - Project-level analysis
         - gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}] - Pipeline analysis
-        - gl://analysis/{project_id}/job/{job_id}[?mode={mode}] - Job analysis        RESOURCE FEATURES:
+        - gl://analysis/{project_id}/job/{job_id}[?mode={mode}] - Job analysis
+
+        RESOURCE FEATURES:
         - Uses cached data for fast response
         - Includes navigation links to related resources
         - Provides summary statistics and metadata
@@ -517,205 +506,5 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         """
         # Delegate to the implementation function
         return await get_mcp_resource_impl(resource_uri)
-
-        # try:
-        #     # Trigger automatic cache cleanup if needed (runs in background)
-        #     from gitlab_analyzer.cache.auto_cleanup import get_auto_cleanup_manager
-
-        #     auto_cleanup = get_auto_cleanup_manager()
-        #     cleanup_status = await auto_cleanup.trigger_cleanup_if_needed()
-
-        #     logger.info(f"Accessing MCP resource: {resource_uri}")
-        #     if cleanup_status["cleanup_triggered"]:
-        #         logger.info(
-        #             f"🧹 Background cache cleanup triggered (max_age: {cleanup_status['max_age_hours']}h)"
-        #         )
-
-        #     # Parse the resource URI
-        #     if not resource_uri.startswith("gl://"):
-        #         raise ValueError(f"Invalid resource URI format: {resource_uri}")
-
-        #     uri_path = resource_uri[5:]  # Remove "gl://" prefix
-
-        #     # Store the result to add cleanup status later
-        #     result = None
-
-        #     # Pipeline analysis: gl://pipeline/{project_id}/{pipeline_id}
-        #     pipeline_match = re.match(r"^pipeline/(\w+)/(\d+)$", uri_path)
-        #     if pipeline_match:
-        #         project_id, pipeline_id = pipeline_match.groups()
-        #         result = await get_pipeline_resource(project_id, pipeline_id)
-        #         # Add auto-cleanup status to result
-        #         if isinstance(result, dict):
-        #             result["auto_cleanup"] = cleanup_status
-        #         return result
-
-        #     # Pipeline jobs: gl://jobs/{project_id}/pipeline/{pipeline_id}[/status]
-        #     jobs_match = re.match(
-        #         r"^jobs/(\w+)/pipeline/(\d+)(?:/(failed|success|all))?$", uri_path
-        #     )
-        #     if jobs_match:
-        #         project_id, pipeline_id, status_filter = jobs_match.groups()
-        #         status_filter = status_filter or "all"
-        #         result = await get_pipeline_jobs_resource(
-        #             project_id, pipeline_id, status_filter
-        #         )
-        #         # Add auto-cleanup status to result
-        #         if isinstance(result, dict):
-        #             result["auto_cleanup"] = cleanup_status
-        #         return result
-
-        #     # Individual job: gl://job/{project_id}/{pipeline_id}/{job_id}
-        #     job_match = re.match(r"^job/(\w+)/(\d+)/(\d+)$", uri_path)
-        #     if job_match:
-        #         project_id, pipeline_id, job_id = job_match.groups()
-        #         return await get_job_resource(project_id, pipeline_id, job_id)
-
-        #     # Pipeline files: gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]
-        #     pipeline_files_match = re.match(
-        #         r"^files/(\w+)/pipeline/(\d+)(?:/page/(\d+)/limit/(\d+))?$", uri_path
-        #     )
-        #     if pipeline_files_match:
-        #         project_id, pipeline_id, page, limit = pipeline_files_match.groups()
-        #         page = int(page) if page else 1
-        #         limit = int(limit) if limit else 20
-        #         return await get_pipeline_files_resource(
-        #             project_id, pipeline_id, page, limit
-        #         )
-
-        #     # Job files: gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]
-        #     job_files_match = re.match(
-        #         r"^files/(\w+)/(\d+)(?:/page/(\d+)/limit/(\d+))?$", uri_path
-        #     )
-        #     if job_files_match:
-        #         project_id, job_id, page, limit = job_files_match.groups()
-        #         return await get_file_resource(
-        #             project_id, job_id, ""
-        #         )  # Empty file_path for all files
-
-        #     # Specific file: gl://file/{project_id}/{job_id}/{file_path}
-        #     file_match = re.match(r"^file/(\w+)/(\d+)/(.+)$", uri_path)
-        #     if file_match:
-        #         project_id, job_id, file_path = file_match.groups()
-        #         # Check if it's a trace request
-        #         if "/trace?" in file_path:
-        #             # Parse trace parameters: file_path/trace?mode=X&include_trace=Y
-        #             trace_match = re.match(r"^(.+)/trace\?(.+)$", file_path)
-        #             if trace_match:
-        #                 actual_file_path, params = trace_match.groups()
-        #                 # Parse query parameters
-        #                 params_dict = {}
-        #                 for param in params.split("&"):
-        #                     if "=" in param:
-        #                         key, value = param.split("=", 1)
-        #                         params_dict[key] = value
-
-        #                 mode = params_dict.get("mode", "balanced")
-        #                 include_trace_str = params_dict.get(
-        #                     "include_trace", "true"
-        #                 ).lower()
-
-        #                 return await get_file_resource_with_trace(  # type: ignore
-        #                     project_id,
-        #                     job_id,
-        #                     actual_file_path,
-        #                     mode,
-        #                     include_trace_str,
-        #                 )
-
-        #         # Regular file request
-        #         return await get_file_resource(project_id, job_id, file_path)
-
-        #     # Job errors: gl://error/{project_id}/{job_id}[?mode={mode}] or gl://error/{project_id}/{job_id}/{error_id}
-        #     error_match = re.match(
-        #         r"^error/(\w+)/(\d+)(?:/([^/?]+))?(?:\?mode=(\w+))?$", uri_path
-        #     )
-        #     if error_match:
-        #         project_id, job_id, error_id, mode = error_match.groups()
-        #         mode = mode or "balanced"
-
-        #         if error_id:
-        #             # Individual error - use the dedicated function
-        #             return await get_individual_error_data(
-        #                 project_id, job_id, error_id, mode
-        #             )
-        #         else:
-        #             # All job errors
-        #             return await get_error_resource_data(project_id, job_id, mode)
-
-        #     # New error patterns: gl://errors/{project_id}/{job_id}[/{file_path}] or gl://errors/{project_id}/pipeline/{pipeline_id}
-        #     errors_match = re.match(
-        #         r"^errors/(\w+)/(?:(\d+)(?:/(.+))?|pipeline/(\d+))$", uri_path
-        #     )
-        #     if errors_match:
-        #         project_id, job_id, file_path, pipeline_id = errors_match.groups()
-
-        #         if pipeline_id:
-        #             # Pipeline errors: gl://errors/{project_id}/pipeline/{pipeline_id}
-        #             return await get_pipeline_errors_resource_data(
-        #                 project_id, pipeline_id
-        #             )
-        #         elif file_path:
-        #             # File-specific errors: gl://errors/{project_id}/{job_id}/{file_path}
-        #             return await get_file_errors_resource_data(
-        #                 project_id, job_id, file_path
-        #             )
-        #         else:
-        #             # All job errors: gl://errors/{project_id}/{job_id}
-        #             return await get_error_resource_data(project_id, job_id, "balanced")
-
-        #     # Analysis resources: gl://analysis/{project_id}[/pipeline/{pipeline_id}|/job/{job_id}][?mode={mode}]
-        #     analysis_match = re.match(
-        #         r"^analysis/(\w+)(?:/(?:(pipeline)/(\d+)|(job)/(\d+)))?(?:\?mode=(\w+))?$",
-        #         uri_path,
-        #     )
-        #     if analysis_match:
-        #         project_id, pipeline_type, pipeline_id, job_type, job_id, mode = (
-        #             analysis_match.groups()
-        #         )
-        #         mode = mode or "balanced"
-
-        #         if pipeline_type and pipeline_id:
-        #             # Pipeline analysis
-        #             return await get_analysis_resource_data(
-        #                 project_id, pipeline_id, None, mode
-        #             )
-        #         elif job_type and job_id:
-        #             # Job analysis
-        #             return await get_analysis_resource_data(
-        #                 project_id, None, job_id, mode
-        #             )
-        #         else:
-        #             # Project analysis
-        #             return await get_analysis_resource_data(
-        #                 project_id, None, None, mode
-        #             )
-
-        #     # If no pattern matches
-        #     raise ValueError(f"Unsupported resource URI pattern: {resource_uri}")
-
-        # except Exception as e:
-        # logger.error(f"Error accessing resource {resource_uri}: {e}")
-        # return {
-        #     "error": f"Failed to access resource: {str(e)}",
-        #     "resource_uri": resource_uri,
-        #     "available_patterns": [
-        #         "gl://pipeline/{project_id}/{pipeline_id}",
-        #         "gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success]",
-        #         "gl://job/{project_id}/{pipeline_id}/{job_id}",
-        #         "gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]",
-        #         "gl://files/{project_id}/{job_id}[/page/{page}/limit/{limit}]",
-        #         "gl://file/{project_id}/{job_id}/{file_path}",
-        #         "gl://file/{project_id}/{job_id}/{file_path}/trace?mode={mode}&include_trace={trace}",
-        #         "gl://error/{project_id}/{job_id}[?mode={mode}]",
-        #         "gl://error/{project_id}/{job_id}/{error_id}",
-        #         "gl://errors/{project_id}/{job_id}",
-        #         "gl://errors/{project_id}/{job_id}/{file_path}",
-        #         "gl://errors/{project_id}/pipeline/{pipeline_id}",
-        #         "gl://analysis/{project_id}[?mode={mode}]",
-        #         "gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}]",
-        #         "gl://analysis/{project_id}/job/{job_id}[?mode={mode}]",
-        #     ],
-        # }
 
     debug_print("🔗 Resource access tools registered successfully")

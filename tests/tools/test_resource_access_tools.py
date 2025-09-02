@@ -215,9 +215,9 @@ class TestResourceAccessTools:
                 get_mcp_resource_func = call[0][0]
                 break
 
-        # Test file with trace resource access
+        # Test file with trace resource access using URL-encoded file path
         result = await get_mcp_resource_func(
-            "gl://file/83/456/src/main.py/trace?mode=detailed&include_trace=true"
+            "gl://file/83/456/src%2Fmain.py/trace?mode=detailed&include_trace=true"
         )
         assert result["file_path"] == "src/main.py"
         mock_get_file_trace.assert_called_once_with(
