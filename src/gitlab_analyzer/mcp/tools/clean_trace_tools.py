@@ -14,8 +14,8 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.base_parser import BaseParser
+from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
-from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
 
 
 def register_clean_trace_tools(mcp: FastMCP) -> None:
@@ -53,8 +53,8 @@ def register_clean_trace_tools(mcp: FastMCP) -> None:
             Cleaned trace content with metadata (ANSI sequences removed)
 
         EXAMPLES:
-        - get_clean_job_trace(83, 76986695) - Get cleaned trace
-        - get_clean_job_trace(83, 76986695, save_to_file=True) - Save cleaned trace to file
+        - get_clean_job_trace(123, 76986695) - Get cleaned trace
+        - get_clean_job_trace(123, 76986695, save_to_file=True) - Save cleaned trace to file
         """
         start_time = time.time()
         debug_print(

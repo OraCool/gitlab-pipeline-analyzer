@@ -12,8 +12,8 @@ from typing import Any
 import httpx
 from fastmcp import FastMCP
 
+from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
-from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
 
 
 def register_search_tools(mcp: FastMCP) -> None:

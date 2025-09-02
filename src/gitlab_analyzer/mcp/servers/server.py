@@ -18,7 +18,6 @@ from gitlab_analyzer.utils.debug import (
     debug_print,
     error_print,
     startup_print,
-    verbose_debug_print,
 )
 from gitlab_analyzer.version import get_version
 

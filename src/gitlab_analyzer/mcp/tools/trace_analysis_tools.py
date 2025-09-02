@@ -9,13 +9,13 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import time
-from typing import Any
+from typing import Any, cast
 
 from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
-from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
+from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 
 
 def register_trace_analysis_tools(mcp: FastMCP) -> None:
@@ -264,14 +264,30 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
             if actual_analysis_type == "both":
                 debug_print("Combining results from both analysis types")
                 # Create combined view
-                all_errors = []
+                all_errors: list[dict[str, Any]] = []
 
                 if "general_analysis" in results:
-                    all_errors.extend(results["general_analysis"]["errors"])
+                    general_analysis = results["general_analysis"]
+                    if (
+                        isinstance(general_analysis, dict)
+                        and "errors" in general_analysis
+                    ):
+                        general_errors = cast(
+                            "list[dict[str, Any]]", general_analysis["errors"]
+                        )
+                        all_errors.extend(general_errors)
 
                 if "pytest_analysis" in results:
-                    all_errors.extend(results["pytest_analysis"]["detailed_failures"])
-                    all_errors.extend(results["pytest_analysis"]["summary_failures"])
+                    pytest_analysis = results["pytest_analysis"]
+                    if isinstance(pytest_analysis, dict):
+                        if "detailed_failures" in pytest_analysis:
+                            pytest_detailed = pytest_analysis["detailed_failures"]
+                            if isinstance(pytest_detailed, list):
+                                all_errors.extend(pytest_detailed)
+                        if "summary_failures" in pytest_analysis:
+                            pytest_summary = pytest_analysis["summary_failures"]
+                            if isinstance(pytest_summary, list):
+                                all_errors.extend(pytest_summary)
 
                 # Filter duplicates in combined results
                 if filter_duplicates:

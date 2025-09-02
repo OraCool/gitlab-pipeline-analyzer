@@ -157,7 +157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Resource-Based Architecture**: All data access now through MCP resources
   - 50+ resource patterns for granular data access
   - Efficient caching and navigation between related resources
-  - Standardized URI patterns (e.g., `gl://pipeline/83/1594344`)
+  - Standardized URI patterns (e.g., `gl://pipeline/123/1594344`)
 
 ### ✨ **Enhanced Features**
 
@@ -240,7 +240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added 🚀
 
 - **Production Validation Complete**: Comprehensive real-world testing with actual GitLab production data
-  - Validated all 21 MCP tools using failed pipeline 1594344 from PandaDoc project 83
+  - Validated all 21 MCP tools using failed pipeline 1594344 from test project 83
   - Confirmed proper error categorization, pytest parsing, and comprehensive pipeline analysis
   - Demonstrated robust handling of production-scale failures (136 errors across 12 jobs)
 

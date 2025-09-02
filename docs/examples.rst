@@ -13,19 +13,19 @@ Quick Start Examples
 Failed Pipeline Investigation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Scenario:** Pipeline #1594344 in project 83 failed. You need a complete analysis.
+**Scenario:** Pipeline #1594344 in project 123 failed. You need a complete analysis.
 
 **Using the failed_pipeline_analysis tool:**
 
 .. code-block:: text
 
-    User: "Pipeline 1594344 in project 83 failed. What went wrong?"
+    User: "Pipeline 1594344 in project 123 failed. What went wrong?"
 
     Assistant: "I'll analyze this failed pipeline comprehensively for you."
 
     # Tool call: failed_pipeline_analysis
     {
-        "project_id": "83",
+        "project_id": "123",
         "pipeline_id": 1594344,
         "store_in_db": true
     }
@@ -40,13 +40,13 @@ Failed Pipeline Investigation
 .. code-block:: text
 
     # Access failed jobs directly
-    Resource: gl://jobs/83/pipeline/1594344/failed
+    Resource: gl://pipeline/123/pipeline/1594344/failed
 
     # Get specific error analysis
-    Resource: gl://errors/83/pipeline/1594344
+    Resource: gl://pipeline/123/pipeline/1594344
 
     # Examine specific file errors
-    Resource: gl://errors/83/76474172/src/main.py
+    Resource: gl://pipeline/123/76474172/src/main.py
 
 Search Repository for Solutions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -60,7 +60,7 @@ Search Repository for Solutions
     # Search for specific function or import
     Tool: search_repository_code
     {
-        "project_id": "83",
+        "project_id": "123",
         "search_keywords": "import pandas",
         "extension_filter": "py",
         "max_results": 10
@@ -80,7 +80,7 @@ Clean Job Trace Analysis
 
     Tool: get_clean_job_trace
     {
-        "project_id": "83",
+        "project_id": "123",
         "job_id": 76474172,
         "save_to_file": true,
         "output_format": "text"
@@ -134,25 +134,25 @@ MCP Resources Navigation
 .. code-block:: text
 
     # 1. Start with pipeline overview
-    Resource: gl://pipeline/83/1594344
+    Resource: gl://pipeline/123/1594344
 
     # 2. Get failed jobs list
-    Resource: gl://jobs/83/pipeline/1594344/failed
+    Resource: gl://pipeline/123/pipeline/1594344/failed
 
     # 3. Analyze specific job
-    Resource: gl://job/83/1594344/76474172
+    Resource: gl://pipeline/123/1594344/76474172
 
     # 4. Check files with errors
-    Resource: gl://files/83/pipeline/1594344
+    Resource: gl://pipeline/123/pipeline/1594344
 
     # 5. Examine specific file
-    Resource: gl://file/83/76474172/src/main.py
+    Resource: gl://pipeline/123/76474172/src/main.py
 
     # 6. Get error details with trace
-    Resource: gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true
+    Resource: gl://pipeline/123/76474172/src/main.py/trace?mode=detailed&include_trace=true
 
     # 7. Pipeline-wide error analysis
-    Resource: gl://errors/83/pipeline/1594344
+    Resource: gl://pipeline/123/pipeline/1594344
 
 Repository Investigation Workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,7 +164,7 @@ Repository Investigation Workflow
     # 1. Search for error-related code
     Tool: search_repository_code
     {
-        "project_id": "83",
+        "project_id": "123",
         "search_keywords": "import tensorflow",
         "path_filter": "src/*",
         "output_format": "json"
@@ -173,7 +173,7 @@ Repository Investigation Workflow
     # 2. Check commit history for recent changes
     Tool: search_repository_commits
     {
-        "project_id": "83",
+        "project_id": "123",
         "search_keywords": "fix import",
         "max_results": 15,
         "output_format": "json"
@@ -182,7 +182,7 @@ Repository Investigation Workflow
     # 3. Find recent dependency changes
     Tool: search_repository_code
     {
-        "project_id": "83",
+        "project_id": "123",
         "search_keywords": "requirements",
         "filename_filter": "*.txt"
     }
@@ -212,7 +212,7 @@ Cache Management Strategy
     # 4. Clear specific pipeline data
     Tool: clear_pipeline_cache
     {
-        "project_id": "83",
+        "project_id": "123",
         "pipeline_id": 1594344
     }
 
@@ -224,17 +224,17 @@ Comprehensive Error Analysis
 .. code-block:: text
 
     # 1. Get job-specific errors
-    Resource: gl://errors/83/76474172
+    Resource: gl://pipeline/123/76474172
 
     # 2. Filter by specific file
-    Resource: gl://errors/83/76474172/tests/test_main.py
+    Resource: gl://pipeline/123/76474172/tests/test_main.py
 
     # 3. Get individual error details
-    Resource: gl://error/83/76474172/error_001
+    Resource: gl://pipeline/123/76474172/error_001
 
     # 4. Analysis with different modes
-    Resource: gl://analysis/83/job/76474172?mode=detailed
-    Resource: gl://analysis/83/job/76474172?mode=summary
+    Resource: gl://pipeline/123/job/76474172?mode=detailed
+    Resource: gl://pipeline/123/job/76474172?mode=summary
 
 Educational and Mentoring Scenarios
 -----------------------------------
@@ -467,13 +467,13 @@ Claude Desktop Integration
 .. code-block:: text
 
     # Quick pipeline analysis
-    "Analyze failed pipeline 1594344 in project 83"
+    "Analyze failed pipeline 1594344 in project 123"
 
     # Resource-based investigation
-    "Show me errors from gl://errors/83/pipeline/1594344"
+    "Show me errors from gl://errors/123/pipeline/1594344"
 
     # Repository investigation
-    "Search for 'async def process' in project 83 Python files"
+    "Search for 'async def process' in project 123 Python files"
 
     # Cache management
     "Check cache health and clean old data"
@@ -625,7 +625,7 @@ Performance Optimization
 .. code-block:: text
 
     # 1. Use summary first, details only if needed
-    Resource: gl://analysis/83/pipeline/1594344?mode=summary
+    Resource: gl://pipeline/123/pipeline/1594344?mode=summary
 
     # 2. Filter file patterns to reduce noise
     Tool: failed_pipeline_analysis with exclude_file_patterns=["node_modules/", "*.pyc"]
@@ -634,7 +634,7 @@ Performance Optimization
     Tool: search_repository_code with max_results=10
 
     # 4. Use pagination for large datasets
-    Resource: gl://files/83/pipeline/1594344/page/1/limit/20
+    Resource: gl://pipeline/123/pipeline/1594344/page/1/limit/20
 
     # 5. Clear cache regularly
     Tool: clear_cache with cache_type="old" and max_age_hours=48
@@ -647,27 +647,27 @@ Resource Navigation Patterns
 .. code-block:: text
 
     # Pattern 1: Top-down investigation
-    gl://pipeline/83/1594344                    # Overview
+    gl://pipeline/123/1594344                    # Overview
     ↓
-    gl://jobs/83/pipeline/1594344/failed        # Failed jobs
+    gl://pipeline/123/pipeline/1594344/failed        # Failed jobs
     ↓
-    gl://job/83/1594344/76474172               # Specific job
+    gl://pipeline/123/1594344/76474172               # Specific job
     ↓
-    gl://errors/83/76474172                    # Job errors
+    gl://pipeline/123/76474172                    # Job errors
 
     # Pattern 2: File-focused investigation
-    gl://files/83/pipeline/1594344             # Files with errors
+    gl://pipeline/123/pipeline/1594344             # Files with errors
     ↓
-    gl://file/83/76474172/src/main.py         # Specific file
+    gl://pipeline/123/76474172/src/main.py         # Specific file
     ↓
-    gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true
+    gl://pipeline/123/76474172/src/main.py/trace?mode=detailed&include_trace=true
 
     # Pattern 3: Error-centric investigation
-    gl://errors/83/pipeline/1594344           # All pipeline errors
+    gl://pipeline/123/pipeline/1594344           # All pipeline errors
     ↓
-    gl://errors/83/76474172/src/main.py      # File-specific errors
+    gl://pipeline/123/76474172/src/main.py      # File-specific errors
     ↓
-    gl://error/83/76474172/error_001         # Individual error
+    gl://pipeline/123/76474172/error_001         # Individual error
 
 This comprehensive examples guide demonstrates the full power of the GitLab Pipeline Analyzer MCP Server with its 10 essential tools, MCP resources, and intelligent prompt system for effective CI/CD pipeline analysis and debugging.
 

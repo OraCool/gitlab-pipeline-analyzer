@@ -180,19 +180,19 @@ This project includes a local MCP configuration in `.vscode/mcp.json` for easy d
       "command": "uv",
       "args": ["run", "gitlab-analyzer"],
       "env": {
-        "GITLAB_URL": "${input:gitlab_pandadoc_url}",
-        "GITLAB_TOKEN": "${input:gitlab_pandadoc_token}"
+        "GITLAB_URL": "${input:gitlab_instance_url}",
+        "GITLAB_TOKEN": "${input:gitlab_access_token}"
       }
     }
   },
   "inputs": [
     {
-      "id": "gitlab_pandadoc_url",
+      "id": "gitlab_instance_url",
       "type": "promptString",
       "description": "GitLab Instance URL"
     },
     {
-      "id": "gitlab_pandadoc_token",
+      "id": "gitlab_access_token",
       "type": "promptString",
       "description": "GitLab Personal Access Token"
     }
@@ -780,14 +780,14 @@ DEFAULT_EXCLUDE_PATHS = [
 ```python
 # Use default filtering (recommended for most cases)
 await client.call_tool("get_file_errors", {
-    "project_id": "83",
+    "project_id": "123",
     "job_id": 76474190,
     "file_path": "src/my_module.py"
 })
 
 # Disable traceback completely for clean error summaries
 await client.call_tool("get_file_errors", {
-    "project_id": "83",
+    "project_id": "123",
     "job_id": 76474190,
     "file_path": "src/my_module.py",
     "include_traceback": False
@@ -795,7 +795,7 @@ await client.call_tool("get_file_errors", {
 
 # Custom path filtering
 await client.call_tool("get_file_errors", {
-    "project_id": "83",
+    "project_id": "123",
     "job_id": 76474190,
     "file_path": "src/my_module.py",
     "exclude_paths": [".venv", "site-packages", "/builds/"]
@@ -803,7 +803,7 @@ await client.call_tool("get_file_errors", {
 
 # Get complete traceback (no filtering)
 await client.call_tool("get_file_errors", {
-    "project_id": "83",
+    "project_id": "123",
     "job_id": 76474190,
     "file_path": "src/my_module.py",
     "exclude_paths": []  # Empty list = no filtering

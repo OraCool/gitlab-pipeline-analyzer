@@ -55,11 +55,11 @@ class TestResourceAccessTools:
         assert get_mcp_resource_func is not None, "get_mcp_resource function not found"
 
         # Test pipeline resource access
-        result = await get_mcp_resource_func("gl://pipeline/83/123")
+        result = await get_mcp_resource_func("gl://pipeline/123/123")
 
         assert result["pipeline_id"] == 123
         assert result["status"] == "success"
-        mock_get_pipeline.assert_called_once_with("83", "123")
+        mock_get_pipeline.assert_called_once_with("123", "123")
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_jobs_resource")
     async def test_get_mcp_resource_jobs(self, mock_get_jobs, mock_mcp):
@@ -80,13 +80,13 @@ class TestResourceAccessTools:
                 break
 
         # Test jobs resource access
-        result = await get_mcp_resource_func("gl://jobs/83/pipeline/123")
+        result = await get_mcp_resource_func("gl://jobs/123/pipeline/123")
         assert "jobs" in result
-        mock_get_jobs.assert_called_once_with("83", "123", "all")
+        mock_get_jobs.assert_called_once_with("123", "123", "all")
 
         # Test failed jobs
-        await get_mcp_resource_func("gl://jobs/83/pipeline/123/failed")
-        mock_get_jobs.assert_called_with("83", "123", "failed")
+        await get_mcp_resource_func("gl://jobs/123/pipeline/123/failed")
+        mock_get_jobs.assert_called_with("123", "123", "failed")
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_job_resource")
     async def test_get_mcp_resource_job(self, mock_get_job, mock_mcp):
@@ -107,9 +107,9 @@ class TestResourceAccessTools:
                 break
 
         # Test job resource access
-        result = await get_mcp_resource_func("gl://job/83/123/456")
+        result = await get_mcp_resource_func("gl://job/123/123/456")
         assert result["job_id"] == 456
-        mock_get_job.assert_called_once_with("83", "123", "456")
+        mock_get_job.assert_called_once_with("123", "123", "456")
 
     @patch(
         "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_files_resource"
@@ -132,13 +132,13 @@ class TestResourceAccessTools:
                 break
 
         # Test pipeline files resource access
-        result = await get_mcp_resource_func("gl://files/83/pipeline/123")
+        result = await get_mcp_resource_func("gl://files/123/pipeline/123")
         assert "files" in result
-        mock_get_files.assert_called_once_with("83", "123", 1, 20)
+        mock_get_files.assert_called_once_with("123", "123", 1, 20)
 
         # Test with pagination
-        await get_mcp_resource_func("gl://files/83/pipeline/123/page/2/limit/50")
-        mock_get_files.assert_called_with("83", "123", 2, 50)
+        await get_mcp_resource_func("gl://files/123/pipeline/123/page/2/limit/50")
+        mock_get_files.assert_called_with("123", "123", 2, 50)
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_files_resource")
     async def test_get_mcp_resource_job_files(self, mock_get_file, mock_mcp):
@@ -159,9 +159,9 @@ class TestResourceAccessTools:
                 break
 
         # Test job files resource access
-        result = await get_mcp_resource_func("gl://files/83/456")
+        result = await get_mcp_resource_func("gl://files/123/456")
         assert "files" in result
-        mock_get_file.assert_called_once_with("83", "456", 1, 20)
+        mock_get_file.assert_called_once_with("123", "456", 1, 20)
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource")
     async def test_get_mcp_resource_specific_file(self, mock_get_file, mock_mcp):
@@ -182,9 +182,9 @@ class TestResourceAccessTools:
                 break
 
         # Test specific file resource access
-        result = await get_mcp_resource_func("gl://file/83/456/src/main.py")
+        result = await get_mcp_resource_func("gl://file/123/456/src/main.py")
         assert result["file_path"] == "src/main.py"
-        mock_get_file.assert_called_once_with("83", "456", "src/main.py")
+        mock_get_file.assert_called_once_with("123", "456", "src/main.py")
 
     @patch(
         "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource_with_trace"
@@ -199,7 +199,7 @@ class TestResourceAccessTools:
 
         mock_response = {"file_path": "src/main.py", "trace": "..."}
         mock_get_file_trace.return_value = TextResourceContents(
-            uri="gl://file/83/456/src/main.py/trace", text=json.dumps(mock_response)
+            uri="gl://file/123/456/src/main.py/trace", text=json.dumps(mock_response)
         )
 
         # Register tools
@@ -217,11 +217,11 @@ class TestResourceAccessTools:
 
         # Test file with trace resource access using URL-encoded file path
         result = await get_mcp_resource_func(
-            "gl://file/83/456/src%2Fmain.py/trace?mode=detailed&include_trace=true"
+            "gl://file/123/456/src%2Fmain.py/trace?mode=detailed&include_trace=true"
         )
         assert result["file_path"] == "src/main.py"
         mock_get_file_trace.assert_called_once_with(
-            "83", "456", "src/main.py", "detailed", "true"
+            "123", "456", "src/main.py", "detailed", "true"
         )
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_error_resource_data")
@@ -243,13 +243,13 @@ class TestResourceAccessTools:
                 break
 
         # Test job errors resource access
-        result = await get_mcp_resource_func("gl://error/83/456")
+        result = await get_mcp_resource_func("gl://error/123/456")
         assert "errors" in result
-        mock_get_errors.assert_called_once_with("83", "456", "balanced")
+        mock_get_errors.assert_called_once_with("123", "456", "balanced")
 
         # Test with mode
-        await get_mcp_resource_func("gl://error/83/456?mode=detailed")
-        mock_get_errors.assert_called_with("83", "456", "detailed")
+        await get_mcp_resource_func("gl://error/123/456?mode=detailed")
+        mock_get_errors.assert_called_with("123", "456", "detailed")
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_individual_error_data")
     async def test_get_mcp_resource_individual_error(self, mock_get_error, mock_mcp):
@@ -270,9 +270,9 @@ class TestResourceAccessTools:
                 break
 
         # Test individual error resource access
-        result = await get_mcp_resource_func("gl://error/83/456/123_0")
+        result = await get_mcp_resource_func("gl://error/123/456/123_0")
         assert result["error_id"] == "123_0"
-        mock_get_error.assert_called_once_with("83", "456", "123_0", "balanced")
+        mock_get_error.assert_called_once_with("123", "456", "123_0", "balanced")
 
     @patch(
         "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_errors_resource_data"
@@ -297,9 +297,9 @@ class TestResourceAccessTools:
                 break
 
         # Test pipeline errors resource access
-        result = await get_mcp_resource_func("gl://errors/83/pipeline/123")
+        result = await get_mcp_resource_func("gl://errors/123/pipeline/123")
         assert "pipeline_errors" in result
-        mock_get_errors.assert_called_once_with("83", "123")
+        mock_get_errors.assert_called_once_with("123", "123")
 
     @patch(
         "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_errors_resource_data"
@@ -322,9 +322,9 @@ class TestResourceAccessTools:
                 break
 
         # Test file errors resource access
-        result = await get_mcp_resource_func("gl://errors/83/456/src/main.py")
+        result = await get_mcp_resource_func("gl://errors/123/456/src/main.py")
         assert "file_errors" in result
-        mock_get_errors.assert_called_once_with("83", "456", "src/main.py")
+        mock_get_errors.assert_called_once_with("123", "456", "src/main.py")
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_analysis_resource_data")
     async def test_get_mcp_resource_analysis(self, mock_get_analysis, mock_mcp):
@@ -345,17 +345,17 @@ class TestResourceAccessTools:
                 break
 
         # Test project analysis
-        result = await get_mcp_resource_func("gl://analysis/83")
+        result = await get_mcp_resource_func("gl://analysis/123")
         assert result["analysis"] == "comprehensive"
-        mock_get_analysis.assert_called_once_with("83", None, None, "balanced")
+        mock_get_analysis.assert_called_once_with("123", None, None, "balanced")
 
         # Test pipeline analysis
-        await get_mcp_resource_func("gl://analysis/83/pipeline/123?mode=detailed")
-        mock_get_analysis.assert_called_with("83", "123", None, "detailed")
+        await get_mcp_resource_func("gl://analysis/123/pipeline/123?mode=detailed")
+        mock_get_analysis.assert_called_with("123", "123", None, "detailed")
 
         # Test job analysis
-        await get_mcp_resource_func("gl://analysis/83/job/456?mode=minimal")
-        mock_get_analysis.assert_called_with("83", None, "456", "minimal")
+        await get_mcp_resource_func("gl://analysis/123/job/456?mode=minimal")
+        mock_get_analysis.assert_called_with("123", None, "456", "minimal")
 
     async def test_get_mcp_resource_invalid_uri(self, mock_mcp):
         """Test handling of invalid resource URIs"""
@@ -404,10 +404,10 @@ class TestResourceAccessTools:
                 break
 
         # Test exception handling
-        result = await get_mcp_resource_func("gl://pipeline/83/123")
+        result = await get_mcp_resource_func("gl://pipeline/123/123")
         assert "error" in result
         assert "Failed to access resource" in result["error"]
-        assert result["resource_uri"] == "gl://pipeline/83/123"
+        assert result["resource_uri"] == "gl://pipeline/123/123"
 
     async def test_get_mcp_resource_various_patterns(self, mock_mcp):
         """Test parsing of various URI patterns"""
@@ -426,11 +426,11 @@ class TestResourceAccessTools:
 
         # Test patterns that should result in errors (no mocking)
         test_patterns = [
-            "gl://jobs/83/pipeline/123/success",
-            "gl://files/83/pipeline/123/page/1/limit/10",
-            "gl://file/83/456/deeply/nested/file.py",
-            "gl://errors/83/456",
-            "gl://analysis/83?mode=fixing",
+            "gl://jobs/123/pipeline/123/success",
+            "gl://files/123/pipeline/123/page/1/limit/10",
+            "gl://file/123/456/deeply/nested/file.py",
+            "gl://errors/123/456",
+            "gl://analysis/123?mode=fixing",
         ]
 
         for pattern in test_patterns:

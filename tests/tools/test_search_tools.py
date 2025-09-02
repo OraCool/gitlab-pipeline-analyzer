@@ -120,12 +120,12 @@ class TestSearchTools:
 
         # Test code search
         result = await search_code_func(
-            project_id="83", search_keywords="process_data", output_format="text"
+            project_id="123", search_keywords="process_data", output_format="text"
         )
 
         # Verify search was called correctly
         mock_gitlab_analyzer.search_project_code.assert_called_once_with(
-            project_id="83",
+            project_id="123",
             search_term="process_data",
             branch=None,
             filename_filter=None,
@@ -171,7 +171,7 @@ class TestSearchTools:
 
         # Test code search with JSON output
         result = await search_code_func(
-            project_id="83",
+            project_id="123",
             search_keywords="async def",
             branch="feature-branch",
             extension_filter="py",
@@ -181,7 +181,7 @@ class TestSearchTools:
         # Verify result is valid JSON
         result_data = json.loads(result)
         assert result_data["search_keywords"] == "async def"
-        assert result_data["project_id"] == "83"
+        assert result_data["project_id"] == "123"
         assert result_data["branch"] == "feature-branch"
         assert result_data["total_results"] == 2
         assert result_data["showing_results"] == 2
@@ -225,7 +225,7 @@ class TestSearchTools:
 
         # Test code search with no results - text format
         result = await search_code_func(
-            project_id="83", search_keywords="nonexistent", output_format="text"
+            project_id="123", search_keywords="nonexistent", output_format="text"
         )
 
         assert "No code matches found" in result
@@ -233,7 +233,7 @@ class TestSearchTools:
 
         # Test code search with no results - JSON format
         result = await search_code_func(
-            project_id="83", search_keywords="nonexistent", output_format="json"
+            project_id="123", search_keywords="nonexistent", output_format="json"
         )
 
         result_data = json.loads(result)
@@ -270,7 +270,7 @@ class TestSearchTools:
                 break
 
         # Test error handling
-        result = await search_code_func(project_id="83", search_keywords="test")
+        result = await search_code_func(project_id="123", search_keywords="test")
 
         assert "Error searching repository code" in result
         assert "Search failed" in result
@@ -306,7 +306,7 @@ class TestSearchTools:
 
         # Test with all filters
         result = await search_code_func(
-            project_id="83",
+            project_id="123",
             search_keywords="class",
             branch="develop",
             filename_filter="*.py",
@@ -317,7 +317,7 @@ class TestSearchTools:
 
         # Verify search was called with filters
         mock_gitlab_analyzer.search_project_code.assert_called_once_with(
-            project_id="83",
+            project_id="123",
             search_term="class",
             branch="develop",
             filename_filter="*.py",
@@ -373,7 +373,7 @@ class TestSearchTools:
 
         # Test with max_results limit
         result = await search_code_func(
-            project_id="83", search_keywords="function", max_results=5
+            project_id="123", search_keywords="function", max_results=5
         )
 
         assert "Found 30 total matches (showing first 5)" in result
@@ -414,12 +414,12 @@ class TestSearchTools:
 
         # Test commit search
         result = await search_commits_func(
-            project_id="83", search_keywords="bug fix", output_format="text"
+            project_id="123", search_keywords="bug fix", output_format="text"
         )
 
         # Verify search was called correctly
         mock_gitlab_analyzer.search_project_commits.assert_called_once_with(
-            project_id="83",
+            project_id="123",
             search_term="bug fix",
             branch=None,
         )
@@ -466,7 +466,7 @@ class TestSearchTools:
 
         # Test commit search with JSON output
         result = await search_commits_func(
-            project_id="83",
+            project_id="123",
             search_keywords="feature",
             branch="main",
             output_format="json",
@@ -475,7 +475,7 @@ class TestSearchTools:
         # Verify result is valid JSON
         result_data = json.loads(result)
         assert result_data["search_query"] == "feature"
-        assert result_data["project_id"] == "83"
+        assert result_data["project_id"] == "123"
         assert result_data["branch"] == "main"
         assert result_data["total_matches"] == 2
         assert result_data["showing_results"] == 2
@@ -520,7 +520,7 @@ class TestSearchTools:
 
         # Test commit search with no results - text format
         result = await search_commits_func(
-            project_id="83", search_keywords="nonexistent", output_format="text"
+            project_id="123", search_keywords="nonexistent", output_format="text"
         )
 
         assert "No commit matches found" in result
@@ -528,7 +528,7 @@ class TestSearchTools:
 
         # Test commit search with no results - JSON format
         result = await search_commits_func(
-            project_id="83", search_keywords="nonexistent", output_format="json"
+            project_id="123", search_keywords="nonexistent", output_format="json"
         )
 
         result_data = json.loads(result)
@@ -565,7 +565,7 @@ class TestSearchTools:
                 break
 
         # Test error handling
-        result = await search_commits_func(project_id="83", search_keywords="test")
+        result = await search_commits_func(project_id="123", search_keywords="test")
 
         assert "Error searching repository commits" in result
         assert "Commit search failed" in result
@@ -615,7 +615,7 @@ class TestSearchTools:
 
         # Test with max_results limit
         result = await search_commits_func(
-            project_id="83", search_keywords="commit", max_results=10
+            project_id="123", search_keywords="commit", max_results=10
         )
 
         assert "Found 25 total matches (showing first 10)" in result
@@ -654,12 +654,12 @@ class TestSearchTools:
 
         # Test with specific branch
         result = await search_commits_func(
-            project_id="83", search_keywords="fix", branch="develop"
+            project_id="123", search_keywords="fix", branch="develop"
         )
 
         # Verify search was called with branch
         mock_gitlab_analyzer.search_project_commits.assert_called_once_with(
-            project_id="83",
+            project_id="123",
             search_term="fix",
             branch="develop",
         )

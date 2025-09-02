@@ -56,15 +56,15 @@ echo "✅ Modern tools available"
 
 ```bash
 # Clean up Python cache and temporary files
-fd -t f -e pyc -X rm 2>/dev/null || true
-fd -t d -n __pycache__ -X rm -rf 2>/dev/null || true
+fd -HI -t f -e pyc -x rm -f {} 2>/dev/null || true
+fd -HI -t d "__pycache__" -x rm -rf {} 2>/dev/null || true
 ```
 
 ```bash
 # Remove temporary debug files from root only
-fd -t f "debug_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-fd -t f "temp_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
-fd -t f "demo_.*\.py$" --max-depth 1 -X rm 2>/dev/null || true
+fd -t f 'debug_.*\.py$' -d 1 -x rm -f {} 2>/dev/null || true
+fd -t f 'temp_.*\.py$'  -d 1 -x rm -f {} 2>/dev/null || true
+fd -t f 'demo_.*\.py$'  -d 1 -x rm -f {} 2>/dev/null || true
 ```
 
 ```bash
@@ -119,7 +119,7 @@ uv run twine check dist/*
 
 ```bash
 # Count tools for documentation validation
-TOOL_COUNT=$(fd -t f -e py -E tests -E __pycache__ . src/ -x rg -c "@mcp\.tool" | awk '{sum+=$1} END {print sum}')
+TOOL_COUNT=$(rg -c '@mcp\.tool' --glob '!tests/**' --glob '!__pycache__/**' src | awk -F: '{sum+=$2} END {print sum+0}')
 echo "Total tools: $TOOL_COUNT"
 ```
 

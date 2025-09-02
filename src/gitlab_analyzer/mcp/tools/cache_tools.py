@@ -10,8 +10,8 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.utils.utils import get_mcp_info
 from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 
 def register_cache_tools(mcp: FastMCP) -> None:
@@ -55,7 +55,7 @@ def register_cache_tools(mcp: FastMCP) -> None:
 
         EXAMPLES:
         - clear_cache() - Clear all cache
-        - clear_cache("job", project_id="83") - Clear job data for project 83
+        - clear_cache("job", project_id="123") - Clear job data for project 123
         - clear_cache("old", max_age_hours=24) - Clear data older than 24 hours
         """
         try:
@@ -159,7 +159,7 @@ def register_cache_tools(mcp: FastMCP) -> None:
             Summary of cleared entries by table
 
         EXAMPLES:
-        - clear_pipeline_cache("83", "1594344") - Clear specific pipeline
+        - clear_pipeline_cache("123", "1594344") - Clear specific pipeline
         """
         try:
             debug_print(
@@ -228,7 +228,7 @@ def register_cache_tools(mcp: FastMCP) -> None:
             Summary of cleared entries by table
 
         EXAMPLES:
-        - clear_job_cache("83", "76474172") - Clear specific job
+        - clear_job_cache("123", "76474172") - Clear specific job
         """
         try:
             debug_print(

@@ -222,13 +222,13 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 
     # Get cleaned trace
     result = await client.call_tool("get_clean_job_trace", {
-        "project_id": "83",
+        "project_id": "123",
         "job_id": 76986695
     })
 
     # Save trace to file
     result = await client.call_tool("get_clean_job_trace", {
-        "project_id": "83",
+        "project_id": "123",
         "job_id": 76986695,
         "save_to_file": True
     })
@@ -316,7 +316,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
     # Clear job data for specific project
     result = await client.call_tool("clear_cache", {
         "cache_type": "job",
-        "project_id": "83"
+        "project_id": "123"
     })
 
     # Clear old data
@@ -341,7 +341,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 .. code-block:: python
 
     result = await client.call_tool("clear_pipeline_cache", {
-        "project_id": "83",
+        "project_id": "123",
         "pipeline_id": "1594344"
     })
 
@@ -361,7 +361,7 @@ The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **co
 .. code-block:: python
 
     result = await client.call_tool("clear_job_cache", {
-        "project_id": "83",
+        "project_id": "123",
         "job_id": "76474172"
     })
 
@@ -662,7 +662,7 @@ Typical Workflow
 
        # Analyze failed pipeline
        analysis = await client.call_tool("failed_pipeline_analysis", {
-           "project_id": "83",
+           "project_id": "123",
            "pipeline_id": 1594344
        })
 
@@ -690,7 +690,7 @@ Typical Workflow
 
        # Search for similar issues in code
        search_results = await client.call_tool("search_repository_code", {
-           "project_id": "83",
+           "project_id": "123",
            "search_keywords": "ModuleNotFoundError",
            "extension_filter": "py"
        })
@@ -721,7 +721,7 @@ Cache Management Strategy
 
        # Clear specific pipeline cache after re-run
        await client.call_tool("clear_pipeline_cache", {
-           "project_id": "83",
+           "project_id": "123",
            "pipeline_id": "1594344"
        })
 

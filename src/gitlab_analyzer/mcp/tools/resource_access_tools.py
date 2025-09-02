@@ -41,7 +41,7 @@ from gitlab_analyzer.mcp.resources.job import (
 )
 from gitlab_analyzer.mcp.resources.pipeline import get_pipeline_resource
 from gitlab_analyzer.utils import get_mcp_info
-from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print, error_print
+from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ async def _handle_files_resource(
     if len(parts) >= 3:
         project_id = parts[1]
         if len(parts) >= 4 and parts[2] == "pipeline":
-            # gl://files/83/pipeline/123 or gl://files/83/pipeline/123/page/2/limit/50
+            # gl://files/123/pipeline/123 or gl://files/123/pipeline/123/page/2/limit/50
             pipeline_id = parts[3]
             # Check for pagination parameters from query string or path
             page = int(query_params.get("page", 1))
@@ -165,7 +165,7 @@ async def _handle_files_resource(
             verbose_debug_print("✅ Pipeline files resource retrieved successfully")
             return result
         else:
-            # gl://files/83/456 (job files) - support query parameters
+            # gl://files/123/456 (job files) - support query parameters
             job_id = parts[2]
             page = int(query_params.get("page", 1))
             limit = int(query_params.get("limit", 20))
@@ -231,7 +231,7 @@ async def _handle_error_resource(
         mode = query_params.get("mode", "balanced")
 
         if len(parts) >= 4:
-            # gl://error/83/456/123_0
+            # gl://error/123/456/123_0
             error_id = parts[3]
             debug_print(
                 f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})"
@@ -240,7 +240,7 @@ async def _handle_error_resource(
             verbose_debug_print("✅ Individual error resource retrieved successfully")
             return result
         else:
-            # gl://error/83/456
+            # gl://error/123/456
             debug_print(
                 f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})"
             )
@@ -256,7 +256,7 @@ async def _handle_errors_resource(parts: list[str]) -> dict[str, Any]:
     if len(parts) >= 3:
         project_id = parts[1]
         if len(parts) >= 4 and parts[2] == "pipeline":
-            # gl://errors/83/pipeline/123
+            # gl://errors/123/pipeline/123
             pipeline_id = parts[3]
             debug_print(
                 f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
@@ -265,7 +265,7 @@ async def _handle_errors_resource(parts: list[str]) -> dict[str, Any]:
             verbose_debug_print("✅ Pipeline errors resource retrieved successfully")
             return result
         else:
-            # gl://errors/83/456/src/main.py
+            # gl://errors/123/456/src/main.py
             job_id = parts[2]
             file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
             # URL decode the file path
@@ -298,13 +298,13 @@ async def _handle_analysis_resource(
         # Parse additional path components
         if len(parts) >= 4:
             if parts[2] == "pipeline":
-                # gl://analysis/83/pipeline/123?mode=detailed
+                # gl://analysis/123/pipeline/123?mode=detailed
                 pipeline_id = parts[3]
                 debug_print(
                     f"🔍 Accessing pipeline analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
                 )
             elif parts[2] == "job":
-                # gl://analysis/83/job/456?mode=minimal
+                # gl://analysis/123/job/456?mode=minimal
                 job_id = parts[3]
                 debug_print(
                     f"🔍 Accessing job analysis for job {job_id} in project {project_id} (mode={mode})"
@@ -488,21 +488,21 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - Filters data based on resource type
 
         Args:
-            resource_uri: The MCP resource URI (e.g., "gl://jobs/83/pipeline/1594344/failed")
+            resource_uri: The MCP resource URI (e.g., "gl://jobs/123/pipeline/1594344/failed")
 
         Returns:
             Resource data with navigation links and metadata
 
         EXAMPLES:
-        - get_mcp_resource("gl://jobs/83/pipeline/1594344/failed") - Get failed jobs
-        - get_mcp_resource("gl://pipeline/83/1594344") - Get pipeline analysis
-        - get_mcp_resource("gl://files/83/pipeline/1594344") - Get files with errors
-        - get_mcp_resource("gl://error/83/76474172") - Get job error analysis
-        - get_mcp_resource("gl://errors/83/76474172/src/main.py") - Get file-specific errors
-        - get_mcp_resource("gl://errors/83/pipeline/1594344") - Get pipeline-wide errors
-        - get_mcp_resource("gl://file/83/76474172/src/main.py/trace?mode=detailed&include_trace=true") - Get file with traceback
-        - get_mcp_resource("gl://analysis/83/pipeline/1594344?mode=detailed") - Detailed analysis
-        - get_mcp_resource("gl://file/83/76474172/src/main.py") - Specific file analysis
+        - get_mcp_resource("gl://jobs/123/pipeline/1594344/failed") - Get failed jobs
+        - get_mcp_resource("gl://pipeline/123/1594344") - Get pipeline analysis
+        - get_mcp_resource("gl://files/123/pipeline/1594344") - Get files with errors
+        - get_mcp_resource("gl://error/123/76474172") - Get job error analysis
+        - get_mcp_resource("gl://errors/123/76474172/src/main.py") - Get file-specific errors
+        - get_mcp_resource("gl://errors/123/pipeline/1594344") - Get pipeline-wide errors
+        - get_mcp_resource("gl://file/123/76474172/src/main.py/trace?mode=detailed&include_trace=true") - Get file with traceback
+        - get_mcp_resource("gl://analysis/123/pipeline/1594344?mode=detailed") - Detailed analysis
+        - get_mcp_resource("gl://file/123/76474172/src/main.py") - Specific file analysis
         """
         # Delegate to the implementation function
         return await get_mcp_resource_impl(resource_uri)
