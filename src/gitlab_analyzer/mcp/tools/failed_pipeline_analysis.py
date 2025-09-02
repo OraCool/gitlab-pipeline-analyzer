@@ -47,6 +47,32 @@ from gitlab_analyzer.utils.utils import (
 )
 
 
+def _filter_duplicate_combined_errors(errors: list) -> list:
+    """Filter duplicates from combined error results (local implementation)"""
+    verbose_debug_print(f"Filtering duplicates from {len(errors)} combined errors")
+    seen_errors = set()
+    filtered_errors = []
+
+    for error in errors:
+        # Create a key for duplicate detection
+        message = error.get("message", "") or error.get("exception_message", "")
+        file_path = error.get("file_path", "") or error.get("file", "")
+        line_number = error.get("line_number", "") or error.get("line", "")
+        error_type = error.get("error_type", "") or error.get("exception_type", "")
+
+        # Create a normalized key for duplicate detection
+        key = f"{message}|{file_path}|{line_number}|{error_type}".lower().strip()
+
+        if key not in seen_errors:
+            seen_errors.add(key)
+            filtered_errors.append(error)
+
+    verbose_debug_print(
+        f"After combined duplicate filtering: {len(filtered_errors)} unique errors"
+    )
+    return filtered_errors
+
+
 def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
     """Register failed pipeline analysis tools"""
 
@@ -288,6 +314,15 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     # Combine pytest errors with generic errors to catch all failure types
                     errors.extend(generic_errors)
                     debug_print(f"📊 Total errors after combining: {len(errors)}")
+
+                    # Filter duplicates between pytest and generic parser results
+                    original_count = len(errors)
+                    errors = _filter_duplicate_combined_errors(errors)
+                    filtered_count = len(errors)
+                    if original_count != filtered_count:
+                        debug_print(
+                            f"🔧 Filtered out {original_count - filtered_count} duplicate errors between parsers"
+                        )
                 else:
                     verbose_debug_print("🔧 Using generic log parser...")
                     log_parser = LogParser()
@@ -315,9 +350,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     f"🔍 Processing {len(errors)} errors for file grouping and filtering..."
                 )
                 file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[dict[str, Any]] = (
-                    []
-                )  # Track errors after filtering system files
+                filtered_errors: list[
+                    dict[str, Any]
+                ] = []  # Track errors after filtering system files
 
                 for error_index, error in enumerate(errors):
                     verbose_debug_print(
@@ -503,12 +538,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global file registry across all jobs
-            all_errors: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global error registry with trace references
+            all_files: dict[
+                str, dict[str, Any]
+            ] = {}  # Global file registry across all jobs
+            all_errors: dict[
+                str, dict[str, Any]
+            ] = {}  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]
