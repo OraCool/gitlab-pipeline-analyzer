@@ -1207,8 +1207,16 @@ class McpCache:
     async def clear_all_cache(self, project_id: str | int | None = None) -> int:
         """Clear all cache entries, optionally for specific project"""
         try:
+            verbose_debug_print(
+                f"🧹 [CACHE] Starting clear all cache: project_id={project_id or 'all'}"
+            )
+
             async with aiosqlite.connect(self.db_path) as conn:
                 if project_id:
+                    verbose_debug_print(
+                        f"🔍 [CACHE] Counting entries for project {project_id}"
+                    )
+
                     # Count entries for specific project (using JOIN/subquery for all related tables)
                     cursor = await conn.execute(
                         """
@@ -1240,17 +1248,29 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Found {count} total entries for project {project_id}"
+                    )
 
                     # Delete entries for specific project (delete child tables first, then parent)
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Deleting errors for project {project_id}"
+                    )
                     await conn.execute(
                         """DELETE FROM errors
                            WHERE job_id IN (SELECT job_id FROM jobs WHERE project_id = ?)""",
                         (str(project_id),),
                     )
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Deleting file_index for project {project_id}"
+                    )
                     await conn.execute(
                         """DELETE FROM file_index
                            WHERE job_id IN (SELECT job_id FROM jobs WHERE project_id = ?)""",
                         (str(project_id),),
+                    )
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Deleting trace_segments for project {project_id}"
                     )
                     await conn.execute(
                         """DELETE FROM trace_segments
@@ -1261,11 +1281,18 @@ class McpCache:
                     await conn.execute(
                         "DELETE FROM jobs WHERE project_id = ?", (str(project_id),)
                     )
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Deleting pipelines for project {project_id}"
+                    )
                     await conn.execute(
                         "DELETE FROM pipelines WHERE project_id = ?",
                         (str(project_id),),
                     )
                 else:
+                    verbose_debug_print(
+                        "🔍 [CACHE] Counting all cache entries across all projects"
+                    )
+
                     # Count all entries (including pipelines and trace_segments for full clear)
                     cursor = await conn.execute(
                         """
@@ -1284,18 +1311,30 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Found {count} total entries across all projects"
+                    )
 
                     # Delete all cache entries (delete child tables first, then parent tables)
+                    verbose_debug_print("🧹 [CACHE] Deleting all errors")
                     await conn.execute("DELETE FROM errors")
+                    verbose_debug_print("🧹 [CACHE] Deleting all file_index entries")
                     await conn.execute("DELETE FROM file_index")
+                    verbose_debug_print("🧹 [CACHE] Deleting all trace_segments")
                     await conn.execute("DELETE FROM trace_segments")
                     # Delete jobs and pipelines last
+                    verbose_debug_print("🧹 [CACHE] Deleting all jobs")
                     await conn.execute("DELETE FROM jobs")
+                    verbose_debug_print("🧹 [CACHE] Deleting all pipelines")
                     await conn.execute("DELETE FROM pipelines")
 
                 await conn.commit()
+                debug_print(
+                    f"✅ [CACHE] Successfully cleared {count} cache entries for {project_id or 'all projects'}"
+                )
                 return count
-        except Exception:
+        except Exception as e:
+            error_print(f"❌ [CACHE] Error clearing all cache: {e}")
             return 0
 
     async def clear_cache_by_type(
@@ -1303,6 +1342,10 @@ class McpCache:
     ) -> int:
         """Clear cache entries by type"""
         try:
+            verbose_debug_print(
+                f"🧹 [CACHE] Starting cache clearing: type={cache_type}, project_id={project_id}"
+            )
+
             async with aiosqlite.connect(self.db_path) as conn:
                 table_map = {
                     "job": "jobs",
@@ -1312,6 +1355,9 @@ class McpCache:
 
                 table = table_map.get(cache_type)
                 if not table:
+                    verbose_debug_print(
+                        f"🚫 [CACHE] Unknown cache type '{cache_type}', skipping"
+                    )
                     return 0
 
                 if project_id:
@@ -1321,6 +1367,10 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Found {count} entries in {table} table for project {project_id}"
+                    )
+
                     await conn.execute(
                         f"DELETE FROM {table} WHERE project_id = ?",  # nosec B608
                         (str(project_id),),
@@ -1331,11 +1381,19 @@ class McpCache:
                     )  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Found {count} entries in {table} table (all projects)"
+                    )
+
                     await conn.execute(f"DELETE FROM {table}")  # nosec B608
 
                 await conn.commit()
+                debug_print(
+                    f"✅ [CACHE] Successfully cleared {count} entries from {table} table"
+                )
                 return count
-        except Exception:
+        except Exception as e:
+            error_print(f"❌ [CACHE] Error clearing cache by type {cache_type}: {e}")
             return 0
 
     async def clear_cache_by_pipeline(
@@ -1343,6 +1401,10 @@ class McpCache:
     ) -> dict[str, int | str]:
         """Clear all cache data for a specific pipeline"""
         try:
+            verbose_debug_print(
+                f"🧹 [CACHE] Starting pipeline cache clearing: project_id={project_id}, pipeline_id={pipeline_id}"
+            )
+
             async with aiosqlite.connect(self.db_path) as conn:
                 project_id_str = str(project_id)
                 pipeline_id_int = int(pipeline_id)
@@ -1355,6 +1417,9 @@ class McpCache:
                     (project_id_str, pipeline_id_int),
                 )
                 job_ids = [row[0] for row in await cursor.fetchall()]
+                verbose_debug_print(
+                    f"🔍 [CACHE] Found {len(job_ids)} jobs in pipeline {pipeline_id}: {job_ids}"
+                )
 
                 if job_ids:
                     job_ids_placeholders = ",".join("?" * len(job_ids))
@@ -1366,6 +1431,10 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     counts["trace_segments"] = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Clearing {counts['trace_segments']} trace segments"
+                    )
+
                     await conn.execute(
                         f"DELETE FROM trace_segments WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
@@ -1378,6 +1447,10 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     counts["errors"] = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Clearing {counts['errors']} error records"
+                    )
+
                     await conn.execute(
                         f"DELETE FROM errors WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
@@ -1390,11 +1463,16 @@ class McpCache:
                     )
                     count_row = await cursor.fetchone()
                     counts["file_index"] = count_row[0] if count_row else 0
+                    verbose_debug_print(
+                        f"🧹 [CACHE] Clearing {counts['file_index']} file index entries"
+                    )
+
                     await conn.execute(
                         f"DELETE FROM file_index WHERE job_id IN ({job_ids_placeholders})",  # nosec B608
                         job_ids,
                     )
                 else:
+                    verbose_debug_print("📭 [CACHE] No jobs found for this pipeline")
                     counts["trace_segments"] = 0
                     counts["errors"] = 0
                     counts["file_index"] = 0
@@ -1406,6 +1484,8 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["jobs"] = count_row[0] if count_row else 0
+                verbose_debug_print(f"🧹 [CACHE] Clearing {counts['jobs']} job records")
+
                 await conn.execute(
                     "DELETE FROM jobs WHERE project_id = ? AND pipeline_id = ?",
                     (project_id_str, pipeline_id_int),
@@ -1418,14 +1498,30 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["pipelines"] = count_row[0] if count_row else 0
+                verbose_debug_print(
+                    f"🧹 [CACHE] Clearing {counts['pipelines']} pipeline records"
+                )
+
                 await conn.execute(
                     "DELETE FROM pipelines WHERE project_id = ? AND pipeline_id = ?",
                     (project_id_str, pipeline_id_int),
                 )
 
                 await conn.commit()
+
+                total_cleared = sum(
+                    count for count in counts.values() if isinstance(count, int)
+                )
+                debug_print(
+                    f"✅ [CACHE] Successfully cleared pipeline {pipeline_id} cache: {total_cleared} total entries"
+                )
+                verbose_debug_print(
+                    f"🔍 [CACHE] Pipeline {pipeline_id} clearing breakdown: {counts}"
+                )
+
                 return counts
         except Exception as e:
+            error_print(f"❌ [CACHE] Error clearing pipeline {pipeline_id} cache: {e}")
             return {"error": -1, "message": str(e)}
 
     async def clear_cache_by_job(
@@ -1433,6 +1529,10 @@ class McpCache:
     ) -> dict[str, int | str]:
         """Clear all cache data for a specific job"""
         try:
+            verbose_debug_print(
+                f"🧹 [CACHE] Starting job cache clearing: project_id={project_id}, job_id={job_id}"
+            )
+
             async with aiosqlite.connect(self.db_path) as conn:
                 job_id_int = int(job_id)
                 counts = {}
@@ -1444,6 +1544,10 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["trace_segments"] = count_row[0] if count_row else 0
+                verbose_debug_print(
+                    f"🧹 [CACHE] Clearing {counts['trace_segments']} trace segments for job {job_id}"
+                )
+
                 await conn.execute(
                     "DELETE FROM trace_segments WHERE job_id = ?", (job_id_int,)
                 )
@@ -1454,6 +1558,10 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["errors"] = count_row[0] if count_row else 0
+                verbose_debug_print(
+                    f"🧹 [CACHE] Clearing {counts['errors']} error records for job {job_id}"
+                )
+
                 await conn.execute("DELETE FROM errors WHERE job_id = ?", (job_id_int,))
 
                 # Clear file_index for this job
@@ -1462,6 +1570,10 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["file_index"] = count_row[0] if count_row else 0
+                verbose_debug_print(
+                    f"🧹 [CACHE] Clearing {counts['file_index']} file index entries for job {job_id}"
+                )
+
                 await conn.execute(
                     "DELETE FROM file_index WHERE job_id = ?", (job_id_int,)
                 )
@@ -1472,11 +1584,27 @@ class McpCache:
                 )
                 count_row = await cursor.fetchone()
                 counts["jobs"] = count_row[0] if count_row else 0
+                verbose_debug_print(
+                    f"🧹 [CACHE] Clearing {counts['jobs']} job records for job {job_id}"
+                )
+
                 await conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id_int,))
 
                 await conn.commit()
+
+                total_cleared = sum(
+                    count for count in counts.values() if isinstance(count, int)
+                )
+                debug_print(
+                    f"✅ [CACHE] Successfully cleared job {job_id} cache: {total_cleared} total entries"
+                )
+                verbose_debug_print(
+                    f"🔍 [CACHE] Job {job_id} clearing breakdown: {counts}"
+                )
+
                 return counts
         except Exception as e:
+            error_print(f"❌ [CACHE] Error clearing job {job_id} cache: {e}")
             return {"error": -1, "message": str(e)}
 
     async def check_health(self) -> dict[str, Any]:

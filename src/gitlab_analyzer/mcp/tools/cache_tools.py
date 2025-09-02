@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.utils.utils import get_mcp_info
+from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
 
 
 def register_cache_tools(mcp: FastMCP) -> None:
@@ -58,13 +59,21 @@ def register_cache_tools(mcp: FastMCP) -> None:
         - clear_cache("old", max_age_hours=24) - Clear data older than 24 hours
         """
         try:
+            debug_print(
+                f"🧹 [TOOL] Starting cache clearing: type={cache_type}, project_id={project_id}, max_age_hours={max_age_hours}"
+            )
+
             cache_manager = get_cache_manager()
 
             if cache_type == "old":
                 if max_age_hours is None:
                     max_age_hours = 168  # 7 days default
 
+                verbose_debug_print(
+                    f"🧹 [TOOL] Clearing old cache entries older than {max_age_hours} hours"
+                )
                 cleared_count = await cache_manager.clear_old_entries(max_age_hours)
+                debug_print(f"✅ [TOOL] Cleared {cleared_count} old cache entries")
 
                 return {
                     "operation": "clear_old_cache",
@@ -76,7 +85,11 @@ def register_cache_tools(mcp: FastMCP) -> None:
                 }
 
             elif cache_type == "all":
+                verbose_debug_print(
+                    f"🧹 [TOOL] Clearing all cache data for project_id={project_id or 'all'}"
+                )
                 cleared_count = await cache_manager.clear_all_cache(project_id)
+                debug_print(f"✅ [TOOL] Cleared {cleared_count} total cache entries")
 
                 return {
                     "operation": "clear_all_cache",
@@ -88,8 +101,14 @@ def register_cache_tools(mcp: FastMCP) -> None:
 
             else:
                 # Clear specific cache type
+                verbose_debug_print(
+                    f"🧹 [TOOL] Clearing {cache_type} cache for project_id={project_id or 'all'}"
+                )
                 cleared_count = await cache_manager.clear_cache_by_type(
                     cache_type, project_id
+                )
+                debug_print(
+                    f"✅ [TOOL] Cleared {cleared_count} {cache_type} cache entries"
                 )
 
                 return {
@@ -143,10 +162,23 @@ def register_cache_tools(mcp: FastMCP) -> None:
         - clear_pipeline_cache("83", "1594344") - Clear specific pipeline
         """
         try:
+            debug_print(
+                f"🧹 [TOOL] Starting pipeline cache clearing: project_id={project_id}, pipeline_id={pipeline_id}"
+            )
+
             cache_manager = get_cache_manager()
             counts = await cache_manager.clear_cache_by_pipeline(
                 project_id, pipeline_id
             )
+
+            # Calculate total cleared if no error
+            if isinstance(counts, dict) and "error" not in counts:
+                total_cleared = sum(
+                    count for count in counts.values() if isinstance(count, int)
+                )
+                debug_print(
+                    f"✅ [TOOL] Successfully cleared pipeline {pipeline_id}: {total_cleared} total entries"
+                )
 
             return {
                 "operation": "clear_pipeline_cache",
@@ -199,15 +231,29 @@ def register_cache_tools(mcp: FastMCP) -> None:
         - clear_job_cache("83", "76474172") - Clear specific job
         """
         try:
+            debug_print(
+                f"🧹 [TOOL] Starting job cache clearing: project_id={project_id}, job_id={job_id}"
+            )
+
             cache_manager = get_cache_manager()
             counts = await cache_manager.clear_cache_by_job(project_id, job_id)
+
+            # Calculate total cleared if no error
+            total_cleared = 0
+            if isinstance(counts, dict) and "error" not in counts:
+                total_cleared = sum(
+                    count for count in counts.values() if isinstance(count, int)
+                )
+                debug_print(
+                    f"✅ [TOOL] Successfully cleared job {job_id}: {total_cleared} total entries"
+                )
 
             return {
                 "operation": "clear_job_cache",
                 "project_id": str(project_id),
                 "job_id": str(job_id),
                 "cleared_counts": counts,
-                "total_cleared": sum(counts.values()) if "error" not in counts else 0,
+                "total_cleared": total_cleared,
                 "status": "success" if "error" not in counts else "error",
                 "mcp_info": get_mcp_info("clear_job_cache"),
             }
