@@ -345,19 +345,15 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     debug_print(f"📊 Generic parser found {len(errors)} errors")
 
-                # Group errors by file and filter out system files
+                # Optimize error processing: group by file path first to reduce processing
                 debug_print(
                     f"🔍 Processing {len(errors)} errors for file grouping and filtering..."
                 )
-                file_groups: dict[str, dict[str, Any]] = {}
-                filtered_errors: list[
-                    dict[str, Any]
-                ] = []  # Track errors after filtering system files
 
-                for error_index, error in enumerate(errors):
-                    verbose_debug_print(
-                        f"🔍 Processing error {error_index + 1}/{len(errors)}"
-                    )
+                # Pre-group errors by file path for efficient processing
+                path_to_errors: dict[str, list] = {}
+
+                for error in errors:
                     message = (
                         error.get("exception_message", "")
                         or error.get("message", "")
@@ -376,65 +372,81 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     if not file_path:
                         file_path = error.get("file_path", "unknown") or "unknown"
 
-                    verbose_debug_print(f"📁 Extracted file path: {file_path}")
+                    if file_path not in path_to_errors:
+                        path_to_errors[file_path] = []
+                    path_to_errors[file_path].append(error)
 
-                    # Enhanced filtering: check detail_json for additional file context
-                    # Don't filter if we have valuable error context even if file_path extraction failed
+                # Now process each file path once instead of each error individually
+                file_groups: dict[str, dict[str, Any]] = {}
+                filtered_errors: list[dict[str, Any]] = []
+                processed_files = 0
+
+                for file_path, errors_for_file in path_to_errors.items():
+                    processed_files += 1
+                    if processed_files % 50 == 0:  # Less verbose logging
+                        debug_print(
+                            f"🔍 Processing file {processed_files}/{len(path_to_errors)}: {file_path}"
+                        )
+
+                    # Check filtering once per file instead of per error
                     should_filter = False
                     if not disable_file_filtering:
-                        # If we have a valid file path, check if it should be excluded
                         if file_path != "unknown":
                             should_filter = should_exclude_file_path(
                                 file_path, exclude_patterns
                             )
                         else:
-                            # For "unknown" file paths, check if detail_json contains valuable context
-                            # If error has detailed context (like SyntaxError with traceback), keep it
-                            error_context = error.get("context", "")
-                            error_level = error.get("level", "")
-                            error_msg = message.lower()
+                            # For "unknown" file paths, check if any error has valuable context
+                            has_valuable_context = False
+                            for error in errors_for_file:
+                                error_context = error.get("context", "")
+                                error_level = error.get("level", "")
+                                error_msg = (
+                                    error.get("exception_message", "")
+                                    or error.get("message", "")
+                                ).lower()
 
-                            # Keep errors with valuable context even if file path extraction failed
-                            has_valuable_context = (
-                                "syntaxerror" in error_msg
-                                or "traceback" in error_context.lower()
-                                or 'file "' in error_context.lower()
-                                or error_level == "error"
-                            )
+                                if (
+                                    "syntaxerror" in error_msg
+                                    or "traceback" in error_context.lower()
+                                    or 'file "' in error_context.lower()
+                                    or error_level == "error"
+                                ):
+                                    has_valuable_context = True
+                                    break
 
-                            # Only filter "unknown" file paths if they lack valuable context
                             should_filter = not has_valuable_context
 
                     if should_filter:
                         verbose_debug_print(
-                            f"🚫 Filtering out error from {file_path} (excluded path)"
+                            f"🚫 Filtering out {len(errors_for_file)} errors from {file_path} (excluded path)"
                         )
-                        continue  # Skip this error if the file should be excluded
+                        continue  # Skip all errors from this file
 
-                    verbose_debug_print(f"✅ Keeping error from {file_path}")
+                    verbose_debug_print(
+                        f"✅ Keeping {len(errors_for_file)} errors from {file_path}"
+                    )
 
-                    # CRITICAL FIX: Update error dictionary with extracted file path for storage
-                    # The ErrorRecord.from_parsed_error expects 'file' and 'line' fields
-                    error["file"] = file_path
-                    if error.get("line_number"):
-                        try:
-                            error["line"] = int(error["line_number"])
-                        except (ValueError, TypeError):
+                    # Process all errors for this file
+                    file_groups[file_path] = {
+                        "file_path": file_path,
+                        "error_count": len(errors_for_file),
+                        "errors": [],
+                    }
+
+                    for error in errors_for_file:
+                        # Update error dictionary with extracted file path for storage
+                        error["file"] = file_path
+                        if error.get("line_number"):
+                            try:
+                                error["line"] = int(error["line_number"])
+                            except (ValueError, TypeError):
+                                error["line"] = 0
+                        else:
                             error["line"] = 0
-                    else:
-                        error["line"] = 0
 
-                    # Keep this error since it's from an application file (or filtering is disabled)
-                    filtered_errors.append(error)
-
-                    if file_path not in file_groups:
-                        file_groups[file_path] = {
-                            "file_path": file_path,
-                            "error_count": 0,
-                            "errors": [],
-                        }
-                    file_groups[file_path]["error_count"] += 1
-                    file_groups[file_path]["errors"].append(error)
+                        filtered_errors.append(error)
+                        file_groups[file_path]["errors"].append(error)
 
                 # Print filtering results
                 original_error_count = len(errors)

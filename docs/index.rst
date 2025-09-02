@@ -16,7 +16,7 @@ GitLab Pipeline Analyzer MCP Server Documentation
 Overview
 --------
 
-The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 10 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
+The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 12 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
 
 Key Features
 ------------
@@ -69,7 +69,7 @@ Key Features
 Architecture
 ------------
 
-The MCP server follows a streamlined architecture with 10 focused tools and 13+ intelligent prompts:
+The MCP server follows a streamlined architecture with 12 focused tools and 13+ intelligent prompts:
 
 **Core Tools:**
 1. **Pipeline Analysis** - ``failed_pipeline_analysis`` with intelligent parsing

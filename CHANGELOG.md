@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.6.2] - 2025-09-02
+
+### ✨ **Enhanced Features**
+
+- **Trace Content Support**: Fixed `include_trace=true` parameter to properly return trace excerpts in file resource responses
+- **Fixing Mode Enhancement**: The "fixing" mode now automatically includes trace context for better debugging
+- **Improved Error Analysis**: Added trace excerpts from stored trace segments when analyzing specific files
+
+### 🐛 **Bug Fixes**
+
+- **File Resource Trace**: Fixed `get_file_resource_with_trace` function to actually include trace content when requested
+- **Performance Optimization**: Implemented duplicate error filtering in failed pipeline analysis for better performance
+- **Test Improvements**: Enhanced file resource tests and updated project ID references for consistency
+
+### 🔧 **Technical Improvements**
+
+- **Documentation**: Updated resource handler documentation to reflect proper trace support
+- **Code Quality**: Applied consistent formatting and resolved linting issues
+- **Tool Count**: Now includes 12 essential tools for GitLab CI/CD pipeline analysis
+
 ## [0.6.1] - 2025-09-01
 
 ### 🔧 **Technical Improvements**

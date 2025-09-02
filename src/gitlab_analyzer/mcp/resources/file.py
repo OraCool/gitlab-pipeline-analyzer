@@ -52,6 +52,17 @@ async def get_file_resource_with_trace(
             enhanced_error = db_error.copy()
             enhanced_error["source"] = "database"
 
+            # Include trace content if requested and available
+            if include_trace_str == "true":
+                # Get trace excerpt for this specific error
+                error_id = db_error.get("error_id")
+                if error_id:
+                    trace_excerpt = cache_manager.get_job_trace_excerpt(
+                        int(job_id), error_id
+                    )
+                    if trace_excerpt:
+                        enhanced_error["trace_excerpt"] = trace_excerpt
+
             # Generate fix guidance if requested
             if mode == "fixing":
                 from gitlab_analyzer.utils.utils import _generate_fix_guidance
@@ -68,6 +79,16 @@ async def get_file_resource_with_trace(
                 enhanced_error["fix_guidance"] = _generate_fix_guidance(
                     fix_guidance_error
                 )
+
+                # For fixing mode, also include trace context if not already included
+                if include_trace_str != "true":
+                    error_id = db_error.get("error_id")
+                    if error_id:
+                        trace_excerpt = cache_manager.get_job_trace_excerpt(
+                            int(job_id), error_id
+                        )
+                        if trace_excerpt:
+                            enhanced_error["trace_excerpt"] = trace_excerpt
 
             all_errors.append(enhanced_error)
 
@@ -469,11 +490,11 @@ def register_file_resources(mcp) -> None:
         project_id: str, job_id: str, file_path: str, mode: str, include_trace: str
     ) -> TextResourceContents:
         """
-        Get file analysis with enhanced error information from database only.
+        Get file analysis with enhanced error information from database.
 
         Args:
             mode: Analysis mode (minimal, balanced, fixing, full)
-            include_trace: Whether to include trace context (true/false) - Currently ignored as we use database only
+            include_trace: Whether to include trace context (true/false) - retrieves stored trace segments
         """
         result = await get_file_resource_with_trace(
             project_id, job_id, file_path, mode, include_trace

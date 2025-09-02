@@ -154,7 +154,7 @@ Usage Examples
 Prompt Integration with Tools
 -----------------------------
 
-All prompts are designed to work seamlessly with the MCP server's 10 core tools:
+All prompts are designed to work seamlessly with the MCP server's 12 core tools:
 
 - **failed_pipeline_analysis** - Core analysis engine
 - **search_repository_code** - Code investigation support

@@ -6,7 +6,7 @@
 
 ## Overview
 
-The GitLab Pipeline Analyzer MCP Server provides **10 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
+The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
 
 For complete documentation with detailed parameters, examples, and usage patterns, see the [Tools and Resources Reference](tools_and_resources.rst).
 
@@ -275,7 +275,7 @@ result = await client.call_tool("get_mcp_resource", {
 
 ## Migration from Legacy Tools
 
-The streamlined architecture replaces 15+ legacy tools with **10 focused tools + comprehensive resources**:
+The streamlined architecture replaces 15+ legacy tools with **12 focused tools + comprehensive resources**:
 
 - **All analysis tools** → `failed_pipeline_analysis` + resource access
 - **All search functionality** → `search_repository_code` and `search_repository_commits`
