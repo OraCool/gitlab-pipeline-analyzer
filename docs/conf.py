@@ -19,11 +19,12 @@ project = "GitLab Pipeline Analyzer"
 project_copyright = "2025, Siarhei Skuratovich"
 author = "Siarhei Skuratovich"
 
-# The version info
-# The short X.Y version
-version = "0.7.1"
+# The version info for the project you're documenting, acts as replacement for
+# |version| and |release|, also used in various other places throughout the
+# built documents.
+version = "0.7.2"
 # The full version, including alpha/beta/rc tags
-release = "0.7.1"
+release = "0.7.2"
 
 # -- General configuration ---------------------------------------------------
 

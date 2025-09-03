@@ -1,6 +1,33 @@
-# Changelog
+# Chang## [Unreleased]
 
-All notable changes to this project will be documented in this file.
+### 🚀 **Planned Enhancements**
+
+- Additional prompt templates for specialized workflows
+- Enhanced error analysis with machine learning insights
+- Expanded GitLab integration features
+
+## [0.7.2] - 2025-09-03
+
+### 🔧 **Bug Fixes & Improvements**
+
+- **Enhanced Line Number Extraction**: Improved log parser with comprehensive file:line pattern matching
+- **User Code Prioritization**: Added prioritization of user code over system files in error analysis
+- **Regex Pattern Improvements**: Enhanced regex patterns to support full directory paths and better accuracy
+- **Parser Accuracy**: Significantly improved accuracy for both error and warning-level log entries
+
+### 🐛 **Fixed Issues**
+
+- Fixed trace parsing where ANSI sequences weren't properly cleaned
+- Resolved issues with parser extracting trace log line numbers instead of actual Python file line numbers
+- Improved handling of different error patterns across diverse pipeline scenarios
+
+### 📊 **Validation**
+
+- Comprehensive testing across 4 different pipelines (1,012 total errors processed)
+- Systematic per-job validation for enhanced reliability
+- Enhanced support for diverse error patterns and complexity levels
+
+## [0.7.1] - 2025-09-03 notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -12,6 +39,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Additional prompt templates for specialized workflows
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
+
+## [0.7.2] - 2025-01-11
+
+### 🐛 **Bug Fixes**
+
+- **Enhanced Log Parser**: Improved line number extraction from CI/CD traces with comprehensive file:line pattern matching
+- **User Code Prioritization**: Added prioritization of user code files over system library files in error reporting
+- **Multiple File Pattern Support**: Enhanced support for different file path formats and full directory paths in error messages
+- **Improved Warning Detection**: Better accuracy for warning-level log entries with enhanced pattern matching
+
+### 💻 **Technical Improvements**
+
+- **Parser Accuracy**: Enhanced regex patterns in log_parser.py for better file path and line number extraction
+- **Error Classification**: Improved categorization of errors vs warnings with more precise pattern matching
+- **Context Extraction**: Better context preservation around error messages for debugging
 
 ## [0.7.1] - 2025-09-03
 
