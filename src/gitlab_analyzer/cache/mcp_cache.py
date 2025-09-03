@@ -983,11 +983,18 @@ class McpCache:
                 error_data = {
                     "error_id": row[0],
                     "fingerprint": row[1],
+                    # Map database fields to expected response field names
                     "exception": row[2],
+                    "exception_type": row[2],  # Map 'exception' to 'exception_type'
                     "message": row[3],
+                    "exception_message": row[3],  # Map 'message' to 'exception_message'
                     "file": row[4],
+                    "file_path": row[4],  # Map 'file' to 'file_path'
                     "line": row[5],
+                    "line_number": row[5],  # Map 'line' to 'line_number'
                     "error_type": row[7],  # Added error_type field
+                    "category": row[7]
+                    or "unknown",  # Map error_type to category as well
                 }
                 # Parse detail JSON safely
                 try:

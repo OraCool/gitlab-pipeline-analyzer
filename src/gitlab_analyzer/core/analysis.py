@@ -291,7 +291,11 @@ def parse_pytest_logs(
                 "test_function": failure.test_function or "unknown",
                 "exception_type": failure.exception_type or "Unknown",
                 "message": failure.exception_message or "No message",
-                "line_number": getattr(failure, "line_number", None),
+                "line_number": (
+                    failure.traceback[0].line_number
+                    if failure.traceback and failure.traceback[0].line_number
+                    else None
+                ),
                 "has_traceback": bool(failure.traceback and include_traceback),
             }
 

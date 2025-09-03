@@ -1108,6 +1108,27 @@ def register_file_resources(mcp) -> None:
             f"gl://file/{project_id}/pipeline/{pipeline_id}/{file_path}", result
         )
 
+    @mcp.resource(
+        "gl://file/{project_id}/pipeline/{pipeline_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}"
+    )
+    async def get_pipeline_file_trace_resource_handler_with_params(
+        project_id: str, pipeline_id: str, file_path: str, mode: str, include_trace: str
+    ) -> TextResourceContents:
+        """
+        Get errors with trace for a specific file across all jobs in a pipeline.
+        This handles the /trace suffix with configurable mode and trace parameters.
+        """
+        # Parse include_trace parameter
+        include_trace_bool = str(include_trace or "true").lower() == "true"
+
+        result = await get_pipeline_file_errors_resource(
+            project_id, pipeline_id, file_path, mode or "fixing", include_trace_bool
+        )
+        return create_text_resource(
+            f"gl://file/{project_id}/pipeline/{pipeline_id}/{file_path}/trace?mode={mode}&include_trace={include_trace}",
+            result,
+        )
+
     @mcp.resource("gl://file/{project_id}/pipeline/{pipeline_id}/{file_path}/trace")
     async def get_pipeline_file_trace_resource_handler(
         project_id: str, pipeline_id: str, file_path: str
@@ -1115,6 +1136,7 @@ def register_file_resources(mcp) -> None:
         """
         Get errors with trace for a specific file across all jobs in a pipeline.
         This handles the /trace suffix explicitly with default fixing mode.
+        Fallback for URIs without query parameters.
         """
         # For trace requests, use fixing mode and enable trace by default
         result = await get_pipeline_file_errors_resource(

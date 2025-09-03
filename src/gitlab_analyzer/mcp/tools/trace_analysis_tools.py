@@ -171,16 +171,22 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
                     error_detail = {
                         "message": f"Test failure in {failure.test_function}",
                         "level": "error",
-                        "line_number": failure.line_number,
+                        "line_number": (
+                            failure.traceback[0].line_number
+                            if failure.traceback and failure.traceback[0].line_number
+                            else None
+                        ),
                         "error_type": "test_failure",
                         "test_file": failure.test_file,
                         "test_function": failure.test_function,
-                        "failure_reason": failure.failure_reason,
+                        "failure_reason": getattr(
+                            failure, "failure_reason", failure.exception_message
+                        ),
                         "categorization": {
                             "category": "Test Failure",
                             "severity": "high",
                             "description": "Pytest test execution failed",
-                            "details": f"Test '{failure.test_function}' in '{failure.test_file}' failed: {failure.failure_reason}",
+                            "details": f"Test '{failure.test_function}' in '{failure.test_file}' failed: {getattr(failure, 'failure_reason', failure.exception_message)}",
                             "solution": "Review test output and fix the failing test or code",
                             "impact": "Code quality issues, potential bugs",
                         },
@@ -188,11 +194,31 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
 
                     if include_context and failure.traceback:
                         error_detail["traceback"] = {
-                            "file_path": failure.traceback.file_path,
-                            "line_number": failure.traceback.line_number,
-                            "function_name": failure.traceback.function_name,
-                            "code_context": failure.traceback.code_context,
-                            "error_message": failure.traceback.error_message,
+                            "file_path": (
+                                failure.traceback[0].file_path
+                                if failure.traceback
+                                else failure.test_file
+                            ),
+                            "line_number": (
+                                failure.traceback[0].line_number
+                                if failure.traceback
+                                else None
+                            ),
+                            "function_name": (
+                                failure.traceback[0].function_name
+                                if failure.traceback
+                                else failure.test_function
+                            ),
+                            "code_context": (
+                                failure.traceback[0].code_line
+                                if failure.traceback
+                                else None
+                            ),
+                            "error_message": (
+                                failure.traceback[0].error_message
+                                if failure.traceback
+                                else failure.exception_message
+                            ),
                         }
 
                     pytest_errors.append(error_detail)

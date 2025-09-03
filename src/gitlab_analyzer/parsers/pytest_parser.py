@@ -53,10 +53,10 @@ class PytestLogParser(BaseParser):
 
     @classmethod
     def _extract_detailed_failures(cls, log_text: str) -> list[PytestFailureDetail]:
-        """Extract detailed test failures from ALL FAILURES sections"""
+        """Extract detailed test failures from ALL FAILURES sections AND collection errors from ERRORS sections"""
         failures: list[PytestFailureDetail] = []
 
-        # Find ALL FAILURES sections using finditer instead of search
+        # Extract from FAILURES sections
         failures_pattern = r"=+\s*FAILURES\s*=+(.*?)(?:=+\s*(?:short test summary info|ERRORS|={20,}|$))"
         failures_matches = re.finditer(
             failures_pattern, log_text, re.DOTALL | re.IGNORECASE
@@ -82,6 +82,41 @@ class PytestLogParser(BaseParser):
                     )
                     if failure_detail:
                         failures.append(failure_detail)
+
+        # Extract from ERRORS sections (collection errors, import errors, etc.)
+        errors_pattern = r"=+\s*ERRORS\s*=+(.*?)(?:=+\s*(?:short test summary info|FAILURES|={20,}|$))"
+        errors_matches = re.finditer(
+            errors_pattern, log_text, re.DOTALL | re.IGNORECASE
+        )
+
+        for errors_match in errors_matches:
+            errors_section = errors_match.group(1)
+
+            # Collection errors have format: _ ERROR collecting path/to/test_file.py _
+            error_pattern = r"_\s*ERROR\s+collecting\s+(.+?)\s+_"
+            error_matches = re.finditer(error_pattern, errors_section)
+
+            for error_match in error_matches:
+                test_file_path = error_match.group(1).strip()
+
+                # Extract the content after this error header until the next error or end
+                start_pos = error_match.end()
+                next_error_match = re.search(
+                    r"_\s*ERROR\s+collecting", errors_section[start_pos:]
+                )
+
+                if next_error_match:
+                    end_pos = start_pos + next_error_match.start()
+                    error_content = errors_section[start_pos:end_pos]
+                else:
+                    error_content = errors_section[start_pos:]
+
+                # Parse collection error as a failure
+                collection_failure = cls._parse_collection_error(
+                    test_file_path, error_content
+                )
+                if collection_failure:
+                    failures.append(collection_failure)
 
         return failures
 
@@ -215,6 +250,98 @@ class PytestLogParser(BaseParser):
             test_parameters=test_parameters,
             platform_info=platform_info,
             python_version=python_version,
+            exception_type=exception_type,
+            exception_message=exception_message,
+            traceback=traceback,
+            full_error_text=content,
+        )
+
+    @classmethod
+    def _parse_collection_error(
+        cls, test_file_path: str, content: str
+    ) -> PytestFailureDetail | None:
+        """Parse a collection error (import errors, syntax errors during test collection)"""
+
+        # Extract the actual error from the content
+        # Look for Python traceback with the actual error location
+        # Use pytest format: file.py:line: in function
+        traceback_pattern = r"([^:\s]+\.py):(\d+): in (.+)"
+        traceback_matches = re.findall(traceback_pattern, content)
+
+        # Find the error in the test file itself (not in system/library files)
+        actual_error_file = None
+        actual_error_line = None
+
+        for file_path, line_num, _function_name in traceback_matches:
+            # The test file path should match or be contained in the file_path
+            if test_file_path in file_path or file_path.endswith(
+                test_file_path.split("/")[-1]
+            ):
+                actual_error_file = file_path
+                actual_error_line = int(line_num)
+                break
+
+        # If no specific line found in test file, use the last traceback entry (usually the actual source)
+        if not actual_error_file and traceback_matches:
+            actual_error_file = traceback_matches[-1][0]
+            actual_error_line = int(traceback_matches[-1][1])
+
+        # Extract exception type and message
+        exception_patterns = [
+            r"(\w+Error): (.+?)(?:\n|$)",
+            r"(\w+Exception): (.+?)(?:\n|$)",
+        ]
+
+        exception_type = "CollectionError"
+        exception_message = "Failed to collect test"
+
+        for pattern in exception_patterns:
+            exception_match = re.search(pattern, content, re.MULTILINE)
+            if exception_match:
+                exception_type = exception_match.group(1)
+                exception_message = exception_match.group(2).strip()
+                break
+
+        # Parse traceback for collection errors
+        traceback = cls._parse_traceback(content)
+
+        # Override traceback to ensure correct line number for the actual error
+        # For collection errors, create a prioritized traceback with the actual error location first
+        if actual_error_file and actual_error_line:
+            # Create a new traceback entry for the actual error location
+            actual_error_entry = None
+
+            # Look for existing traceback entry that matches our error location
+            for tb_entry in traceback:
+                if (
+                    tb_entry.file_path == actual_error_file
+                    and tb_entry.line_number == actual_error_line
+                ):
+                    actual_error_entry = tb_entry
+                    break
+
+            # If no matching entry found, create one
+            if not actual_error_entry:
+                actual_error_entry = PytestTraceback(
+                    file_path=actual_error_file,
+                    line_number=actual_error_line,
+                    function_name="<module>",  # Collection errors are at module level
+                    code_line=None,  # We don't have the actual code line
+                    error_type=exception_type,
+                    error_message=exception_message,
+                )
+
+            # Put the actual error location first in the traceback
+            other_entries = [tb for tb in traceback if tb != actual_error_entry]
+            traceback = [actual_error_entry] + other_entries
+
+        return PytestFailureDetail(
+            test_name=f"Collection error in {test_file_path.split('/')[-1]}",
+            test_file=actual_error_file or test_file_path,
+            test_function="<module>",  # Collection errors happen at module level
+            test_parameters=None,
+            platform_info=None,
+            python_version=None,
             exception_type=exception_type,
             exception_message=exception_message,
             traceback=traceback,

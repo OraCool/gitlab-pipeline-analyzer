@@ -1067,8 +1067,9 @@ def _extract_pytest_errors(log_text: str) -> dict:
             errors.append(
                 {
                     "line_number": (
-                        getattr(failure.traceback[0], "line_number", None)
+                        failure.traceback[0].line_number
                         if failure.traceback
+                        and hasattr(failure.traceback[0], "line_number")
                         else None
                     ),
                     "exception_type": failure.exception_type,

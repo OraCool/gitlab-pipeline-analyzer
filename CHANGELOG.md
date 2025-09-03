@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.7.1] - 2025-09-03
+
+### 📚 **Documentation Improvements**
+
+- **Complete Environment Variables Documentation**: Added comprehensive documentation for all environment variables in README.md
+- **Auto-Cleanup Configuration**: Added missing documentation for `MCP_AUTO_CLEANUP_ENABLED`, `MCP_AUTO_CLEANUP_INTERVAL_MINUTES`, and `MCP_AUTO_CLEANUP_MAX_AGE_HOURS`
+- **Transport Configuration**: Added missing `MCP_TRANSPORT` environment variable documentation
+- **Debug Configuration**: Added missing `MCP_DEBUG_LEVEL` environment variable documentation
+- **Organized Configuration**: Restructured environment variables with clear categories (Required, Database, Transport, Auto-Cleanup, Debug)
+
+### ✨ **Enhanced Features**
+
+- **Improved Pytest Parser**: Enhanced pytest trace parsing with better error detection and categorization
+- **Enhanced File Resource Handling**: Improved file resource retrieval with better pipeline support and error handling
+- **Better Trace Analysis**: Enhanced trace analysis tools with improved error extraction and formatting
+
+### 🔧 **Technical Improvements**
+
+- **Code Formatting**: Applied consistent code formatting across all Python files
+- **Enhanced Logging**: Improved debug and error logging throughout the application
+- **Tool Count**: Maintains 12 comprehensive tools for GitLab CI/CD pipeline analysis
+
+### 📊 **Quality Metrics**
+
+- **Test Coverage**: 65.99% overall coverage (exceeding 65% requirement)
+- **Test Count**: 444 comprehensive tests (all passing)
+- **Code Quality**: All linting, type checking, and security checks passing
+- **Zero Security Issues**: Clean security audit with intentional suppressions documented
+
 ## [0.7.0] - 2025-09-02
 
 ### 🚀 **New Features**

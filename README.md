@@ -75,6 +75,7 @@ pip install -e .
 Set the following environment variables:
 
 ```bash
+# Required: GitLab connection settings
 export GITLAB_URL="https://gitlab.com" # Your GitLab instance URL
 export GITLAB_TOKEN="your-access-token" # Your GitLab personal access token
 
@@ -82,9 +83,18 @@ export GITLAB_TOKEN="your-access-token" # Your GitLab personal access token
 export MCP_DATABASE_PATH="analysis_cache.db" # Path to SQLite database (default: analysis_cache.db)
 
 # Optional: Configure transport settings
+export MCP_TRANSPORT="stdio" # Transport protocol: stdio, http, sse (default: stdio)
 export MCP_HOST="127.0.0.1" # Host for HTTP/SSE transport (default: 127.0.0.1)
 export MCP_PORT="8000" # Port for HTTP/SSE transport (default: 8000)
 export MCP_PATH="/mcp" # Path for HTTP transport (default: /mcp)
+
+# Optional: Configure automatic cache cleanup
+export MCP_AUTO_CLEANUP_ENABLED="true" # Enable automatic cleanup (default: true)
+export MCP_AUTO_CLEANUP_INTERVAL_MINUTES="60" # Cleanup interval in minutes (default: 60)
+export MCP_AUTO_CLEANUP_MAX_AGE_HOURS="24" # Max age before cleanup in hours (default: 24)
+
+# Optional: Configure debug output
+export MCP_DEBUG_LEVEL="0" # Debug level: 0=none, 1=basic, 2=verbose, 3=very verbose (default: 0)
 ```
 
 `````
