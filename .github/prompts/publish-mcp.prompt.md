@@ -209,6 +209,48 @@ echo "- Dependencies saved to: /tmp/current_deps.txt"
 cat /tmp/current_tools.txt
 ```
 
+#### 4.1.1 Environment Variables Documentation Validation
+
+**CRITICAL**: Ensure all environment variables used in the code are documented in README.md:
+
+**Step 1: Extract environment variables from codebase**
+
+```bash
+# Extract all environment variables used in code
+echo "🔍 Environment variables found in codebase:" > /tmp/env_vars_code.txt
+fd -t f -e py -E tests -E __pycache__ . src/ -x rg -o "os\.getenv\(['\"]([^'\"]+)['\"]" -r '$1' | sort -u >> /tmp/env_vars_code.txt
+rg -o "environ\.get\(['\"]([^'\"]+)['\"]" -r '$1' src/ | sort -u >> /tmp/env_vars_code.txt
+
+# Show unique environment variables
+sort /tmp/env_vars_code.txt | uniq
+```
+
+**Step 2: Check environment variables in README.md**
+
+```bash
+# Extract environment variables documented in README.md
+echo "📖 Environment variables documented in README.md:" > /tmp/env_vars_readme.txt
+rg -o "export ([A-Z_]+)=" -r '$1' README.md | sort -u >> /tmp/env_vars_readme.txt
+
+# Show documented variables
+cat /tmp/env_vars_readme.txt
+```
+
+**Step 3: Compare and validate**
+
+```bash
+# Show environment variables that might be missing from README
+echo "⚠️  Checking for undocumented environment variables..."
+UNDOCUMENTED=$(comm -23 <(sort /tmp/env_vars_code.txt | uniq) <(sort /tmp/env_vars_readme.txt | uniq))
+if [ -n "$UNDOCUMENTED" ]; then
+  echo "❌ Environment variables missing from README.md:"
+  echo "$UNDOCUMENTED"
+  echo "Please update README.md environment variables section"
+else
+  echo "✅ All environment variables are documented in README.md"
+fi
+```
+
 ````
 
 #### 4.2 Update Documentation Files
@@ -499,10 +541,34 @@ echo "✅ Documentation validation passed"
   - ✅ Test and Quality Checks job must pass
   - ✅ Build Package job must pass
   - ✅ Publish to TestPyPI job should complete (auto-triggered on main push)
+
+**Monitor workflows using GitHub CLI**:
+
+```bash
+# Check recent workflow runs (avoids editor issues)
+GH_PAGER=cat gh run list --limit 5
+
+# Wait for workflows to complete and check again
+sleep 30 && GH_PAGER=cat gh run list --limit 5
+
+# Check specific workflow by name
+GH_PAGER=cat gh run list --workflow="CI/CD Pipeline" --limit 3
+```
+
 - [ ] **If pipeline fails**:
   - Analyze failure logs in GitHub Actions
   - Fix issues locally
   - Push fixes and wait for pipeline to pass
+
+**View detailed workflow run information**:
+
+```bash
+# Get workflow run ID from the list above, then view details
+GH_PAGER=cat gh run view [WORKFLOW_RUN_ID]
+
+# Example: GH_PAGER=cat gh run view 17435817326
+# This shows job status, artifacts, and any annotations
+```
 
 ### 7. 🏷️ Create Release Tag
 
@@ -518,25 +584,68 @@ echo "✅ Documentation validation passed"
 
 The tag push will automatically trigger:
 
-- [ ] **Production PyPI publication** (via `release.yml` workflow)
+- [ ] **Production PyPI publication** (via `ci-cd.yml` workflow when tag is pushed)
 - [ ] **GitHub Release creation** with:
   - Release notes from CHANGELOG.md
   - Automatic release notes generation
   - Links to PyPI package
+
+**Monitor tag-triggered workflows**:
+
+```bash
+# Wait for tag workflows to start and complete
+sleep 10 && GH_PAGER=cat gh run list --limit 3
+
+# Check for release creation
+GH_PAGER=cat gh release list --limit 3
+
+# View release details
+GH_PAGER=cat gh release view v[X.Y.Z]
+```
+
 - [ ] **Verify successful publication**:
-  - Check [PyPI package page](https://pypi.org/project/gitlab-pipeline-analyzer/)
-  - Confirm new version is live
-  - Test installation: `pip install gitlab-pipeline-analyzer==[X.Y.Z]`
+
+**Check PyPI publication**:
+
+```bash
+# Verify PyPI publication using uv/python
+curl -s "https://pypi.org/pypi/gitlab-pipeline-analyzer/json" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Latest version: {data[\"info\"][\"version\"]}')
+print(f'Release date: {data[\"releases\"][data[\"info\"][\"version\"]][0][\"upload_time\"]}')
+print(f'PyPI URL: {data[\"info\"][\"project_url\"]}')
+"
+
+# Test installation with uv (recommended)
+uv pip install gitlab-pipeline-analyzer==[X.Y.Z]
+
+# Alternative: Test with pip
+pip install gitlab-pipeline-analyzer==[X.Y.Z]
+```
+
+**Check GitHub Release**:
+
+```bash
+# Verify GitHub release was created
+GH_PAGER=cat gh release view v[X.Y.Z]
+
+# Check that CI/CD workflow completed successfully for the tag
+GH_PAGER=cat gh run list --branch="v[X.Y.Z]" --limit 3
+```
 
 ## ⚠️ Important Notes
 
 - **Never skip quality checks** - they prevent broken releases
 - **Never skip documentation validation** - README.md is the primary PyPI documentation
+- **Environment variables must be documented** - All variables used in code must be in README.md
 - **TestPyPI publication happens on every main push** - use for testing
 - **Production PyPI publication only happens on version tags** - no rollbacks!
+- **CI/CD workflow handles both TestPyPI and PyPI** - separate `release.yml` is not used for tag-based releases
 - **GitHub Release is automatic** - manual editing available post-creation
 - **Version must follow semver strictly** - tools and CI depend on it
 - **Tool count and descriptions must be current** - users rely on accurate documentation for feature discovery
+- **Use GitHub CLI with GH_PAGER=cat** - prevents editor issues when monitoring workflows
 - **🚨 TERMINAL PERFORMANCE**: All bash scripts have been broken into small steps to prevent terminal freezing
 - **📋 STEP-BY-STEP EXECUTION**: Run each code block separately - do not combine multiple steps into single terminal commands
 
@@ -546,17 +655,24 @@ The tag push will automatically trigger:
 - **Build failing**: Verify `pyproject.toml` syntax, check dependencies
 - **PyPI publication failing**: Check for version conflicts, ensure unique version number
 - **GitHub Actions stuck**: Check workflow permissions, secrets, and API limits
+- **GitHub CLI issues**:
+  - If `gh` commands open editor: Use `GH_PAGER=cat` prefix to disable pager
+  - If workflows not visible: Check repository permissions and authentication
+  - If commands fail: Ensure GitHub CLI is installed and authenticated (`gh auth status`)
 - **Documentation out of sync**: Run tool validation commands, update README.md tool lists and examples
+- **Environment variables undocumented**: Use environment variable validation commands to find missing variables in README.md
 - **Sphinx documentation build failing**:
   - Check for missing dependencies: `pip install sphinx sphinx_rtd_theme myst_parser`
   - Verify all referenced files exist (broken :doc: links)
   - Check RST syntax errors in .rst files
   - Ensure all new tools are documented in docs/mcp_tools.rst
+  - Update version in `docs/conf.py` to match `pyproject.toml`
 - **Tool count mismatches**:
   - Run tool counting validation: actual vs README.md vs docs/mcp_tools.rst
   - Update all three locations: codebase, README.md, and docs/
   - Verify new tools have proper @mcp.tool decorators
 - **PyPI page looks outdated**: README.md is cached by PyPI, may take a few minutes to update after publication
+- **Workflow monitoring**: Use GitHub CLI commands with proper pager settings to avoid terminal issues
 
 ## 📦 Project Context
 
