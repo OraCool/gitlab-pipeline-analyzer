@@ -322,10 +322,67 @@ class LogParser(BaseParser):
                             break  # Skip duplicate
                         processed_pytest_details.add(test_key)
 
+                    # Extract actual Python file line number if available
+                    actual_line_number = line_num  # Default to trace line number
+
+                    # Look for Python file:line patterns in the current line or context
+                    file_line_patterns = [
+                        r'^\s*File\s+"([^"]+)",\s+line\s+(\d+)',  # Python traceback format
+                        r"^\s*([^:\s]+):(\d+):\s*in\s+",  # Ruby/pytest format
+                        r"^\s*([^:\s]+):(\d+):\s*",  # Generic file:line format
+                        r"^\s*([^:\s]+):\s*line\s+(\d+)",  # Alternative format
+                    ]
+
+                    for pattern in file_line_patterns:
+                        file_match = re.search(pattern, log_line)
+                        if file_match and len(file_match.groups()) >= 2:
+                            # Prefer user code over system files
+                            file_path = file_match.group(1)
+                            if not any(
+                                sys_path in file_path
+                                for sys_path in [
+                                    "/root/.local/share/uv/python/",
+                                    "site-packages",
+                                    "/usr/lib",
+                                ]
+                            ):
+                                try:
+                                    actual_line_number = int(file_match.group(2))
+                                    break
+                                except (ValueError, IndexError):
+                                    pass
+
+                    # If no line number found in current line, check context for user code
+                    if actual_line_number == line_num:
+                        context_lines = cls._get_context(lines, line_num)
+                        for ctx_line in context_lines.split("\n"):
+                            for pattern in file_line_patterns:
+                                file_match = re.search(pattern, ctx_line)
+                                if file_match and len(file_match.groups()) >= 2:
+                                    file_path = file_match.group(1)
+                                    # Prefer user code over system files
+                                    if not any(
+                                        sys_path in file_path
+                                        for sys_path in [
+                                            "/root/.local/share/uv/python/",
+                                            "site-packages",
+                                            "/usr/lib",
+                                        ]
+                                    ):
+                                        try:
+                                            actual_line_number = int(
+                                                file_match.group(2)
+                                            )
+                                            break
+                                        except (ValueError, IndexError):
+                                            pass
+                            if actual_line_number != line_num:
+                                break
+
                     entry = LogEntry(
                         level=level,
                         message=log_line,
-                        line_number=line_num,
+                        line_number=actual_line_number,
                         context=cls._get_context(lines, line_num),
                         error_type=cls.classify_error_type(log_line),
                     )
@@ -336,10 +393,30 @@ class LogParser(BaseParser):
             for pattern, level in cls.WARNING_PATTERNS:
                 match = re.search(pattern, log_line, re.IGNORECASE)
                 if match:
+                    # Extract actual Python file line number if available (same logic as errors)
+                    actual_line_number = line_num  # Default to trace line number
+
+                    # Look for Python file:line patterns
+                    file_line_patterns = [
+                        r'^\s*File\s+"([^"]+)",\s+line\s+(\d+)',  # Python traceback format
+                        r"^\s*([^:\s]+):(\d+):\s*in\s+",  # Ruby/pytest format
+                        r"^\s*([^:\s]+):(\d+):\s*",  # Generic file:line format
+                        r"^\s*([^:\s]+):\s*line\s+(\d+)",  # Alternative format
+                    ]
+
+                    for pattern_inner in file_line_patterns:
+                        file_match = re.search(pattern_inner, log_line)
+                        if file_match and len(file_match.groups()) >= 2:
+                            try:
+                                actual_line_number = int(file_match.group(2))
+                                break
+                            except (ValueError, IndexError):
+                                pass
+
                     entry = LogEntry(
                         level=level,
                         message=log_line,
-                        line_number=line_num,
+                        line_number=actual_line_number,
                         context=cls._get_context(lines, line_num),
                         error_type=cls.classify_error_type(log_line),
                     )
