@@ -270,6 +270,48 @@ MCP_PATH
     # Root path
     export MCP_PATH="/"
 
+Debug Configuration
+-------------------
+
+MCP_DEBUG_LEVEL
+~~~~~~~~~~~~~~~
+
+**Purpose**: Control debug output verbosity for troubleshooting
+
+**Default**: ``0`` (no debug output)
+
+**Values**: ``0`` | ``1`` | ``2`` | ``3``
+
+**Examples**:
+
+.. code-block:: bash
+
+    # No debug output (default)
+    export MCP_DEBUG_LEVEL="0"
+
+    # Basic debug messages
+    export MCP_DEBUG_LEVEL="1"
+
+    # Verbose debug messages
+    export MCP_DEBUG_LEVEL="2"
+
+    # Very verbose debug messages
+    export MCP_DEBUG_LEVEL="3"
+
+**Debug Levels**:
+- **0**: No debug output (production default)
+- **1**: Basic debug messages (connection info, major operations)
+- **2**: Verbose debug messages (includes API calls, cache operations)
+- **3**: Very verbose debug messages (includes detailed internal state)
+
+**Usage Guidelines**:
+- **Development**: Use levels 1-2 for development and debugging
+- **Production**: Keep at 0 unless troubleshooting issues
+- **Troubleshooting**: Use level 3 for detailed issue investigation
+- **Performance**: Higher levels may impact performance in busy environments
+
+**Security Note**: Debug output may contain sensitive information. Use carefully in production.
+
 Configuration Examples
 ----------------------
 
@@ -292,6 +334,9 @@ Development Environment
 
     # STDIO transport for Claude Desktop
     MCP_TRANSPORT="stdio"
+
+    # Enable debug output for development
+    MCP_DEBUG_LEVEL="1"
 
 Production Environment
 ~~~~~~~~~~~~~~~~~~~~~~
