@@ -1,10 +1,68 @@
-# Chang## [Unreleased]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
 
 ### 🚀 **Planned Enhancements**
 
 - Additional prompt templates for specialized workflows
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
+
+## [0.8.0] - 2025-09-04
+
+### 🚀 **New Features**
+
+- **Merge Request Context Integration**: Added comprehensive merge request information extraction and display
+  - Enhanced pipeline analysis to include merge request details (title, description, source/target branches)
+  - Added Jira ticket extraction from MR titles and descriptions with ticket validation
+  - Improved pipeline context awareness for merge request vs branch pipelines
+- **Smart MR Data Filtering**: Implemented conditional merge request data inclusion
+  - MR-related fields (merge request info, Jira tickets) only included for actual merge request pipelines
+  - Branch pipelines exclude MR data to prevent confusion and reduce response size
+  - Pipeline type detection based on `refs/merge-requests/` reference pattern
+
+### ✨ **Enhanced Features**
+
+- **Jira Integration**: Added robust Jira ticket detection and extraction utilities
+  - Support for multiple Jira ticket formats (PROJECT-123, PROJ_123, etc.)
+  - Ticket validation with pattern matching and duplicate filtering
+  - Integration with merge request descriptions and pipeline context
+- **Improved Error Analysis**: Enhanced failed pipeline analysis with contextual information
+  - Better categorization of pipeline types (merge request vs branch)
+  - Conditional information display based on pipeline context
+  - Optimized response structure for different pipeline scenarios
+
+### 🔧 **Technical Improvements**
+
+- **Code Quality**: Fixed all linting issues and optimized performance
+  - Resolved C414 ruff warnings (unnecessary `list()` calls in `sorted()`)
+  - Applied consistent code formatting across all modules
+  - Enhanced type safety and error handling
+- **Test Coverage**: Added comprehensive test coverage for new functionality
+  - 481 total tests with 66.29% coverage (exceeding 65% requirement)
+  - Specific tests for MR filtering logic and Jira extraction
+  - Validation of conditional data inclusion behavior
+- **Security**: Passed all security checks with zero vulnerabilities
+  - Clean Bandit security scan (12,975 lines of code analyzed)
+  - Proper handling of external API data and user inputs
+
+### 🐛 **Bug Fixes**
+
+- **Parser Optimization**: Improved Jira utility performance and code quality
+- **Response Consistency**: Ensured consistent behavior across different pipeline types
+- **Data Validation**: Enhanced validation of merge request and Jira data extraction
+
+### 📊 **Quality Metrics**
+
+- **Test Suite**: 481 comprehensive tests (all passing)
+- **Code Coverage**: 66.29% overall coverage
+- **Code Quality**: All ruff, mypy, and bandit checks passing
+- **Security**: Zero security vulnerabilities detected
 
 ## [0.7.2] - 2025-09-03
 

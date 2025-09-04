@@ -73,6 +73,32 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
             ),
         }
 
+        # Determine if this is a merge request pipeline
+        is_merge_request_pipeline = pipeline_db_data["ref"].startswith(
+            "refs/merge-requests/"
+        )
+
+        # Add MR information only if this is a merge request pipeline
+        mr_info = None
+        jira_tickets = []
+
+        if is_merge_request_pipeline and pipeline_db_data.get("mr_iid") is not None:
+            mr_info = {
+                "iid": pipeline_db_data.get("mr_iid"),
+                "title": pipeline_db_data.get("mr_title"),
+                "description": pipeline_db_data.get("mr_description"),
+                "author": pipeline_db_data.get("mr_author"),
+                "web_url": pipeline_db_data.get("mr_web_url"),
+            }
+
+            # Parse Jira tickets from JSON string only for MR pipelines
+            if pipeline_db_data.get("jira_tickets"):
+                from ...utils.jira_utils import parse_jira_tickets_from_storage
+
+                jira_tickets = parse_jira_tickets_from_storage(
+                    pipeline_db_data["jira_tickets"]
+                )
+
         # Get jobs data from database
         jobs_summary = await cache_manager.get_pipeline_jobs(int(pipeline_id))
 
@@ -141,6 +167,14 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
             },
             "mcp_info": get_mcp_info("pipeline_resource"),
         }
+
+        # Add MR information if available
+        if mr_info:
+            result["merge_request"] = mr_info
+
+        # Add Jira tickets if available
+        if jira_tickets:
+            result["jira_tickets"] = jira_tickets
 
         return result
 

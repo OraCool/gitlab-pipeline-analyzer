@@ -120,6 +120,13 @@ class PipelineRecord:
     updated_at: datetime | None = None
     source_branch: str | None = None  # Resolved source branch for MR pipelines
     target_branch: str | None = None  # Target branch for MR pipelines
+    # Merge Request fields
+    mr_iid: int | None = None  # Merge request IID if applicable
+    mr_title: str | None = None  # MR title
+    mr_description: str | None = None  # MR description
+    mr_author: str | None = None  # MR author username
+    mr_web_url: str | None = None  # Direct MR web URL
+    jira_tickets: str | None = None  # JSON array of Jira ticket IDs
 
     @classmethod
     def from_gitlab_pipeline(cls, pipeline_data: dict[str, Any]) -> "PipelineRecord":
@@ -145,6 +152,45 @@ class PipelineRecord:
             updated_at=updated_at,
             source_branch=pipeline_data.get("source_branch"),  # Will be resolved later
             target_branch=pipeline_data.get("target_branch"),
+        )
+
+    def with_merge_request_data(
+        self,
+        mr_overview: dict[str, Any],
+        jira_tickets: list[str] | None = None,
+    ) -> "PipelineRecord":
+        """
+        Create a new PipelineRecord with merge request data added.
+
+        Args:
+            mr_overview: MR overview data from get_merge_request_overview
+            jira_tickets: List of Jira ticket IDs extracted from MR
+
+        Returns:
+            New PipelineRecord instance with MR data populated
+        """
+        from ..utils.jira_utils import format_jira_tickets_for_storage
+
+        # Create a copy with MR data
+        return PipelineRecord(
+            # Copy existing fields
+            pipeline_id=self.pipeline_id,
+            project_id=self.project_id,
+            ref=self.ref,
+            sha=self.sha,
+            status=self.status,
+            web_url=self.web_url,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            source_branch=self.source_branch,
+            target_branch=self.target_branch,
+            # Add MR fields
+            mr_iid=mr_overview.get("iid"),
+            mr_title=mr_overview.get("title"),
+            mr_description=mr_overview.get("description"),
+            mr_author=mr_overview.get("author", {}).get("username"),
+            mr_web_url=mr_overview.get("web_url"),
+            jira_tickets=format_jira_tickets_for_storage(jira_tickets or []),
         )
 
 

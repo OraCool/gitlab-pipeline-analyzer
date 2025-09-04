@@ -115,6 +115,64 @@ class GitLabAnalyzer:
             response.raise_for_status()
             return response.json()
 
+    async def get_merge_request_overview(
+        self, project_id: str | int, merge_request_iid: int
+    ) -> dict[str, Any]:
+        """
+        Get comprehensive merge request overview with key information.
+
+        This method extracts and structures the most important MR information
+        for pipeline analysis context.
+
+        Args:
+            project_id: The GitLab project ID or path
+            merge_request_iid: The merge request IID (internal ID)
+
+        Returns:
+            Dictionary containing:
+            - iid: Merge request IID
+            - title: MR title
+            - description: MR description (may be None)
+            - author: Author information (name, username)
+            - state: MR state (opened, closed, merged)
+            - web_url: Direct link to the MR
+            - source_branch: Source branch name
+            - target_branch: Target branch name
+            - labels: List of labels
+            - milestone: Milestone information (may be None)
+            - created_at: Creation timestamp
+            - updated_at: Last update timestamp
+
+        Raises:
+            httpx.HTTPError: If GitLab API request fails
+            httpx.RequestError: If network request fails
+        """
+        # Use the existing get_merge_request method to get full data
+        mr_data = await self.get_merge_request(project_id, merge_request_iid)
+
+        # Extract and structure key information
+        author_data = mr_data.get("author") or {}
+        overview = {
+            "iid": mr_data.get("iid"),
+            "title": mr_data.get("title") or "",
+            "description": mr_data.get("description") or "",
+            "author": {
+                "name": author_data.get("name", ""),
+                "username": author_data.get("username", ""),
+                "web_url": author_data.get("web_url", ""),
+            },
+            "state": mr_data.get("state") or "",
+            "web_url": mr_data.get("web_url") or "",
+            "source_branch": mr_data.get("source_branch") or "",
+            "target_branch": mr_data.get("target_branch") or "",
+            "labels": mr_data.get("labels") or [],
+            "milestone": mr_data.get("milestone"),
+            "created_at": mr_data.get("created_at") or "",
+            "updated_at": mr_data.get("updated_at") or "",
+        }
+
+        return overview
+
     async def search_project_code(
         self,
         project_id: str | int,

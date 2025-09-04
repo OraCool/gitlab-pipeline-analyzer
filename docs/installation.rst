@@ -1,7 +1,7 @@
 Installation and Setup
 ======================
 
-This guide covers installing and configuring the GitLab Pipeline Analyzer MCP Server.
+This guide covers installing and configuring the GitLab Pipeline Analyzer MCP Server **version 0.8.0** with new merge request integration and Jira ticket extraction capabilities.
 
 Prerequisites
 -------------
@@ -9,9 +9,21 @@ Prerequisites
 - Python 3.10 or higher
 - GitLab personal access token with ``api`` scope
 - Network access to your GitLab instance
+- **NEW in v0.8.0**: Access to merge requests (for MR context analysis)
 
 Installation
 ------------
+
+Install from PyPI (Recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # Install latest version 0.8.0
+    pip install gitlab-pipeline-analyzer==0.8.0
+
+    # Or with uv (recommended)
+    uv add gitlab-pipeline-analyzer==0.8.0
 
 Install from Source
 ~~~~~~~~~~~~~~~~~~~

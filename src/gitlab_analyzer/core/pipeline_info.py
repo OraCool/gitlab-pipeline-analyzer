@@ -11,13 +11,14 @@ from typing import Any
 import httpx
 
 from ..api.client import GitLabAnalyzer
+from ..utils.jira_utils import extract_jira_from_mr
 
 
 async def get_comprehensive_pipeline_info(
     analyzer: GitLabAnalyzer, project_id: str | int, pipeline_id: int
 ) -> dict[str, Any]:
     """
-    Get comprehensive pipeline information with branch resolution.
+    Get comprehensive pipeline information with branch resolution and MR overview.
 
     This function extracts the branch resolution logic that was previously
     embedded in the MCP tool, making it reusable across the codebase.
@@ -26,6 +27,8 @@ async def get_comprehensive_pipeline_info(
     - Fetches basic pipeline data from GitLab API
     - Detects if pipeline is for a merge request
     - Resolves actual source/target branches for MR pipelines
+    - Fetches MR overview data including title, description, author
+    - Extracts Jira tickets from MR data
     - Provides structured output with type detection
     - Handles errors gracefully
 
@@ -43,6 +46,8 @@ async def get_comprehensive_pipeline_info(
         - target_branch: Resolved branch (source branch for MR, ref for regular)
         - pipeline_type: "branch" or "merge_request"
         - merge_request_info: MR details if applicable, None otherwise
+        - mr_overview: Structured MR overview if applicable, None otherwise
+        - jira_tickets: List of Jira tickets extracted from MR
         - can_auto_fix: Whether branch info was successfully resolved
         - analysis_timestamp: ISO timestamp of analysis
 
@@ -62,6 +67,8 @@ async def get_comprehensive_pipeline_info(
     pipeline_type = "branch"
     target_branch = original_ref
     merge_request_info = None
+    mr_overview = None
+    jira_tickets = []
     can_auto_fix = True
 
     # Check if this is a merge request pipeline
@@ -77,6 +84,21 @@ async def get_comprehensive_pipeline_info(
 
             # Use source branch as target for commits
             target_branch = merge_request_info["source_branch"]
+
+            # Get comprehensive MR overview
+            try:
+                mr_overview = await analyzer.get_merge_request_overview(
+                    project_id, mr_iid
+                )
+
+                # Extract Jira tickets from MR data
+                jira_tickets = extract_jira_from_mr(mr_overview)
+
+            except (httpx.HTTPError, httpx.RequestError, KeyError) as overview_error:
+                # If overview fails, still continue with basic MR info
+                mr_overview = {
+                    "error": f"Failed to get MR overview: {str(overview_error)}"
+                }
 
         except (
             ValueError,
@@ -98,6 +120,8 @@ async def get_comprehensive_pipeline_info(
         "target_branch": target_branch,  # Use this for commits
         "pipeline_type": pipeline_type,  # "branch" or "merge_request"
         "merge_request_info": merge_request_info,  # MR details if applicable
+        "mr_overview": mr_overview,  # Structured MR overview if applicable
+        "jira_tickets": jira_tickets,  # List of Jira tickets from MR
         "can_auto_fix": can_auto_fix,  # Whether auto-fix should proceed
         "analysis_timestamp": datetime.now().isoformat(),
     }

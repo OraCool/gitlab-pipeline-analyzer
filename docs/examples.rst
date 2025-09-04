@@ -1,7 +1,7 @@
 Examples and Use Cases
 ======================
 
-This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server with its comprehensive toolkit of 12 essential tools, MCP resources, and 13+ intelligent prompts.
+This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server **version 0.8.0** with its comprehensive toolkit of 12 essential tools, MCP resources, merge request integration, and 13+ intelligent prompts.
 
 .. contents::
    :local:
@@ -9,6 +9,47 @@ This section provides practical examples of using the GitLab Pipeline Analyzer M
 
 Quick Start Examples
 --------------------
+
+NEW in v0.8.0: Merge Request Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Scenario:** Merge request pipeline failed, need to understand context and extract Jira tickets.
+
+**Enhanced MR Pipeline Analysis:**
+
+.. code-block:: text
+
+    User: "MR pipeline failed for project 123, pipeline 1594344. Show me MR context."
+
+    Assistant: "I'll analyze this merge request pipeline with full context."
+
+    # Tool call: failed_pipeline_analysis
+    {
+        "project_id": "123",
+        "pipeline_id": 1594344,
+        "store_in_db": true
+    }
+
+    # Results include (NEW in v0.8.0):
+    # Pipeline Type: "merge_request"
+    # MR Title: "PROJ-456: Implement user authentication flow"
+    # MR Description: "Fixes authentication issues mentioned in PROJ-456 and PROJ-789"
+    # Extracted Jira Tickets: ["PROJ-456", "PROJ-789"]
+    # Source Branch: "feature/auth-implementation"
+    # Target Branch: "main"
+    # Author: "john.doe"
+    # Failed Jobs: 2 out of 5
+    # Total Errors: 34
+
+**Smart Filtering in Action:**
+
+.. code-block:: text
+
+    # For MR pipelines: Shows MR context + Jira tickets
+    Pipeline Type: merge_request → Includes MR data ✅
+
+    # For branch pipelines: Excludes MR data
+    Pipeline Type: branch → No MR data shown ✅
 
 Failed Pipeline Investigation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,7 +71,12 @@ Failed Pipeline Investigation
         "store_in_db": true
     }
 
-    # Results show:
+    # Results show (NEW in v0.8.0):
+    # - Pipeline type: "merge_request"
+    # - MR information: "PROJ-456: Fix user authentication flow"
+    # - Jira tickets: ["PROJ-456"]
+    # - Source branch: "feature/auth-fix"
+    # - Target branch: "main"
     # - 3 failed jobs with 127 total errors
     # - Main issues: Import errors, test failures
     # - Resources created for detailed investigation
@@ -42,11 +88,12 @@ Failed Pipeline Investigation
     # Access failed jobs directly
     Resource: gl://pipeline/123/pipeline/1594344/failed
 
-    # Get specific error analysis
-    Resource: gl://pipeline/123/pipeline/1594344
+    # Get pipeline overview with MR context (NEW in v0.8.0)
+    Resource: gl://pipeline/123/1594344
+    # Returns: MR title, description, Jira tickets, branch info
 
     # Examine specific file errors
-    Resource: gl://pipeline/123/76474172/src/main.py
+    Resource: gl://files/123/76474172/src/main.py
 
 Search Repository for Solutions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -125,6 +172,64 @@ Using Intelligent Prompts
 
 Advanced Use Cases
 ------------------
+
+NEW in v0.8.0: Jira Integration Workflows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Automatic Jira Ticket Detection:**
+
+.. code-block:: text
+
+    # MR Title: "PROJ-123: Fix database connection timeout"
+    # MR Description: "Resolves PROJ-123 and addresses PROJ-456 requirements"
+
+    # Automatically extracts: ["PROJ-123", "PROJ-456"]
+    # Validates ticket format and removes duplicates
+    # Links pipeline failures to specific Jira tickets
+
+**Contextual Error Analysis with Jira Context:**
+
+.. code-block:: python
+
+    # Enhanced analysis includes Jira context
+    analysis_result = {
+        "pipeline_type": "merge_request",
+        "merge_request": {
+            "title": "PROJ-123: Fix database timeout",
+            "description": "Resolves timeout issues in DB layer",
+            "jira_tickets": ["PROJ-123", "PROJ-456"],
+            "source_branch": "feature/db-timeout-fix",
+            "target_branch": "main",
+            "author": "jane.doe"
+        },
+        "errors": [
+            {
+                "message": "Connection timeout after 30s",
+                "related_jira": "PROJ-123",  # Links error to ticket
+                "file_path": "src/database/connection.py"
+            }
+        ]
+    }
+
+**Smart Filtering Examples:**
+
+.. code-block:: text
+
+    # Example 1: MR Pipeline (includes MR data)
+    Resource: gl://pipeline/123/1594344
+    Returns:
+    - Pipeline info ✅
+    - MR title, description ✅
+    - Jira tickets ✅
+    - Source/target branches ✅
+
+    # Example 2: Branch Pipeline (excludes MR data)
+    Resource: gl://pipeline/123/1594345
+    Returns:
+    - Pipeline info ✅
+    - Branch info ✅
+    - No MR data ❌ (correctly filtered)
+    - No Jira tickets ❌ (correctly filtered)
 
 MCP Resources Navigation
 ~~~~~~~~~~~~~~~~~~~~~~~~

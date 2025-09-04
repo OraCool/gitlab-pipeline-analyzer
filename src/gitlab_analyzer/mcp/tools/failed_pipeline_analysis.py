@@ -4,21 +4,10 @@ Failed Pipeline Analysis Tool - Focused on analyzing only failed pipeline jobs
 This module provides efficient analysis by focusing specifically on failed jobs:
 1. Gets pipeline info and stores in database
 2. Gets only failed jobs using get_failed_pipeline_jobs (more efficient)
-3. Stores failed job data for fu            for job_result in job_analysis_results:
-                job_result_typed = cast("dict[str, Any]", job_result)
-                job_id = job_result_typed["job_id"]
-                job_name = job_result_typed["job_name"]
+3. Stores failed job data for future resource access
+4. Analyzes individual job traces with appropriate parsers
+5. Provides comprehensive error analysis and statistics
 
-                # Add job-specific resources
-                resources["jobs_detail"][str(job_id)] = {
-                    "job": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
-                    "errors": f"gl://errors/{project_id}/{job_id}",
-                    "files": {},
-                }
-
-                # Process file groups for this job
-                file_groups = cast("list[dict[str, Any]]", job_result_typed.get("file_groups", []))
-                for file_group in file_groups:
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
@@ -640,17 +629,52 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             total_files = len(all_files)
             total_errors = len(all_errors)
 
+            # Extract MR information if available
+            mr_overview = pipeline_info.get("mr_overview")
+            jira_tickets = pipeline_info.get("jira_tickets", [])
+
             debug_print(
                 f"📊 Analysis summary: {len(failed_jobs)} failed jobs, {total_files} files, {total_errors} errors"
             )
             verbose_debug_print(f"📋 Pipeline: {source_branch} @ {pipeline_sha}")
 
+            # Add MR information to debug output if available
+            if mr_overview and "error" not in mr_overview:
+                verbose_debug_print(
+                    f"📋 MR: {mr_overview.get('title', 'Unknown title')}"
+                )
+                if jira_tickets:
+                    verbose_debug_print(f"🎫 Jira tickets: {', '.join(jira_tickets)}")
+
             # Create lightweight content-based response
             verbose_debug_print("📝 Building response content...")
+
+            # Build main summary text
+            summary_text = f"Analyzed pipeline {pipeline_id} ({source_branch} @ {pipeline_sha}): {len(failed_jobs)} failed jobs, {total_files} files impacted, {total_errors} errors found."
+
+            # Add MR context if available and this is a merge request pipeline
+            is_merge_request_pipeline = (
+                pipeline_info.get("pipeline_type") == "merge_request"
+            )
+
+            if is_merge_request_pipeline and mr_overview and "error" not in mr_overview:
+                mr_title = mr_overview.get("title", "")
+                if mr_title:
+                    summary_text += f"\n\n🔗 Merge Request: {mr_title}"
+                    mr_web_url = mr_overview.get("web_url")
+                    if mr_web_url:
+                        summary_text += f" ({mr_web_url})"
+
+                # Add Jira tickets if found
+                if jira_tickets:
+                    summary_text += (
+                        f"\n🎫 Related Jira tickets: {', '.join(jira_tickets)}"
+                    )
+
             content = [
                 {
                     "type": "text",
-                    "text": f"Analyzed pipeline {pipeline_id} ({source_branch} @ {pipeline_sha}): {len(failed_jobs)} failed jobs, {total_files} files impacted, {total_errors} errors found.",
+                    "text": summary_text,
                 },
                 {
                     "type": "resource_link",
@@ -706,6 +730,20 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 "content": content,
                 "mcp_info": get_mcp_info("failed_pipeline_analysis"),
             }
+
+            # Add MR information to result only if this is a merge request pipeline
+            if is_merge_request_pipeline and mr_overview and "error" not in mr_overview:
+                result["merge_request"] = {
+                    "iid": mr_overview.get("iid"),
+                    "title": mr_overview.get("title"),
+                    "description": mr_overview.get("description"),
+                    "author": mr_overview.get("author", {}).get("username"),
+                    "web_url": mr_overview.get("web_url"),
+                }
+
+            # Add Jira tickets to result only if this is a merge request pipeline
+            if is_merge_request_pipeline and jira_tickets:
+                result["jira_tickets"] = jira_tickets
 
             # Add timing information
             end_time = time.time()

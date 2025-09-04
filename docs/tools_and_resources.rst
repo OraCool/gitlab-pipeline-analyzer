@@ -1,7 +1,7 @@
 MCP Tools & Resources Reference
 ===============================
 
-This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server.
+This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server **version 0.8.0** with enhanced merge request integration and smart filtering capabilities.
 
 .. contents::
    :local:
@@ -12,6 +12,8 @@ Overview
 
 The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
 
+**NEW in v0.8.0**: Enhanced merge request context integration with Jira ticket extraction and smart filtering based on pipeline type.
+
 🔧 MCP Tools (12 Essential Tools)
 ---------------------------------
 
@@ -21,11 +23,14 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
 **failed_pipeline_analysis**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Purpose**: Efficient analysis focusing only on failed jobs
+**Purpose**: Efficient analysis focusing only on failed jobs with comprehensive merge request context
 
-**When to use**: Pipeline shows "failed" status and you need comprehensive analysis
+**When to use**: Pipeline shows "failed" status and you need comprehensive analysis with MR context
 
 **Key Features**:
+- **NEW in v0.8.0**: Merge request information extraction and display
+- **NEW in v0.8.0**: Jira ticket detection and extraction from MR titles/descriptions
+- **NEW in v0.8.0**: Smart filtering - MR data only included for actual MR pipelines
 - Auto-detects pytest vs generic jobs
 - Intelligent parser selection
 - Real branch resolution for MR pipelines
@@ -40,6 +45,26 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
 - ``exclude_file_patterns`` (list[str], optional): Additional file patterns to exclude
 - ``disable_file_filtering`` (bool, default=False): Disable all file filtering
 
+**NEW in v0.8.0 - Enhanced Response**:
+
+.. code-block:: json
+
+    {
+        "pipeline_type": "merge_request",
+        "merge_request": {
+            "title": "PROJ-456: Fix authentication flow",
+            "description": "Resolves auth issues in PROJ-456",
+            "jira_tickets": ["PROJ-456"],
+            "source_branch": "feature/auth-fix",
+            "target_branch": "main",
+            "author": "john.doe"
+        },
+        "analysis_summary": {
+            "total_errors": 34,
+            "failed_jobs": 2
+        }
+    }
+
 **Example**:
 
 .. code-block:: python
@@ -49,6 +74,9 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
         "pipeline_id": 67890,
         "exclude_file_patterns": ["migrations/", "vendor/"]
     })
+
+    # For MR pipelines: includes merge_request data
+    # For branch pipelines: excludes merge_request data
 
 2. Repository Search Tools
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

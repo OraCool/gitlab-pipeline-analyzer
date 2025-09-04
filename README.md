@@ -6,9 +6,11 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 
 ### 🔍 **Comprehensive Analysis**
 
-- Deep pipeline failure analysis with error extraction
+- Deep pipeline failure analysis with error extraction and merge request context
 - Intelligent error categorization and pattern detection
 - Support for pytest, build, and general CI/CD failures
+- **✨ NEW in v0.8.0**: Complete merge request information integration with Jira ticket extraction
+- **🎯 NEW in v0.8.0**: Smart filtering of MR data based on pipeline type (only shows MR data for actual MR pipelines)
 
 ### 💾 **Intelligent Caching**
 
@@ -16,12 +18,16 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 - Automatic cache invalidation and cleanup
 - Significant performance improvements (90% reduction in API calls)
 
-### 📦 **MCP Resources**
+### 📦 **MCP Resources & Smart Data Access**
 
-- `gl://pipeline/{project_id}/{pipeline_id}` - Pipeline overview and jobs
-- `gl://job/{project_id}/{job_id}` - Job details and traces
-- `gl://analysis/{project_id}/{target_id}` - Structured error analysis
-- `gl://error/{project_id}/{error_id}` - Individual error deep-dive
+- **Resource-First Architecture**: Always try `get_mcp_resource` before running analysis tools
+- **Efficient Caching**: Resources serve cached data instantly without re-analysis
+- **Smart URIs**: Intuitive resource patterns like `gl://pipeline/{project_id}/{pipeline_id}`
+- **Navigation Links**: Related resources automatically suggested in responses
+- **Pipeline Resources**: Complete pipeline overview with conditional MR data
+- **Job Resources**: Individual job analysis with error extraction
+- **File Resources**: File-specific error details with trace context
+- **Error Resources**: Detailed error analysis with fix guidance
 
 ### 🎯 **Intelligent Prompts & Workflows**
 
@@ -247,7 +253,7 @@ Add the following to your VS Code Claude Desktop `claude_desktop_config.json` fi
       "command": "uvx",
       "args": [
         "--from",
-        "gitlab_pipeline_analyzer==0.7.0",
+        "gitlab_pipeline_analyzer==0.8.0",
         "gitlab-analyzer",
         "--transport",
         "${input:mcp_transport}"
@@ -731,11 +737,11 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **12 essential tools** for GitLab CI/CD pipeline analysis (streamlined from 21 tools in v0.5.0):
+The MCP server provides **10 essential tools** for GitLab CI/CD pipeline analysis:
 
 #### 🎯 Core Analysis Tool
 
-1. **failed_pipeline_analysis(project_id, pipeline_id)** - Comprehensive pipeline analysis with intelligent parsing, caching, and resource generation
+1. **failed_pipeline_analysis(project_id, pipeline_id)** - Comprehensive pipeline analysis with intelligent parsing, caching, and resource generation. **NEW in v0.8.0**: Includes MR context and Jira ticket extraction for merge request pipelines
 
 #### 🔍 Repository Search Tools
 
@@ -753,9 +759,13 @@ The MCP server provides **12 essential tools** for GitLab CI/CD pipeline analysi
 7. **clear_pipeline_cache(project_id, pipeline_id)** - Clear all cached data for a specific pipeline
 8. **clear_job_cache(project_id, job_id)** - Clear all cached data for a specific job
 
-#### � Resource Access Tool
+#### 🔗 Resource Access Tool
 
 9. **get_mcp_resource(resource_uri)** - Access data from MCP resource URIs without re-running analysis
+
+#### 🧹 Additional Tools
+
+10. **parse_trace_for_errors(trace_content)** - **NEW in v0.8.0**: Parse CI/CD trace content and extract errors without database storage
 
 ### Resource-Based Architecture
 
@@ -827,6 +837,88 @@ await client.call_tool("get_file_errors", {
 - **Cleaner Debugging**: Focus on your code without noise from dependencies and system libraries
 - **Flexible Control**: Choose between default filtering, custom patterns, or complete traceback
 
+## Usage Examples
+
+### Version 0.8.0 New Features
+
+#### 🚀 Merge Request Pipeline Analysis
+
+```python
+import asyncio
+from fastmcp import Client
+
+async def analyze_mr_pipeline():
+    """Analyze a merge request pipeline with new v0.8.0 features"""
+    client = Client("gitlab_analyzer.py")
+    async with client:
+        # Analyze failed MR pipeline - now includes MR context and Jira tickets
+        result = await client.call_tool("failed_pipeline_analysis", {
+            "project_id": "83",
+            "pipeline_id": 1594344
+        })
+
+        # Check if this was a merge request pipeline
+        if result.get("pipeline_type") == "merge_request":
+            print("🔀 Merge Request Pipeline:")
+            print(f"   Title: {result['merge_request']['title']}")
+            print(f"   Source → Target: {result['source_branch']} → {result['target_branch']}")
+
+            # Show Jira tickets extracted from MR
+            jira_tickets = result.get("jira_tickets", [])
+            if jira_tickets:
+                print(f"🎫 Jira Tickets: {', '.join(jira_tickets)}")
+        else:
+            print("🌿 Branch Pipeline:")
+            print(f"   Branch: {result['source_branch']}")
+            print("   (No MR data included for branch pipelines)")
+
+asyncio.run(analyze_mr_pipeline())
+```
+
+#### 🎯 Smart MR Data Filtering
+
+The analyzer now intelligently filters data based on pipeline type:
+
+```python
+# For Merge Request pipelines (refs/merge-requests/123/head)
+{
+    "pipeline_type": "merge_request",
+    "merge_request": {
+        "iid": 123,
+        "title": "[PROJ-456] Fix user authentication bug",
+        "description": "Resolves PROJ-456 by updating token validation",
+        "source_branch": "feature/fix-auth",
+        "target_branch": "main"
+    },
+    "jira_tickets": ["PROJ-456"],
+    # ... other pipeline data
+}
+
+# For Branch pipelines (refs/heads/main)
+{
+    "pipeline_type": "branch",
+    "source_branch": "main",
+    # No merge_request or jira_tickets fields included
+    # ... other pipeline data
+}
+```
+
+#### 🔍 Jira Ticket Extraction
+
+```python
+from gitlab_analyzer.utils.jira_utils import extract_jira_tickets
+
+# Supports multiple formats
+text = """
+[PROJ-123] Fix authentication bug
+Resolves MMGPP-456 and #TEAM-789
+Also fixes (CORE-101) issue
+"""
+
+tickets = extract_jira_tickets(text)
+# Returns: ["PROJ-123", "MMGPP-456", "TEAM-789", "CORE-101"]
+```
+
 ## Example
 
 ```python
@@ -834,13 +926,34 @@ import asyncio
 from fastmcp import Client
 
 async def analyze_pipeline():
+    """Example: Analyze a failed pipeline with v0.8.0 features"""
     client = Client("gitlab_analyzer.py")
     async with client:
-        result = await client.call_tool("analyze_failed_pipeline", {
-            "project_id": "19133",  # Your GitLab project ID
-            "pipeline_id": 12345
-        })
-        print(result)
+        # Try to get existing pipeline data first (recommended v0.8.0 workflow)
+        try:
+            result = await client.call_tool("get_mcp_resource", {
+                "resource_uri": "gl://pipeline/83/1594344"
+            })
+            print("✅ Found cached pipeline data")
+        except Exception:
+            # If not analyzed yet, run full analysis
+            result = await client.call_tool("failed_pipeline_analysis", {
+                "project_id": "83",
+                "pipeline_id": 1594344
+            })
+            print("🔄 Performed new pipeline analysis")
+
+        # Check pipeline type and show appropriate information
+        if result.get("pipeline_type") == "merge_request":
+            mr_info = result.get("merge_request", {})
+            print(f"🔀 MR: {mr_info.get('title', 'Unknown')}")
+            jira_tickets = result.get("jira_tickets", [])
+            if jira_tickets:
+                print(f"🎫 Jira: {', '.join(jira_tickets)}")
+        else:
+            print(f"🌿 Branch: {result.get('source_branch', 'Unknown')}")
+
+        print(f"📊 Status: {result.get('status')}")
 
 asyncio.run(analyze_pipeline())
 ```

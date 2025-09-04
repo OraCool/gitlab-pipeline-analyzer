@@ -128,7 +128,13 @@ class McpCache:
                     created_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP,
                     source_branch TEXT,  -- Resolved source branch for MR pipelines
-                    target_branch TEXT   -- Target branch for MR pipelines
+                    target_branch TEXT,  -- Target branch for MR pipelines
+                    mr_iid INTEGER,      -- Merge request IID if applicable
+                    mr_title TEXT,       -- MR title
+                    mr_description TEXT, -- MR description
+                    mr_author TEXT,      -- MR author username
+                    mr_web_url TEXT,     -- Direct MR web URL
+                    jira_tickets TEXT    -- JSON array of Jira ticket IDs
                 );
 
                 -- Jobs table: core job metadata
@@ -220,6 +226,45 @@ class McpCache:
                         """
                     )
                     conn.commit()
+
+                # Migration: Add MR fields to pipelines table if they don't exist
+                cursor = conn.execute(
+                    """
+                    PRAGMA table_info(pipelines)
+                    """
+                )
+                pipeline_columns = [row[1] for row in cursor.fetchall()]
+
+                mr_fields = [
+                    ("mr_iid", "INTEGER"),
+                    ("mr_title", "TEXT"),
+                    ("mr_description", "TEXT"),
+                    ("mr_author", "TEXT"),
+                    ("mr_web_url", "TEXT"),
+                    ("jira_tickets", "TEXT"),
+                ]
+
+                for field_name, field_type in mr_fields:
+                    if field_name not in pipeline_columns:
+                        conn.execute(
+                            f"""
+                            ALTER TABLE pipelines ADD COLUMN {field_name} {field_type}
+                            """
+                        )
+                        debug_print(
+                            f"✅ [MIGRATION] Added column {field_name} to pipelines table"
+                        )
+
+                # Add index for MR lookups
+                if "mr_iid" not in pipeline_columns:
+                    conn.execute(
+                        """
+                        CREATE INDEX IF NOT EXISTS idx_pipelines_mr_iid ON pipelines(mr_iid)
+                        """
+                    )
+                    debug_print("✅ [MIGRATION] Added index for MR IID lookups")
+
+                conn.commit()
 
                 debug_print("✅ [DEBUG] Database schema created/verified successfully")
                 debug_print(
@@ -466,6 +511,14 @@ class McpCache:
             target_branch = pipeline_info.get("target_branch")
             source_branch = None
 
+            # Initialize MR fields
+            mr_iid = None
+            mr_title = None
+            mr_description = None
+            mr_author = None
+            mr_web_url = None
+            jira_tickets = "[]"
+
             if pipeline_type == "merge_request":
                 merge_request_info = pipeline_info.get("merge_request_info", {})
                 if (
@@ -474,6 +527,22 @@ class McpCache:
                 ):
                     source_branch = merge_request_info.get("source_branch")
                     target_branch = merge_request_info.get("target_branch")
+
+                    # Extract MR overview data if available
+                    mr_overview = pipeline_info.get("mr_overview", {})
+                    if mr_overview:
+                        mr_iid = mr_overview.get("iid")
+                        mr_title = mr_overview.get("title")
+                        mr_description = mr_overview.get("description")
+                        mr_author = mr_overview.get("author", {}).get("username")
+                        mr_web_url = mr_overview.get("web_url")
+
+                    # Extract Jira tickets if available
+                    jira_ticket_list = pipeline_info.get("jira_tickets", [])
+                    if jira_ticket_list:
+                        from ..utils.jira_utils import format_jira_tickets_for_storage
+
+                        jira_tickets = format_jira_tickets_for_storage(jira_ticket_list)
                 else:
                     source_branch = target_branch
                     target_branch = "unknown"
@@ -494,13 +563,21 @@ class McpCache:
                     pipeline_data.get("updated_at", ""),
                     source_branch,
                     target_branch,
+                    mr_iid,
+                    mr_title,
+                    mr_description,
+                    mr_author,
+                    mr_web_url,
+                    jira_tickets,
                 )
 
                 await db.execute(
                     """
                     INSERT OR REPLACE INTO pipelines
-                    (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at, source_branch, target_branch)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at,
+                     source_branch, target_branch, mr_iid, mr_title, mr_description, mr_author,
+                     mr_web_url, jira_tickets)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     data_to_store,
                 )
@@ -727,7 +804,8 @@ class McpCache:
             cursor = await db.execute(
                 """
                 SELECT pipeline_id, project_id, ref, sha, status, web_url,
-                       created_at, updated_at, source_branch, target_branch
+                       created_at, updated_at, source_branch, target_branch,
+                       mr_iid, mr_title, mr_description, mr_author, mr_web_url, jira_tickets
                 FROM pipelines WHERE pipeline_id = ?
                 """,
                 (pipeline_id,),
@@ -745,6 +823,12 @@ class McpCache:
                     "updated_at": row[7],
                     "source_branch": row[8],
                     "target_branch": row[9],
+                    "mr_iid": row[10],
+                    "mr_title": row[11],
+                    "mr_description": row[12],
+                    "mr_author": row[13],
+                    "mr_web_url": row[14],
+                    "jira_tickets": row[15],
                 }
             return None
 

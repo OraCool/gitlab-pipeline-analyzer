@@ -18,8 +18,16 @@ Overview
 
 The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 12 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
 
+**Version 0.8.0** introduces major enhancements including merge request context integration, Jira ticket extraction, and smart filtering capabilities.
+
 Key Features
 ------------
+
+🚀 **NEW in v0.8.0: Merge Request Integration**
+   - Comprehensive merge request information extraction and display
+   - Jira ticket detection and extraction from MR titles and descriptions
+   - Smart filtering: MR data only included for actual merge request pipelines
+   - Enhanced pipeline context awareness with automatic branch resolution
 
 � **Intelligent Prompts & Workflows**
    - 13+ specialized prompts across 5 categories (Investigation, Performance, Educational, Advanced, Original)
@@ -29,9 +37,10 @@ Key Features
    - Educational pathways and team mentoring support
 
 �🔍 **Comprehensive Pipeline Analysis**
-   - Analyze complete failed pipelines with detailed error extraction
+   - Analyze complete failed pipelines with detailed error extraction and MR context
    - Deep-dive into individual job failures with structured error categorization
    - Support for both pytest-specific and generic log parsing
+   - Conditional information display based on pipeline type (branch vs merge request)
 
 📊 **Advanced Error Management**
    - Intelligent error filtering and traceback management
