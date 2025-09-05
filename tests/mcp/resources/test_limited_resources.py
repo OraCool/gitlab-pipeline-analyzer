@@ -7,10 +7,8 @@ Licensed under the MIT License - see LICENSE file for details
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-from gitlab_analyzer.mcp.services.error_service import error_service
 from gitlab_analyzer.mcp.resources.job import get_limited_pipeline_jobs_resource
+from gitlab_analyzer.mcp.services.error_service import error_service
 
 
 class TestLimitedErrorResources:

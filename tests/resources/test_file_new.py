@@ -59,7 +59,7 @@ class TestFileResourcesNew:
         # Verify that resources were registered
         assert mock_mcp.resource.called
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_patterns(
         self,
@@ -90,7 +90,7 @@ class TestFileResourcesNew:
                 f"Pattern {pattern} not found in {call_args}"
             )
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     @patch("gitlab_analyzer.parsers.log_parser.LogParser")
     async def test_file_analysis_error_filtering(
@@ -162,7 +162,7 @@ class TestFileResourcesNew:
                 # We're mainly testing that registration works
                 pass
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_caching(
         self,
@@ -217,7 +217,7 @@ class TestFileResourcesNew:
             assert isinstance(file_path, str)
             assert len(file_path) > 0
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_error_handling(
         self,
@@ -248,7 +248,7 @@ class TestFileResourcesNew:
         # Should have been called multiple times
         assert mock_mcp.resource.call_count >= 2
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     def test_file_resource_uri_encoding(
         self, mock_get_cache_manager, mock_cache_manager, mock_mcp
     ):
@@ -272,7 +272,7 @@ class TestFileResourcesNew:
             encoded = file_path.replace("/", "%2F").replace(" ", "%20")
             assert isinstance(encoded, str)
 
-    @patch("gitlab_analyzer.mcp.resources.file.get_cache_manager")
+    @patch("gitlab_analyzer.mcp.services.file_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_gitlab_analyzer")
     async def test_file_resource_metadata(
         self,

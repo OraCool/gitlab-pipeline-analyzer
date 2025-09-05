@@ -12,7 +12,7 @@ Licensed under the MIT License - see LICENSE file for details
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,8 @@ class ErrorAnalysisService:
     """Service for advanced error analysis and enhancement"""
 
     def enhance_error_with_fix_guidance(
-        self, error: Dict[str, Any], mode: str = "balanced"
-    ) -> Dict[str, Any]:
+        self, error: dict[str, Any], mode: str = "balanced"
+    ) -> dict[str, Any]:
         """
         Enhance an error with fix guidance based on analysis mode.
 
@@ -72,8 +72,8 @@ class ErrorAnalysisService:
             return enhanced_error
 
     def enhance_errors_batch(
-        self, errors: List[Dict[str, Any]], mode: str = "balanced"
-    ) -> List[Dict[str, Any]]:
+        self, errors: list[dict[str, Any]], mode: str = "balanced"
+    ) -> list[dict[str, Any]]:
         """
         Enhance a batch of errors with analysis mode-specific enhancements.
 
@@ -91,8 +91,8 @@ class ErrorAnalysisService:
         return enhanced_errors
 
     def filter_errors_by_mode(
-        self, errors: List[Dict[str, Any]], mode: str = "balanced"
-    ) -> List[Dict[str, Any]]:
+        self, errors: list[dict[str, Any]], mode: str = "balanced"
+    ) -> list[dict[str, Any]]:
         """
         Filter and prioritize errors based on analysis mode.
 
@@ -127,8 +127,8 @@ class ErrorAnalysisService:
             return errors
 
     def calculate_error_statistics(
-        self, errors: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, errors: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Calculate comprehensive error statistics.
 
@@ -149,8 +149,8 @@ class ErrorAnalysisService:
 
         error_types = set()
         affected_files = set()
-        severity_counts = {}
-        file_error_counts = {}
+        severity_counts: dict[str, int] = {}
+        file_error_counts: dict[str, int] = {}
 
         for error in errors:
             # Track error types
@@ -182,8 +182,8 @@ class ErrorAnalysisService:
         }
 
     def prioritize_errors_for_fixing(
-        self, errors: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, errors: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Prioritize errors based on their likelihood to cause cascading failures.
 

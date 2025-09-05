@@ -16,7 +16,6 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-import json
 import logging
 import time
 from typing import Any
@@ -25,20 +24,14 @@ from urllib.parse import unquote
 from fastmcp import FastMCP
 
 from gitlab_analyzer.mcp.resources.analysis import get_analysis_resource_data
-from gitlab_analyzer.mcp.services.error_service import error_service
-from gitlab_analyzer.mcp.resources.file import (
-    get_file_resource,
-    get_file_resource_with_trace,
-    get_files_resource,
-    get_pipeline_file_errors_resource,
-    get_pipeline_files_resource,
-    get_pipeline_files_resource_enhanced,
-)
 from gitlab_analyzer.mcp.resources.job import (
     get_job_resource,
     get_pipeline_jobs_resource,
 )
 from gitlab_analyzer.mcp.resources.pipeline import get_pipeline_resource
+from gitlab_analyzer.mcp.services.error_service import error_service
+from gitlab_analyzer.mcp.services.file_analysis_service import get_file_analysis_service
+from gitlab_analyzer.mcp.services.file_service import get_file_service
 from gitlab_analyzer.utils import get_mcp_info
 from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 
@@ -208,14 +201,13 @@ async def _handle_files_resource(
                     f"🔍 Accessing enhanced pipeline files for pipeline {pipeline_id} in project {project_id} "
                     f"(mode={mode}, include_trace={include_trace}, max_errors={max_errors_per_file}, page={page}, limit={limit})"
                 )
-                result = await get_pipeline_files_resource_enhanced(
+                file_analysis_service = get_file_analysis_service()
+                result = await file_analysis_service.get_enhanced_pipeline_files(
                     project_id,
                     pipeline_id,
-                    page,
-                    limit,
-                    mode,
-                    include_trace,
-                    max_errors_per_file,
+                    mode=mode,
+                    include_trace=str(include_trace).lower(),
+                    max_errors=max_errors_per_file,
                 )
                 verbose_debug_print(
                     "✅ Enhanced pipeline files resource retrieved successfully"
@@ -234,7 +226,8 @@ async def _handle_files_resource(
                 debug_print(
                     f"🔍 Accessing pipeline files for pipeline {pipeline_id} in project {project_id} (page={page}, limit={limit})"
                 )
-                result = await get_pipeline_files_resource(
+                file_service = get_file_service()
+                result = await file_service.get_pipeline_files(
                     project_id, pipeline_id, page, limit
                 )
                 verbose_debug_print("✅ Pipeline files resource retrieved successfully")
@@ -247,7 +240,10 @@ async def _handle_files_resource(
             debug_print(
                 f"🔍 Accessing job files for job {job_id} in project {project_id} (page={page}, limit={limit})"
             )
-            result = await get_files_resource(project_id, job_id, page, limit)
+            file_service = get_file_service()
+            result = await file_service.get_files_for_job(
+                project_id, job_id, page, limit
+            )
             verbose_debug_print("✅ Job files resource retrieved successfully")
             return result
     else:
@@ -277,12 +273,9 @@ async def _handle_file_resource(
 
             if request_type == "jobs":
                 # Handle jobs request for pipeline file
-                from gitlab_analyzer.mcp.resources.file import (
-                    get_pipeline_file_jobs_resource,
-                )
-
                 debug_print("👥 Getting jobs for file in pipeline")
-                result = await get_pipeline_file_jobs_resource(
+                file_service = get_file_service()
+                result = await file_service.get_file_jobs_in_pipeline(
                     project_id, pipeline_id, actual_file_path
                 )
                 verbose_debug_print(
@@ -300,8 +293,9 @@ async def _handle_file_resource(
                     f"⚙️ Pipeline file trace options: mode={mode}, include_trace={include_trace}"
                 )
 
-                result = await get_pipeline_file_errors_resource(
-                    project_id, pipeline_id, actual_file_path, mode, include_trace
+                file_service = get_file_service()
+                result = await file_service.get_file_errors_in_pipeline(
+                    project_id, pipeline_id, actual_file_path
                 )
                 verbose_debug_print(
                     "✅ Pipeline file resource with trace retrieved successfully"
@@ -318,8 +312,9 @@ async def _handle_file_resource(
                     f"⚙️ Pipeline file options: mode={mode}, include_trace={include_trace}"
                 )
 
-                result = await get_pipeline_file_errors_resource(
-                    project_id, pipeline_id, actual_file_path, mode, include_trace
+                file_service = get_file_service()
+                result = await file_service.get_file_errors_in_pipeline(
+                    project_id, pipeline_id, actual_file_path
                 )
                 verbose_debug_print("✅ Pipeline file resource retrieved successfully")
                 return result
@@ -345,18 +340,20 @@ async def _handle_file_resource(
                     f"⚙️ Trace options: mode={mode}, include_trace={include_trace_str}"
                 )
 
-                # The function returns TextResourceContents, so we need to handle it differently
-                trace_result = await get_file_resource_with_trace(
+                # Use file analysis service for trace functionality
+                file_analysis_service = get_file_analysis_service()
+                result = await file_analysis_service.get_file_with_trace(
                     project_id, job_id, actual_file_path, mode, include_trace_str
                 )
-                # Convert TextResourceContents to dict for consistency
-                result = json.loads(trace_result.text)
                 verbose_debug_print(
                     "✅ File resource with trace retrieved successfully"
                 )
                 return result
             else:
-                result = await get_file_resource(project_id, job_id, actual_file_path)
+                file_service = get_file_service()
+                result = await file_service.get_file_data(
+                    project_id, job_id, actual_file_path
+                )
                 verbose_debug_print("✅ File resource retrieved successfully")
                 return result
     else:
@@ -400,7 +397,7 @@ async def _handle_error_resource(
 
 
 async def _handle_errors_resource(
-    parts: list[str], query_params: dict[str, str] = None
+    parts: list[str], query_params: dict[str, str] | None = None
 ) -> dict[str, Any]:
     """Handle errors collection resource requests."""
     if query_params is None:

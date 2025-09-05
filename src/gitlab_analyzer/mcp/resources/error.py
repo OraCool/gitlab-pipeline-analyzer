@@ -13,8 +13,8 @@ import logging
 
 from mcp.types import TextResourceContents
 
-from gitlab_analyzer.mcp.services.error_service import error_service
 from gitlab_analyzer.mcp.services.error_analysis_service import error_analysis_service
+from gitlab_analyzer.mcp.services.error_service import error_service
 from gitlab_analyzer.utils.utils import optimize_tool_response
 
 from .utils import create_text_resource

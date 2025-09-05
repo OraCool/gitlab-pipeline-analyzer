@@ -5,7 +5,7 @@ Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -111,12 +111,17 @@ class TestResourceAccessTools:
         assert result["job_id"] == 456
         mock_get_job.assert_called_once_with("123", "123", "456")
 
-    @patch(
-        "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_files_resource"
-    )
-    async def test_get_mcp_resource_pipeline_files(self, mock_get_files, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_service")
+    async def test_get_mcp_resource_pipeline_files(
+        self, mock_get_file_service, mock_mcp
+    ):
         """Test accessing pipeline files resource"""
-        mock_get_files.return_value = {"files": ["file1.py", "file2.py"]}
+        # Setup mock file service
+        mock_file_service = AsyncMock()
+        mock_file_service.get_pipeline_files.return_value = {
+            "files": ["file1.py", "file2.py"]
+        }
+        mock_get_file_service.return_value = mock_file_service
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -134,16 +139,23 @@ class TestResourceAccessTools:
         # Test pipeline files resource access
         result = await get_mcp_resource_func("gl://files/123/pipeline/123")
         assert "files" in result
-        mock_get_files.assert_called_once_with("123", "123", 1, 20)
+        mock_file_service.get_pipeline_files.assert_called_once_with(
+            "123", "123", 1, 20
+        )
 
         # Test with pagination
         await get_mcp_resource_func("gl://files/123/pipeline/123/page/2/limit/50")
-        mock_get_files.assert_called_with("123", "123", 2, 50)
+        mock_file_service.get_pipeline_files.assert_called_with("123", "123", 2, 50)
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_files_resource")
-    async def test_get_mcp_resource_job_files(self, mock_get_file, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_service")
+    async def test_get_mcp_resource_job_files(self, mock_get_file_service, mock_mcp):
         """Test accessing job files resource"""
-        mock_get_file.return_value = {"files": ["error1.py", "error2.py"]}
+        # Setup mock file service
+        mock_file_service = AsyncMock()
+        mock_file_service.get_files_for_job.return_value = {
+            "files": ["error1.py", "error2.py"]
+        }
+        mock_get_file_service.return_value = mock_file_service
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -161,12 +173,20 @@ class TestResourceAccessTools:
         # Test job files resource access
         result = await get_mcp_resource_func("gl://files/123/456")
         assert "files" in result
-        mock_get_file.assert_called_once_with("123", "456", 1, 20)
+        mock_file_service.get_files_for_job.assert_called_once_with("123", "456", 1, 20)
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource")
-    async def test_get_mcp_resource_specific_file(self, mock_get_file, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_service")
+    async def test_get_mcp_resource_specific_file(
+        self, mock_get_file_service, mock_mcp
+    ):
         """Test accessing specific file resource"""
-        mock_get_file.return_value = {"file_path": "src/main.py", "errors": []}
+        # Setup mock file service
+        mock_file_service = AsyncMock()
+        mock_file_service.get_file_data.return_value = {
+            "file_path": "src/main.py",
+            "errors": [],
+        }
+        mock_get_file_service.return_value = mock_file_service
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -184,23 +204,20 @@ class TestResourceAccessTools:
         # Test specific file resource access
         result = await get_mcp_resource_func("gl://file/123/456/src/main.py")
         assert result["file_path"] == "src/main.py"
-        mock_get_file.assert_called_once_with("123", "456", "src/main.py")
+        mock_file_service.get_file_data.assert_called_once_with(
+            "123", "456", "src/main.py"
+        )
 
-    @patch(
-        "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_resource_with_trace"
-    )
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_file_analysis_service")
     async def test_get_mcp_resource_file_with_trace(
-        self, mock_get_file_trace, mock_mcp
+        self, mock_get_file_analysis_service, mock_mcp
     ):
         """Test accessing file resource with trace"""
-        import json
-
-        from mcp.types import TextResourceContents
-
+        # Setup mock file analysis service
+        mock_file_analysis_service = AsyncMock()
         mock_response = {"file_path": "src/main.py", "trace": "..."}
-        mock_get_file_trace.return_value = TextResourceContents(
-            uri="gl://file/123/456/src/main.py/trace", text=json.dumps(mock_response)
-        )
+        mock_file_analysis_service.get_file_with_trace.return_value = mock_response
+        mock_get_file_analysis_service.return_value = mock_file_analysis_service
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -220,14 +237,16 @@ class TestResourceAccessTools:
             "gl://file/123/456/src%2Fmain.py/trace?mode=detailed&include_trace=true"
         )
         assert result["file_path"] == "src/main.py"
-        mock_get_file_trace.assert_called_once_with(
+        mock_file_analysis_service.get_file_with_trace.assert_called_once_with(
             "123", "456", "src/main.py", "detailed", "true"
         )
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_error_resource_data")
-    async def test_get_mcp_resource_job_errors(self, mock_get_errors, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.error_service")
+    async def test_get_mcp_resource_job_errors(self, mock_error_service, mock_mcp):
         """Test accessing job errors resource"""
-        mock_get_errors.return_value = {"errors": [{"id": 1}, {"id": 2}]}
+        mock_error_service.get_job_errors = AsyncMock(
+            return_value={"errors": [{"id": 1}, {"id": 2}]}
+        )
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -245,16 +264,22 @@ class TestResourceAccessTools:
         # Test job errors resource access
         result = await get_mcp_resource_func("gl://error/123/456")
         assert "errors" in result
-        mock_get_errors.assert_called_once_with("123", "456", "balanced")
+        mock_error_service.get_job_errors.assert_called_once_with(
+            "123", "456", "balanced"
+        )
 
         # Test with mode
         await get_mcp_resource_func("gl://error/123/456?mode=detailed")
-        mock_get_errors.assert_called_with("123", "456", "detailed")
+        mock_error_service.get_job_errors.assert_called_with("123", "456", "detailed")
 
-    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_individual_error_data")
-    async def test_get_mcp_resource_individual_error(self, mock_get_error, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.error_service")
+    async def test_get_mcp_resource_individual_error(
+        self, mock_error_service, mock_mcp
+    ):
         """Test accessing individual error resource"""
-        mock_get_error.return_value = {"error_id": "123_0", "message": "Test error"}
+        mock_error_service.get_individual_error = AsyncMock(
+            return_value={"error_id": "123_0", "message": "Test error"}
+        )
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -272,16 +297,16 @@ class TestResourceAccessTools:
         # Test individual error resource access
         result = await get_mcp_resource_func("gl://error/123/456/123_0")
         assert result["error_id"] == "123_0"
-        mock_get_error.assert_called_once_with("123", "456", "123_0", "balanced")
+        mock_error_service.get_individual_error.assert_called_once_with(
+            "123", "456", "123_0", "balanced"
+        )
 
-    @patch(
-        "gitlab_analyzer.mcp.tools.resource_access_tools.get_pipeline_errors_resource_data"
-    )
-    async def test_get_mcp_resource_pipeline_errors(self, mock_get_errors, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.error_service")
+    async def test_get_mcp_resource_pipeline_errors(self, mock_error_service, mock_mcp):
         """Test accessing pipeline errors resource"""
-        mock_get_errors.return_value = {
-            "pipeline_errors": [{"job_id": 1}, {"job_id": 2}]
-        }
+        mock_error_service.get_pipeline_errors = AsyncMock(
+            return_value={"pipeline_errors": [{"job_id": 1}, {"job_id": 2}]}
+        )
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -299,14 +324,14 @@ class TestResourceAccessTools:
         # Test pipeline errors resource access
         result = await get_mcp_resource_func("gl://errors/123/pipeline/123")
         assert "pipeline_errors" in result
-        mock_get_errors.assert_called_once_with("123", "123")
+        mock_error_service.get_pipeline_errors.assert_called_once_with("123", "123")
 
-    @patch(
-        "gitlab_analyzer.mcp.tools.resource_access_tools.get_file_errors_resource_data"
-    )
-    async def test_get_mcp_resource_file_errors(self, mock_get_errors, mock_mcp):
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.error_service")
+    async def test_get_mcp_resource_file_errors(self, mock_error_service, mock_mcp):
         """Test accessing file errors resource"""
-        mock_get_errors.return_value = {"file_errors": [{"line": 10}, {"line": 20}]}
+        mock_error_service.get_file_errors = AsyncMock(
+            return_value={"file_errors": [{"line": 10}, {"line": 20}]}
+        )
 
         # Register tools
         register_resource_access_tools(mock_mcp)
@@ -324,7 +349,9 @@ class TestResourceAccessTools:
         # Test file errors resource access
         result = await get_mcp_resource_func("gl://errors/123/456/src/main.py")
         assert "file_errors" in result
-        mock_get_errors.assert_called_once_with("123", "456", "src/main.py")
+        mock_error_service.get_file_errors.assert_called_once_with(
+            "123", "456", "src/main.py"
+        )
 
     @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_analysis_resource_data")
     async def test_get_mcp_resource_analysis(self, mock_get_analysis, mock_mcp):
