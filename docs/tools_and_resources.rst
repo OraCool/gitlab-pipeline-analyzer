@@ -82,7 +82,7 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
 .. note::
    **Error Deduplication**: The failed_pipeline_analysis tool uses sophisticated deduplication
    to prevent the same error from being reported multiple times when combining pytest parser
-   results with generic log parser fallback. See :doc:`ERROR_DEDUPLICATION` for detailed
+   results with generic log parser fallback. See ``ERROR_DEDUPLICATION.md`` for detailed
    technical documentation.
 
 2. Repository Search Tools

@@ -13,6 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.8.1] - 2025-09-05
+
+### 🚀 **New Features**
+
+- **File Analysis Service**: Added comprehensive file analysis capabilities for GitLab pipeline files
+  - Enhanced error tracking with file-specific analysis
+  - Integrated file service for better resource management
+  - Improved file error categorization and reporting
+- **Error Deduplication System**: Implemented smart error deduplication logic
+  - Enhanced log parsing with deduplication capabilities
+  - Reduced noise in error reporting by filtering duplicate entries
+  - Improved error analysis accuracy and performance
+
+### ✨ **Enhanced Features**
+
+- **Resource Management**: Improved resource handling with better error and file resources
+  - Enhanced error resource structure for better data organization
+  - Optimized file resource access patterns
+  - Better integration between file analysis and error reporting services
+
+### 🔧 **Technical Improvements**
+
+- **Code Quality**: Maintained high code quality standards with 66.57% test coverage
+  - 491 total tests passing with comprehensive coverage
+  - All security checks passed (13,637 lines analyzed)
+  - Consistent code formatting and type safety maintained
+
 ## [0.8.0] - 2025-09-04
 
 ### 🚀 **New Features**

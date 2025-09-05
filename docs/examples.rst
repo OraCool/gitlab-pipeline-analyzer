@@ -1,7 +1,7 @@
 Examples and Use Cases
 ======================
 
-This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server **version 0.8.0** with its comprehensive toolkit of 12 essential tools, MCP resources, merge request integration, and 13+ intelligent prompts.
+This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server **version 0.8.1** with its comprehensive toolkit of 11 essential tools, MCP resources, merge request integration, and 13+ intelligent prompts.
 
 .. contents::
    :local:
@@ -11,7 +11,7 @@ Quick Start Examples
 --------------------
 
 NEW in v0.8.0: Merge Request Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Scenario:** Merge request pipeline failed, need to understand context and extract Jira tickets.
 

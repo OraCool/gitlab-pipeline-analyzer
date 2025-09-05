@@ -13,20 +13,12 @@ GitLab Pipeline Analyzer MCP Server Documentation
    configuration
    troubleshooting
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Technical Documentation:
-
-   STREAMLINED_ARCHITECTURE
-   ERROR_DEDUPLICATION
-   DATABASE_DEBUG_FEATURES
-
 Overview
 --------
 
-The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 12 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
+The **GitLab Pipeline Analyzer MCP Server** is a comprehensive `Model Context Protocol (MCP) <https://modelcontextprotocol.io>`_ server that provides AI assistants with powerful tools for analyzing GitLab CI/CD pipeline failures. Built using `FastMCP <https://github.com/jlowin/fastmcp>`_, this server exposes 11 streamlined tools and 13+ intelligent prompts following DRY and KISS principles for pipeline analysis, repository search, cache management, and guided workflows.
 
-**Version 0.8.0** introduces major enhancements including merge request context integration, Jira ticket extraction, and smart filtering capabilities.
+**Version 0.8.1** introduces major enhancements including file analysis capabilities and error deduplication system.
 
 Key Features
 ------------
@@ -86,7 +78,7 @@ Key Features
 Architecture
 ------------
 
-The MCP server follows a streamlined architecture with 12 focused tools and 13+ intelligent prompts:
+The MCP server follows a streamlined architecture with 11 focused tools and 13+ intelligent prompts:
 
 **Core Tools:**
 1. **Pipeline Analysis** - ``failed_pipeline_analysis`` with intelligent parsing
