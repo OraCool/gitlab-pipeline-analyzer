@@ -11,6 +11,72 @@ import re
 class BaseParser:
     """Base parser with common utilities for log analysis"""
 
+    # Focused CI/CD infrastructure exclusions - only exclude clear infrastructure noise
+    EXCLUDE_PATTERNS = [
+        # GitLab Runner infrastructure (keep these as they're clearly not job failures)
+        r"Running with gitlab-runner",
+        r"on GCP Ocean",
+        r"system ID:",
+        r"shared k8s runner",
+        r"please use cache",
+        r"per job and.*per service",
+        # Kubernetes/Docker infrastructure setup (not failures)
+        r"the \"kubernetes\" executor",
+        r"Using Kubernetes",
+        r"Using attach strategy",
+        r"Pod activeDeadlineSeconds",
+        r"Waiting for pod",
+        r"Running on runner-",
+        r"gitlab-managed-apps",
+        r"via gitlab-runner",
+        # Kubernetes policy warnings (infrastructure, not code issues)
+        r"WARNING.*Event retrieved from the cluster.*policy.*require-labels",
+        r"WARNING.*policy require-labels.*fail.*validation error",
+        r"WARNING.*labels.*\w+\.\w+.*are required",
+        r".*rule require-labels failed at path",
+        r"WARNING.*Event retrieved from the cluster.*policy.*",
+        # Git operations (infrastructure, not code issues)
+        r"Getting source from Git",
+        r"source from Git repository",
+        r"Fetching changes with git",
+        r"Initialized empty Git repository",
+        r"Skipping Git submodules",
+        # Cache operations (successful)
+        r"Checking cache for",
+        r"Downloading cache from",
+        r"Successfully extracted cache",
+        r"storage\.googleapis\.com",
+        # Job execution framework
+        r"Executing \"step_script\"",
+        r"\"step_script\" stage of the job script",
+        r"Preparing the.*executor",
+        r"Preparing environment",
+        r"Cleaning up project directory",
+        r"cleanup_file_variables",
+        # Shell command echoes (not the actual errors)
+        r"^\$ ",
+        r"echo \".*\"",
+        # GitLab CI internal scripts (infrastructure, not user code issues)
+        r"/scripts-.*/get_sources:",
+        # Package installation (successful operations only)
+        r"Requirement already satisfied:",
+        r"Collecting ",
+        r"Installing collected packages:",
+        r"Successfully installed",
+        r"Downloading.*packages",
+        r"Installing.*packages",
+        # Success messages (not errors)
+        r"Successfully",
+        r"✅",
+        r"🔍",
+        # GitLab CI section markers and formatting
+        r"section_start:",
+        r"section_end:",
+        # Generic GitLab CI completion messages (not specific errors)
+        r"Cleaning up project directory and file based variables",
+        r"upload project directory and file based variables",
+    ]
+
     # Shared error type classification patterns
     ERROR_TYPE_PATTERNS = [
         # Test failures
@@ -44,8 +110,16 @@ class BaseParser:
         (r"Error response from daemon.*", "infrastructure_error"),
         (r"Failed to pull image.*", "infrastructure_error"),
         (r".*Permission denied.*", "infrastructure_error"),
-        # Policy/security warnings
-        (r"WARNING.*policy.*", "policy_warning"),
+        # Policy/security warnings (but exclude Kubernetes policy validation warnings)
+        (
+            r"WARNING.*policy.*require-labels.*",
+            "infrastructure_warning",
+        ),  # Kubernetes policy - not a code issue
+        (
+            r"WARNING.*Event retrieved from the cluster.*policy.*",
+            "infrastructure_warning",
+        ),  # Kubernetes policy - not a code issue
+        (r"WARNING.*policy.*", "policy_warning"),  # General policy warnings
         (r".*security issue.*", "security_error"),
         (r".*vulnerability.*", "security_error"),
         # Generic patterns (lower priority)

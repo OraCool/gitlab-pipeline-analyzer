@@ -31,8 +31,9 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
 - **NEW in v0.8.0**: Merge request information extraction and display
 - **NEW in v0.8.0**: Jira ticket detection and extraction from MR titles/descriptions
 - **NEW in v0.8.0**: Smart filtering - MR data only included for actual MR pipelines
+- **NEW in v0.8.0**: Advanced error deduplication between pytest and generic parsers
 - Auto-detects pytest vs generic jobs
-- Intelligent parser selection
+- Intelligent parser selection with hybrid parsing approach
 - Real branch resolution for MR pipelines
 - Complete error extraction with context
 - Automatic caching for performance
@@ -77,6 +78,12 @@ The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **co
 
     # For MR pipelines: includes merge_request data
     # For branch pipelines: excludes merge_request data
+
+.. note::
+   **Error Deduplication**: The failed_pipeline_analysis tool uses sophisticated deduplication
+   to prevent the same error from being reported multiple times when combining pytest parser
+   results with generic log parser fallback. See :doc:`ERROR_DEDUPLICATION` for detailed
+   technical documentation.
 
 2. Repository Search Tools
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

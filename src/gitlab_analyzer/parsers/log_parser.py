@@ -92,66 +92,6 @@ class LogParser(BaseParser):
         (r"(.*)warning: (.+)", "warning"),
     ]
 
-    # Focused CI/CD infrastructure exclusions - only exclude clear infrastructure noise
-    EXCLUDE_PATTERNS = [
-        # GitLab Runner infrastructure (keep these as they're clearly not job failures)
-        r"Running with gitlab-runner",
-        r"on GCP Ocean",
-        r"system ID:",
-        r"shared k8s runner",
-        r"please use cache",
-        r"per job and.*per service",
-        # Kubernetes/Docker infrastructure setup (not failures)
-        r"the \"kubernetes\" executor",
-        r"Using Kubernetes",
-        r"Using attach strategy",
-        r"Pod activeDeadlineSeconds",
-        r"Waiting for pod",
-        r"Running on runner-",
-        r"gitlab-managed-apps",
-        r"via gitlab-runner",
-        # Git operations (infrastructure, not code issues)
-        r"Getting source from Git",
-        r"source from Git repository",
-        r"Fetching changes with git",
-        r"Initialized empty Git repository",
-        r"Skipping Git submodules",
-        # Cache operations (successful)
-        r"Checking cache for",
-        r"Downloading cache from",
-        r"Successfully extracted cache",
-        r"storage\.googleapis\.com",
-        # Job execution framework
-        r"Executing \"step_script\"",
-        r"\"step_script\" stage of the job script",
-        r"Preparing the.*executor",
-        r"Preparing environment",
-        r"Cleaning up project directory",
-        r"cleanup_file_variables",
-        # Shell command echoes (not the actual errors)
-        r"^\$ ",
-        r"echo \".*\"",
-        # GitLab CI internal scripts (infrastructure, not user code issues)
-        r"/scripts-.*/get_sources:",
-        # Package installation (successful operations only)
-        r"Requirement already satisfied:",
-        r"Collecting ",
-        r"Installing collected packages:",
-        r"Successfully installed",
-        r"Downloading.*packages",
-        r"Installing.*packages",
-        # Success messages (not errors)
-        r"Successfully",
-        r"✅",
-        r"🔍",
-        # GitLab CI section markers and formatting
-        r"section_start:",
-        r"section_end:",
-        # Generic GitLab CI completion messages (not specific errors)
-        r"Cleaning up project directory and file based variables",
-        r"upload project directory and file based variables",
-    ]
-
     @classmethod
     def _is_duplicate_test_error(cls, message: str, existing_entries: list) -> bool:
         """Check if this error message represents a duplicate test failure"""
@@ -172,6 +112,38 @@ class LogParser(BaseParser):
         if "AssertionError:" in message and not test_function:
             # Look for test function in context if available
             return False  # Let the deduplication handle this
+
+        # Enhanced: Check for duplicate AttributeError messages in FAILED lines
+        if "FAILED" in message and "AttributeError:" in message:
+            # Extract the AttributeError message from the FAILED line
+            attr_error_match = re.search(r"AttributeError:\s*(.+)", message)
+            if attr_error_match:
+                attr_error_text = attr_error_match.group(1).strip()
+                # Check if we already have this exact AttributeError
+                for entry in existing_entries:
+                    if (
+                        hasattr(entry, "message")
+                        and "AttributeError:" in entry.message
+                        and attr_error_text in entry.message
+                    ):
+                        return True
+
+        # Enhanced: Check for raw AttributeError that might be duplicated in FAILED lines
+        if (
+            message.startswith("AttributeError:")
+            or message.startswith("'")
+            and "object has no attribute" in message
+        ):
+            # This might be a raw error that will be duplicated in a FAILED line
+            error_content = message.replace("AttributeError:", "").strip()
+            for entry in existing_entries:
+                if (
+                    hasattr(entry, "message")
+                    and "FAILED" in entry.message
+                    and "AttributeError:" in entry.message
+                    and error_content in entry.message
+                ):
+                    return True
 
         if test_function:
             # Check if we already have an error for this test function

@@ -13,6 +13,14 @@ GitLab Pipeline Analyzer MCP Server Documentation
    configuration
    troubleshooting
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Technical Documentation:
+
+   STREAMLINED_ARCHITECTURE
+   ERROR_DEDUPLICATION
+   DATABASE_DEBUG_FEATURES
+
 Overview
 --------
 

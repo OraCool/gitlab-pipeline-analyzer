@@ -34,22 +34,111 @@ class PytestLogParser(BaseParser):
         # Clean ANSI sequences first
         cleaned_log = cls.clean_ansi_sequences(log_text)
 
+        # Filter out infrastructure noise lines
+        filtered_lines = []
+        for line in cleaned_log.split("\n"):
+            if line.strip() and not any(
+                re.search(pattern, line, re.IGNORECASE)
+                for pattern in cls.EXCLUDE_PATTERNS
+            ):
+                filtered_lines.append(line)
+
+        # Rejoin the filtered content
+        cleaned_log = "\n".join(filtered_lines)
+
         # Extract different sections
         detailed_failures = cls._extract_detailed_failures(cleaned_log)
         short_summary = cls._extract_short_summary(cleaned_log)
         statistics = cls._extract_statistics(cleaned_log)
+
+        # Deduplicate between detailed failures and short summary
+        deduplicated_failures, deduplicated_summary = cls._deduplicate_test_failures(
+            detailed_failures, short_summary
+        )
 
         # Check for section presence
         has_failures_section = "=== FAILURES ===" in cleaned_log
         has_short_summary_section = "short test summary info" in cleaned_log.lower()
 
         return PytestLogAnalysis(
-            detailed_failures=detailed_failures,
-            short_summary=short_summary,
+            detailed_failures=deduplicated_failures,
+            short_summary=deduplicated_summary,
             statistics=statistics,
             has_failures_section=has_failures_section,
             has_short_summary_section=has_short_summary_section,
         )
+
+    @classmethod
+    def _deduplicate_test_failures(
+        cls,
+        detailed_failures: list[PytestFailureDetail],
+        short_summary: list[PytestShortSummary],
+    ) -> tuple[list[PytestFailureDetail], list[PytestShortSummary]]:
+        """
+        Deduplicate test failures between detailed failures and short summary sections.
+
+        Priority: Keep detailed failures (more information) over short summary entries.
+        Remove duplicates based on:
+        1. Same test function name
+        2. Same exception type and message
+        3. Same file path and approximate line number
+        """
+        # Create a set to track seen test failures
+        seen_failures = set()
+        deduplicated_detailed = []
+        deduplicated_summary = []
+
+        # First pass: Process detailed failures (higher priority)
+        for detailed in detailed_failures:
+            # Create a fingerprint for this failure
+            fingerprint = cls._create_test_failure_fingerprint(detailed)
+
+            if fingerprint not in seen_failures:
+                seen_failures.add(fingerprint)
+                deduplicated_detailed.append(detailed)
+
+        # Second pass: Process short summary, skip duplicates
+        for summary in short_summary:
+            # Create a fingerprint for this summary
+            fingerprint = cls._create_summary_failure_fingerprint(summary)
+
+            if fingerprint not in seen_failures:
+                seen_failures.add(fingerprint)
+                deduplicated_summary.append(summary)
+
+        return deduplicated_detailed, deduplicated_summary
+
+    @classmethod
+    def _create_test_failure_fingerprint(cls, failure: PytestFailureDetail) -> str:
+        """Create a unique fingerprint for a detailed test failure"""
+        # Use test function name, exception type, and core error message
+        test_func = failure.test_function or "unknown"
+        exception_type = failure.exception_type or "unknown"
+
+        # Extract core error message without file paths and line numbers
+        core_message = failure.exception_message or ""
+        # Remove common pytest noise and make it more generic
+        core_message = re.sub(r"'[^']*\.py'", "'file.py'", core_message)
+        core_message = re.sub(r"line \d+", "line N", core_message)
+        core_message = re.sub(r":\d+:", ":N:", core_message)
+
+        return f"{test_func}|{exception_type}|{core_message[:100]}"
+
+    @classmethod
+    def _create_summary_failure_fingerprint(cls, summary: PytestShortSummary) -> str:
+        """Create a unique fingerprint for a short summary failure"""
+        # Use test function name, exception type, and core error message
+        test_func = summary.test_function or "unknown"
+        exception_type = summary.error_type or "unknown"
+
+        # Extract core error message without file paths and line numbers
+        core_message = summary.error_message or ""
+        # Remove common pytest noise and make it more generic
+        core_message = re.sub(r"'[^']*\.py'", "'file.py'", core_message)
+        core_message = re.sub(r"line \d+", "line N", core_message)
+        core_message = re.sub(r":\d+:", ":N:", core_message)
+
+        return f"{test_func}|{exception_type}|{core_message[:100]}"
 
     @classmethod
     def _extract_detailed_failures(cls, log_text: str) -> list[PytestFailureDetail]:

@@ -64,6 +64,7 @@ Following **DRY (Don't Repeat Yourself)** and **KISS (Keep It Simple, Stupid)** 
 - `parse_generic_logs()` - Generic log parsing
 - `filter_unknown_errors()` - Remove meaningless errors
 - `analyze_pipeline_jobs()` - Comprehensive pipeline analysis
+- `_filter_duplicate_combined_errors()` - **NEW**: Deduplicate errors between parsers
 
 #### `src/gitlab_analyzer/core/pipeline_info.py`
 
@@ -73,12 +74,24 @@ Following **DRY (Don't Repeat Yourself)** and **KISS (Keep It Simple, Stupid)** 
 ### Smart Parser Selection
 
 ```python
-# Auto-detection logic
+# Auto-detection logic with hybrid parsing
 if is_pytest_job(job_name, job_stage, trace_content):
-    return parse_pytest_logs(trace_content, include_traceback, exclude_paths)
+    # Hybrid approach: pytest parser + generic fallback
+    pytest_errors = parse_pytest_logs(trace_content, include_traceback, exclude_paths)
+    generic_errors = parse_generic_logs(trace_content)  # Fallback for import errors
+    combined_errors = pytest_errors + generic_errors
+    return _filter_duplicate_combined_errors(combined_errors)  # Deduplicate
 else:
     return parse_generic_logs(trace_content)
 ```
+
+**Key Features:**
+
+- **Hybrid Parsing**: Pytest jobs use both pytest parser and generic fallback
+- **Error Deduplication**: Eliminates duplicate errors between parsers
+- **Import Error Capture**: Generic fallback catches errors that occur before pytest runs
+
+> 📚 **See**: [ERROR_DEDUPLICATION.md](ERROR_DEDUPLICATION.md) for detailed deduplication documentation
 
 ### Resource-Based Access
 
@@ -110,6 +123,7 @@ User → comprehensive_pipeline_analysis → Resources (gl://) for details
 - ✅ Parser logic extracted to reusable functions
 - ✅ Branch resolution logic centralized
 - ✅ Error filtering logic reused across parsers
+- ✅ Error deduplication prevents duplicate reporting
 - ✅ No code duplication between tools
 
 ### 2. **KISS Principle Applied**

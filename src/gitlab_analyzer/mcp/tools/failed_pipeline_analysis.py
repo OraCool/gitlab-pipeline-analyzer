@@ -4,7 +4,17 @@ Failed Pipeline Analysis Tool - Focused on analyzing only failed pipeline jobs
 This module provides efficient analysis by focusing specifically on failed jobs:
 1. Gets pipeline info and stores in database
 2. Gets only failed jobs using get_failed_pipeline_jobs (more efficient)
-3. Stores failed job data for future resource access
+3. Stores failed job da                                error_dict["line_number"] = str(tb.line_number)
+                                break
+                        errors.append(error_dict)
+                    debug_print(f"📊 PYTEST ERRORS CREATED: {len(errors)} errors from pytest parser")
+
+                    # CRITICAL FIX: Use generic LogParser as fallback for pytest jobs
+                    # to catch import-time errors (SyntaxError, etc.) that occur before pytest runs
+                    debug_print(f"🔍 RUNNING GENERIC PARSER FALLBACK...")
+                    verbose_debug_print(
+                        "🔍 Running generic parser as fallback to catch import-time errors..."
+                    )ture resource access
 4. Analyzes individual job traces with appropriate parsers
 5. Provides comprehensive error analysis and statistics
 
@@ -38,24 +48,68 @@ from gitlab_analyzer.utils.utils import (
 
 def _filter_duplicate_combined_errors(errors: list) -> list:
     """Filter duplicates from combined error results (local implementation)"""
+    debug_print(f"🔧 DEDUPLICATION CALLED: {len(errors)} combined errors")
     verbose_debug_print(f"Filtering duplicates from {len(errors)} combined errors")
     seen_errors = set()
     filtered_errors = []
 
-    for error in errors:
-        # Create a key for duplicate detection
+    for i, error in enumerate(errors):
+        # Extract core error components for comparison
         message = error.get("message", "") or error.get("exception_message", "")
         file_path = error.get("file_path", "") or error.get("file", "")
-        line_number = error.get("line_number", "") or error.get("line", "")
-        error_type = error.get("error_type", "") or error.get("exception_type", "")
 
-        # Create a normalized key for duplicate detection
-        key = f"{message}|{file_path}|{line_number}|{error_type}".lower().strip()
+        debug_print(f"🔍 Error {i + 1}: {message[:80]}...")
+
+        # Extract core error message from FAILED format vs direct format
+        core_message = message
+        if "FAILED" in message and " - " in message:
+            # Extract the actual error from "FAILED test::function - ErrorType: message"
+            parts = message.split(" - ", 1)
+            if len(parts) > 1:
+                core_message = parts[
+                    1
+                ]  # Get "AttributeError: 'TestUtils' object has no attribute 'buildUserBasicDTO'"
+                # Further extract just the message part after the error type
+                if ": " in core_message:
+                    error_parts = core_message.split(": ", 1)
+                    if len(error_parts) > 1:
+                        core_message = error_parts[
+                            1
+                        ]  # Get "'TestUtils' object has no attribute 'buildUserBasicDTO'"
+                        debug_print(f"  📝 Extracted core: {core_message}")
+
+        # Normalize test file paths - extract just the filename
+        normalized_file = file_path
+        if file_path and "/" in file_path:
+            normalized_file = file_path.split("/")[-1]  # Get just the filename
+
+        # For pytest errors, try to extract file from the message if file_path is empty
+        if not normalized_file and "FAILED" in message:
+            # Try to extract file from FAILED message like "FAILED domains/gwpy-document/.../test_effective_permissions.py::TestDocumentEffectivePermissions::test_user_permissions"
+            failed_parts = message.split("::", 1)
+            if failed_parts and "/" in failed_parts[0]:
+                potential_file = failed_parts[0].replace("FAILED ", "").strip()
+                if "/" in potential_file:
+                    normalized_file = potential_file.split("/")[
+                        -1
+                    ]  # Get just the filename
+                    debug_print(f"  📁 Extracted file from FAILED: {normalized_file}")
+
+        # Create a normalized key focusing on the core error (ignore line number differences for now)
+        key = f"{core_message}|{normalized_file}".lower().strip()
+        verbose_debug_print(f"  🔑 Key: {key}")
 
         if key not in seen_errors:
             seen_errors.add(key)
             filtered_errors.append(error)
+            verbose_debug_print("  ✅ Added as unique")
+        else:
+            debug_print("  🚫 Filtered as duplicate")
+            verbose_debug_print(f"🔧 Filtering duplicate error: {core_message[:50]}...")
 
+    debug_print(
+        f"🎯 DEDUPLICATION RESULT: {len(filtered_errors)} unique errors (filtered {len(errors) - len(filtered_errors)} duplicates)"
+    )
     verbose_debug_print(
         f"After combined duplicate filtering: {len(filtered_errors)} unique errors"
     )
@@ -235,14 +289,21 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     if _should_use_pytest_parser(trace, job.name, job.stage)
                     else "generic"
                 )
+                debug_print(
+                    f"🔧 PARSER SELECTION: {parser_type} (job.name='{job.name}', job.stage='{job.stage}')"
+                )
                 debug_print(f"🔧 Selected parser type: {parser_type}")
 
                 if parser_type == "pytest":
+                    debug_print(f"🧪 USING PYTEST PARSER for job {job.name}")
                     verbose_debug_print(
                         "🧪 Using pytest parser for detailed test failure analysis..."
                     )
                     pytest_parser = PytestLogParser()
                     parsed = pytest_parser.parse_pytest_log(trace)
+                    debug_print(
+                        f"📊 PYTEST PARSER RESULTS: {len(parsed.detailed_failures)} detailed failures"
+                    )
                     debug_print(
                         f"📊 Pytest parsing found {len(parsed.detailed_failures)} detailed failures"
                     )
