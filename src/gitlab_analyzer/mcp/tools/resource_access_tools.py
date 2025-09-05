@@ -8,7 +8,9 @@ URL Encoding for File Paths:
 File paths in URIs should be URL-encoded to handle special characters,
 spaces, and Unicode characters properly. For example:
 - "src/main.py" becomes "src%2Fmain.py"
-- "path with spaces/file.py" becomes "path%20with%20spaces%2Ffile.py"
+- "path with spaces/file.py" becomes "path%20with%20spaces%2Ffi                result = await error_service.get_pipeline_errors(
+                    project_id, pipeline_id, mode
+                )py"
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
@@ -23,12 +25,7 @@ from urllib.parse import unquote
 from fastmcp import FastMCP
 
 from gitlab_analyzer.mcp.resources.analysis import get_analysis_resource_data
-from gitlab_analyzer.mcp.resources.error import (
-    get_error_resource_data,
-    get_file_errors_resource_data,
-    get_individual_error_data,
-    get_pipeline_errors_resource_data,
-)
+from gitlab_analyzer.mcp.services.error_service import error_service
 from gitlab_analyzer.mcp.resources.file import (
     get_file_resource,
     get_file_resource_with_trace,
@@ -385,7 +382,9 @@ async def _handle_error_resource(
             debug_print(
                 f"🔍 Accessing individual error {error_id} in job {job_id} in project {project_id} (mode={mode})"
             )
-            result = await get_individual_error_data(project_id, job_id, error_id, mode)
+            result = await error_service.get_individual_error(
+                project_id, job_id, error_id, mode
+            )
             verbose_debug_print("✅ Individual error resource retrieved successfully")
             return result
         else:
@@ -393,7 +392,7 @@ async def _handle_error_resource(
             debug_print(
                 f"🔍 Accessing all errors in job {job_id} in project {project_id} (mode={mode})"
             )
-            result = await get_error_resource_data(project_id, job_id, mode)
+            result = await error_service.get_job_errors(project_id, job_id, mode)
             verbose_debug_print("✅ Job errors resource retrieved successfully")
             return result
     else:
@@ -431,12 +430,7 @@ async def _handle_errors_resource(
                     f"🔍 Accessing limited pipeline errors (limit={limit}) for pipeline {pipeline_id} in project {project_id}"
                 )
 
-                # Import limited function
-                from gitlab_analyzer.mcp.resources.error import (
-                    get_limited_pipeline_errors_resource_data,
-                )
-
-                result = await get_limited_pipeline_errors_resource_data(
+                result = await error_service.get_limited_pipeline_errors(
                     project_id, pipeline_id, limit, mode, include_trace
                 )
             else:
@@ -444,7 +438,7 @@ async def _handle_errors_resource(
                 debug_print(
                     f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
                 )
-                result = await get_pipeline_errors_resource_data(
+                result = await error_service.get_pipeline_errors(
                     project_id, pipeline_id
                 )
 
@@ -478,12 +472,7 @@ async def _handle_errors_resource(
                     f"🔍 Accessing limited job errors (limit={limit}) for job {job_id} in project {project_id}"
                 )
 
-                # Import limited function
-                from gitlab_analyzer.mcp.resources.error import (
-                    get_limited_job_errors_resource_data,
-                )
-
-                result = await get_limited_job_errors_resource_data(
+                result = await error_service.get_limited_job_errors(
                     project_id, job_id, limit, mode, include_trace
                 )
             elif file_path:
@@ -491,7 +480,7 @@ async def _handle_errors_resource(
                 debug_print(
                     f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}"
                 )
-                result = await get_file_errors_resource_data(
+                result = await error_service.get_file_errors(
                     project_id, job_id, file_path
                 )
             else:
@@ -499,7 +488,9 @@ async def _handle_errors_resource(
                 debug_print(
                     f"🔍 Accessing all errors in job {job_id} in project {project_id}"
                 )
-                result = await get_file_errors_resource_data(project_id, job_id, "")
+                result = await error_service.get_job_errors(
+                    project_id, job_id, "balanced"
+                )
 
             verbose_debug_print("✅ Job/file errors resource retrieved successfully")
             return result
