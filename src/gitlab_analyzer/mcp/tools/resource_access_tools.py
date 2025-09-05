@@ -120,14 +120,48 @@ async def _handle_jobs_resource(parts: list[str]) -> dict[str, Any]:
     if len(parts) >= 4 and parts[2] == "pipeline":
         project_id = parts[1]
         pipeline_id = parts[3]
-        # Check for status filter (e.g., /failed)
+
+        # Check for status filter and limit
         status = "all"
+        limit = None
+
         if len(parts) > 4:
-            status = parts[4]  # e.g., "failed"
+            # Check patterns like:
+            # gl://jobs/123/pipeline/456/failed
+            # gl://jobs/123/pipeline/456/failed/limit/5
+            # gl://jobs/123/pipeline/456/limit/10
+
+            if parts[4] in ["failed", "success"]:
+                status = parts[4]
+                if len(parts) > 6 and parts[5] == "limit":
+                    try:
+                        limit = int(parts[6])
+                    except (ValueError, IndexError):
+                        raise ValueError("Invalid limit parameter in jobs URI")
+            elif parts[4] == "limit":
+                try:
+                    limit = int(parts[5])
+                except (ValueError, IndexError):
+                    raise ValueError("Invalid limit parameter in jobs URI")
+            else:
+                status = parts[4]  # fallback for other status types
+
         debug_print(
-            f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}"
+            f"🔍 Accessing jobs for pipeline {pipeline_id} in project {project_id} with status filter: {status}, limit: {limit}"
         )
-        result = await get_pipeline_jobs_resource(project_id, pipeline_id, status)
+
+        if limit is not None:
+            # Import limited function
+            from gitlab_analyzer.mcp.resources.job import (
+                get_limited_pipeline_jobs_resource,
+            )
+
+            result = await get_limited_pipeline_jobs_resource(
+                project_id, pipeline_id, status, limit
+            )
+        else:
+            result = await get_pipeline_jobs_resource(project_id, pipeline_id, status)
+
         verbose_debug_print("✅ Jobs resource retrieved successfully")
         return result
     else:
@@ -366,34 +400,107 @@ async def _handle_error_resource(
         raise ValueError("Invalid error URI format - expected error/project/job")
 
 
-async def _handle_errors_resource(parts: list[str]) -> dict[str, Any]:
+async def _handle_errors_resource(
+    parts: list[str], query_params: dict[str, str] = None
+) -> dict[str, Any]:
     """Handle errors collection resource requests."""
+    if query_params is None:
+        query_params = {}
+
     if len(parts) >= 3:
         project_id = parts[1]
         if len(parts) >= 4 and parts[2] == "pipeline":
-            # gl://errors/123/pipeline/123
+            # gl://errors/123/pipeline/123 or gl://errors/123/pipeline/123/limit/5
             pipeline_id = parts[3]
-            debug_print(
-                f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
-            )
-            result = await get_pipeline_errors_resource_data(project_id, pipeline_id)
+
+            # Check for limit parameter
+            limit = None
+            if len(parts) > 5 and parts[4] == "limit":
+                try:
+                    limit = int(parts[5])
+                except (ValueError, IndexError):
+                    raise ValueError("Invalid limit parameter in errors URI")
+
+            if limit is not None:
+                # Limited pipeline errors
+                mode = query_params.get("mode", "balanced")
+                include_trace_str = query_params.get("include_trace", "false")
+                include_trace = include_trace_str.lower() == "true"
+
+                debug_print(
+                    f"🔍 Accessing limited pipeline errors (limit={limit}) for pipeline {pipeline_id} in project {project_id}"
+                )
+
+                # Import limited function
+                from gitlab_analyzer.mcp.resources.error import (
+                    get_limited_pipeline_errors_resource_data,
+                )
+
+                result = await get_limited_pipeline_errors_resource_data(
+                    project_id, pipeline_id, limit, mode, include_trace
+                )
+            else:
+                # All pipeline errors
+                debug_print(
+                    f"🔍 Accessing pipeline errors for pipeline {pipeline_id} in project {project_id}"
+                )
+                result = await get_pipeline_errors_resource_data(
+                    project_id, pipeline_id
+                )
+
             verbose_debug_print("✅ Pipeline errors resource retrieved successfully")
             return result
         else:
-            # gl://errors/123/456/src/main.py
+            # gl://errors/123/456/src/main.py or gl://errors/123/456/limit/5
             job_id = parts[2]
-            file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
-            # URL decode the file path
-            if file_path:
-                file_path = unquote(file_path)
+
+            # Check for limit parameter
+            limit = None
+            if len(parts) > 4 and parts[3] == "limit":
+                try:
+                    limit = int(parts[4])
+                except (ValueError, IndexError):
+                    raise ValueError("Invalid limit parameter in errors URI")
+                file_path = ""  # No file path when using limit
+            else:
+                file_path = "/".join(parts[3:]) if len(parts) > 3 else ""
+                # URL decode the file path
+                if file_path:
+                    file_path = unquote(file_path)
+
+            if limit is not None:
+                # Limited job errors
+                mode = query_params.get("mode", "balanced")
+                include_trace_str = query_params.get("include_trace", "false")
+                include_trace = include_trace_str.lower() == "true"
+
+                debug_print(
+                    f"🔍 Accessing limited job errors (limit={limit}) for job {job_id} in project {project_id}"
+                )
+
+                # Import limited function
+                from gitlab_analyzer.mcp.resources.error import (
+                    get_limited_job_errors_resource_data,
+                )
+
+                result = await get_limited_job_errors_resource_data(
+                    project_id, job_id, limit, mode, include_trace
+                )
+            elif file_path:
+                # File-specific errors
                 debug_print(
                     f"🔍 Accessing file-specific errors for '{file_path}' in job {job_id} in project {project_id}"
                 )
+                result = await get_file_errors_resource_data(
+                    project_id, job_id, file_path
+                )
             else:
+                # All job errors
                 debug_print(
                     f"🔍 Accessing all errors in job {job_id} in project {project_id}"
                 )
-            result = await get_file_errors_resource_data(project_id, job_id, file_path)
+                result = await get_file_errors_resource_data(project_id, job_id, "")
+
             verbose_debug_print("✅ Job/file errors resource retrieved successfully")
             return result
     else:
@@ -493,7 +600,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
             result = await _handle_error_resource(parts, query_params)
         elif path.startswith("errors/"):
             debug_print("⚠️📋 Processing errors collection resource request")
-            result = await _handle_errors_resource(parts)
+            result = await _handle_errors_resource(parts, query_params)
         elif path.startswith("analysis/"):
             debug_print("📊 Processing analysis resource request")
             result = await _handle_analysis_resource(parts, query_params)

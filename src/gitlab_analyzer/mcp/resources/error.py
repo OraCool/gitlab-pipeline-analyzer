@@ -580,6 +580,336 @@ async def get_individual_error_data(
     return json.loads(result.text)
 
 
+async def get_limited_job_errors_resource_data(
+    project_id: str,
+    job_id: str,
+    limit: int,
+    mode: str = "balanced",
+    include_trace: bool = False,
+) -> dict[str, Any]:
+    """
+    Get limited number of errors for a job with mode and trace support.
+
+    Args:
+        project_id: GitLab project ID
+        job_id: GitLab job ID
+        limit: Maximum number of errors to return
+        mode: Analysis mode (minimal, balanced, fixing, detailed)
+        include_trace: Whether to include trace context
+
+    Returns:
+        Limited job error analysis data as dict
+    """
+    try:
+        cache_manager = get_cache_manager()
+
+        # Get all errors for the job from database
+        all_errors = cache_manager.get_job_errors(int(job_id))
+
+        if not all_errors:
+            return {
+                "error": "No errors found",
+                "message": f"No errors found for job {job_id}",
+                "job_id": int(job_id),
+                "project_id": project_id,
+                "limit": limit,
+                "mode": mode,
+                "include_trace": include_trace,
+                "suggested_action": f"Check if job {job_id} has been analyzed",
+                "mcp_info": get_mcp_info("limited_job_errors_resource"),
+            }
+
+        # Apply limit
+        limited_errors = all_errors[:limit]
+
+        # Enhance errors with mode-specific details and trace if requested
+        enhanced_errors = []
+        for error in limited_errors:
+            enhanced_error = {
+                "id": error["id"],
+                "message": error["message"],
+                "line_number": error.get("line"),
+                "file_path": error.get("file_path"),
+                "exception_type": error.get("error_type"),
+                "severity": "error",
+                "context": {
+                    "job_id": int(job_id),
+                    "project_id": project_id,
+                },
+                "resource_links": [
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://error/{project_id}/{job_id}/{error['id']}",
+                        "text": "View detailed error analysis with fixing recommendations",
+                    }
+                ],
+            }
+
+            # Add trace context if requested and mode supports it
+            if include_trace and mode in ["fixing", "detailed"]:
+                try:
+                    trace_excerpt = cache_manager.get_job_trace_excerpt(
+                        int(job_id), error["id"], mode
+                    )
+                    if trace_excerpt:
+                        enhanced_error["trace_excerpt"] = trace_excerpt
+                except Exception as trace_error:
+                    logger.warning(
+                        "Failed to get trace excerpt for error %s: %s",
+                        error["id"],
+                        trace_error,
+                    )
+
+            # Add fix guidance for fixing and detailed modes
+            if mode in ["fixing", "detailed"]:
+                try:
+                    from gitlab_analyzer.utils.utils import _generate_fix_guidance
+
+                    fix_guidance_error = {
+                        "exception_type": error.get("error_type"),
+                        "exception_message": error.get("message"),
+                        "file_path": error.get("file_path"),
+                        "line_number": str(error.get("line", "")),
+                        "message": error.get("message"),
+                    }
+                    enhanced_error["fix_guidance"] = _generate_fix_guidance(
+                        fix_guidance_error
+                    )
+                except Exception as fix_error:
+                    logger.warning("Failed to generate fix guidance: %s", fix_error)
+
+            enhanced_errors.append(enhanced_error)
+
+        return {
+            "job_id": int(job_id),
+            "project_id": project_id,
+            "limit": limit,
+            "mode": mode,
+            "include_trace": include_trace,
+            "errors": enhanced_errors,
+            "summary": {
+                "total_errors_available": len(all_errors),
+                "errors_returned": len(enhanced_errors),
+                "limit_applied": limit < len(all_errors),
+                "analysis_mode": mode,
+                "trace_included": include_trace,
+            },
+            "resource_links": [
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://error/{project_id}/{job_id}",
+                    "text": "View all errors in this job",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://job/{project_id}/**/{job_id}",
+                    "text": "View complete job analysis",
+                },
+            ],
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error getting limited job errors %s/%s: %s", project_id, job_id, e
+        )
+        return {
+            "error": f"Failed to get limited job errors: {str(e)}",
+            "project_id": project_id,
+            "job_id": job_id,
+            "limit": limit,
+            "mode": mode,
+            "include_trace": include_trace,
+            "resource_uri": f"gl://errors/{project_id}/{job_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+        }
+
+
+async def get_limited_pipeline_errors_resource_data(
+    project_id: str,
+    pipeline_id: str,
+    limit: int,
+    mode: str = "balanced",
+    include_trace: bool = False,
+) -> dict[str, Any]:
+    """
+    Get limited number of errors across all jobs in a pipeline with mode and trace support.
+
+    Args:
+        project_id: GitLab project ID
+        pipeline_id: GitLab pipeline ID
+        limit: Maximum number of errors to return
+        mode: Analysis mode (minimal, balanced, fixing, detailed)
+        include_trace: Whether to include trace context
+
+    Returns:
+        Limited pipeline error analysis data as dict
+    """
+    try:
+        cache_manager = get_cache_manager()
+
+        # Get all failed jobs in the pipeline
+        failed_jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
+
+        if not failed_jobs:
+            return {
+                "error": "No failed jobs found",
+                "message": f"No failed jobs found for pipeline {pipeline_id}",
+                "pipeline_id": int(pipeline_id),
+                "project_id": project_id,
+                "limit": limit,
+                "mode": mode,
+                "include_trace": include_trace,
+                "suggested_action": f"Check if pipeline {pipeline_id} has been analyzed",
+                "mcp_info": get_mcp_info("limited_pipeline_errors_resource"),
+            }
+
+        # Collect all errors from all failed jobs
+        all_errors = []
+        jobs_processed = []
+
+        for job in failed_jobs:
+            job_id = job.get("job_id")
+            if job_id is None:
+                continue
+
+            job_errors = cache_manager.get_job_errors(int(job_id))
+            for error in job_errors:
+                # Add job context to each error
+                error_with_job = error.copy()
+                error_with_job["job_id"] = job_id
+                error_with_job["job_name"] = job.get("name")
+                all_errors.append(error_with_job)
+
+            if job_errors:
+                jobs_processed.append(
+                    {
+                        "job_id": job_id,
+                        "job_name": job.get("name"),
+                        "error_count": len(job_errors),
+                    }
+                )
+
+        # Apply limit to total errors
+        limited_errors = all_errors[:limit]
+
+        # Enhance errors with mode-specific details and trace if requested
+        enhanced_errors = []
+        for error in limited_errors:
+            enhanced_error = {
+                "id": error["id"],
+                "message": error["message"],
+                "job_id": error["job_id"],
+                "job_name": error.get("job_name"),
+                "line_number": error.get("line"),
+                "file_path": error.get("file_path"),
+                "exception_type": error.get("error_type"),
+                "severity": "error",
+                "context": {
+                    "pipeline_id": int(pipeline_id),
+                    "project_id": project_id,
+                },
+                "resource_links": [
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://error/{project_id}/{error['job_id']}/{error['id']}",
+                        "text": "View detailed error analysis with fixing recommendations",
+                    },
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://errors/{project_id}/{error['job_id']}",
+                        "text": f"View all errors in job {error.get('job_name', error['job_id'])}",
+                    },
+                ],
+            }
+
+            # Add trace context if requested and mode supports it
+            if include_trace and mode in ["fixing", "detailed"]:
+                try:
+                    trace_excerpt = cache_manager.get_job_trace_excerpt(
+                        int(error["job_id"]), error["id"], mode
+                    )
+                    if trace_excerpt:
+                        enhanced_error["trace_excerpt"] = trace_excerpt
+                except Exception as trace_error:
+                    logger.warning(
+                        "Failed to get trace excerpt for error %s: %s",
+                        error["id"],
+                        trace_error,
+                    )
+
+            # Add fix guidance for fixing and detailed modes
+            if mode in ["fixing", "detailed"]:
+                try:
+                    from gitlab_analyzer.utils.utils import _generate_fix_guidance
+
+                    fix_guidance_error = {
+                        "exception_type": error.get("error_type"),
+                        "exception_message": error.get("message"),
+                        "file_path": error.get("file_path"),
+                        "line_number": str(error.get("line", "")),
+                        "message": error.get("message"),
+                    }
+                    enhanced_error["fix_guidance"] = _generate_fix_guidance(
+                        fix_guidance_error
+                    )
+                except Exception as fix_error:
+                    logger.warning("Failed to generate fix guidance: %s", fix_error)
+
+            enhanced_errors.append(enhanced_error)
+
+        return {
+            "pipeline_id": int(pipeline_id),
+            "project_id": project_id,
+            "limit": limit,
+            "mode": mode,
+            "include_trace": include_trace,
+            "errors": enhanced_errors,
+            "summary": {
+                "total_errors_available": len(all_errors),
+                "errors_returned": len(enhanced_errors),
+                "limit_applied": limit < len(all_errors),
+                "failed_jobs_count": len(failed_jobs),
+                "jobs_with_errors": len(jobs_processed),
+                "analysis_mode": mode,
+                "trace_included": include_trace,
+            },
+            "jobs_processed": jobs_processed,
+            "resource_links": [
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://errors/{project_id}/pipeline/{pipeline_id}",
+                    "text": "View all errors in this pipeline",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://pipeline/{project_id}/{pipeline_id}",
+                    "text": "View complete pipeline analysis",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://jobs/{project_id}/pipeline/{pipeline_id}/failed",
+                    "text": "View all failed jobs in this pipeline",
+                },
+            ],
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error getting limited pipeline errors %s/%s: %s",
+            project_id,
+            pipeline_id,
+            e,
+        )
+        return {
+            "error": f"Failed to get limited pipeline errors: {str(e)}",
+            "project_id": project_id,
+            "pipeline_id": pipeline_id,
+            "limit": limit,
+            "mode": mode,
+            "include_trace": include_trace,
+            "resource_uri": f"gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+        }
+
+
 def register_error_resources(mcp) -> None:
     """Register error resources with MCP server"""
 
@@ -654,5 +984,204 @@ def register_error_resources(mcp) -> None:
             Mode-specific information about a specific error with enhanced details
         """
         return await _get_individual_error_with_mode(project_id, job_id, error_id, mode)
+
+    # Missing gl://errors/* resources
+    @mcp.resource("gl://errors/{project_id}/{job_id}")
+    async def get_job_errors_resource(
+        project_id: str, job_id: str
+    ) -> TextResourceContents:
+        """
+        Get all errors for a specific job.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+
+        Returns:
+            All errors in the job with basic details
+        """
+        data = await get_error_resource_data(project_id, job_id, "balanced")
+        return create_text_resource(
+            f"gl://errors/{project_id}/{job_id}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource("gl://errors/{project_id}/{job_id}/{file_path}")
+    async def get_job_file_errors_resource(
+        project_id: str, job_id: str, file_path: str
+    ) -> TextResourceContents:
+        """
+        Get errors for a specific file in a job.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            file_path: Path to the specific file
+
+        Returns:
+            File-specific error analysis
+        """
+        data = await get_file_errors_resource_data(project_id, job_id, file_path)
+        return create_text_resource(
+            f"gl://errors/{project_id}/{job_id}/{file_path}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource("gl://errors/{project_id}/pipeline/{pipeline_id}")
+    async def get_pipeline_errors_resource(
+        project_id: str, pipeline_id: str
+    ) -> TextResourceContents:
+        """
+        Get all errors across all jobs in a pipeline.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+
+        Returns:
+            Pipeline-wide error analysis
+        """
+        data = await get_pipeline_errors_resource_data(project_id, pipeline_id)
+        return create_text_resource(
+            f"gl://errors/{project_id}/pipeline/{pipeline_id}",
+            json.dumps(data, indent=2),
+        )
+
+    # New limited error resources
+    @mcp.resource("gl://errors/{project_id}/{job_id}/limit/{limit}")
+    async def get_limited_job_errors_resource(
+        project_id: str, job_id: str, limit: str
+    ) -> TextResourceContents:
+        """
+        Get limited number of errors for a job.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            limit: Maximum number of errors to return
+
+        Returns:
+            Limited error analysis for the job
+        """
+        try:
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://errors/{project_id}/{job_id}/limit/{limit}",
+                json.dumps({"error": "Invalid limit parameter"}, indent=2),
+            )
+
+        data = await get_limited_job_errors_resource_data(project_id, job_id, limit_num)
+        return create_text_resource(
+            f"gl://errors/{project_id}/{job_id}/limit/{limit}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource(
+        "gl://errors/{project_id}/{job_id}/limit/{limit}?mode={mode}&include_trace={include_trace}"
+    )
+    async def get_limited_job_errors_resource_with_params(
+        project_id: str, job_id: str, limit: str, mode: str, include_trace: str
+    ) -> TextResourceContents:
+        """
+        Get limited number of errors for a job with mode and trace parameters.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            limit: Maximum number of errors to return
+            mode: Analysis mode (minimal, balanced, fixing, detailed)
+            include_trace: Whether to include trace context ('true'/'false')
+
+        Returns:
+            Limited error analysis with mode-specific details and optional trace
+        """
+        try:
+            limit_num = int(limit)
+            include_trace_bool = include_trace.lower() == "true"
+        except ValueError:
+            return create_text_resource(
+                f"gl://errors/{project_id}/{job_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+                json.dumps(
+                    {"error": "Invalid limit or include_trace parameter"}, indent=2
+                ),
+            )
+
+        data = await get_limited_job_errors_resource_data(
+            project_id, job_id, limit_num, mode, include_trace_bool
+        )
+        return create_text_resource(
+            f"gl://errors/{project_id}/{job_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource("gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}")
+    async def get_limited_pipeline_errors_resource(
+        project_id: str, pipeline_id: str, limit: str
+    ) -> TextResourceContents:
+        """
+        Get limited number of errors across all jobs in a pipeline.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            limit: Maximum number of errors to return
+
+        Returns:
+            Limited pipeline-wide error analysis
+        """
+        try:
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}",
+                json.dumps({"error": "Invalid limit parameter"}, indent=2),
+            )
+
+        data = await get_limited_pipeline_errors_resource_data(
+            project_id, pipeline_id, limit_num
+        )
+        return create_text_resource(
+            f"gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource(
+        "gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}?mode={mode}&include_trace={include_trace}"
+    )
+    async def get_limited_pipeline_errors_resource_with_params(
+        project_id: str, pipeline_id: str, limit: str, mode: str, include_trace: str
+    ) -> TextResourceContents:
+        """
+        Get limited number of errors across all jobs in a pipeline with mode and trace parameters.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            limit: Maximum number of errors to return
+            mode: Analysis mode (minimal, balanced, fixing, detailed)
+            include_trace: Whether to include trace context ('true'/'false')
+
+        Returns:
+            Limited pipeline-wide error analysis with mode-specific details and optional trace
+        """
+        try:
+            limit_num = int(limit)
+            include_trace_bool = include_trace.lower() == "true"
+        except ValueError:
+            return create_text_resource(
+                f"gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+                json.dumps(
+                    {"error": "Invalid limit or include_trace parameter"}, indent=2
+                ),
+            )
+
+        data = await get_limited_pipeline_errors_resource_data(
+            project_id, pipeline_id, limit_num, mode, include_trace_bool
+        )
+        return create_text_resource(
+            f"gl://errors/{project_id}/pipeline/{pipeline_id}/limit/{limit}?mode={mode}&include_trace={include_trace}",
+            json.dumps(data, indent=2),
+        )
 
     logger.info("Error resources registered")

@@ -222,6 +222,131 @@ async def get_pipeline_jobs_resource(
     )
 
 
+async def get_limited_pipeline_jobs_resource(
+    project_id: str, pipeline_id: str, status_filter: str = "all", limit: int = 10
+) -> dict[str, Any]:
+    """Get limited number of jobs for a pipeline with optional status filtering"""
+    cache_manager = get_cache_manager()
+    cache_key = generate_cache_key(
+        "limited_pipeline_jobs",
+        project_id,
+        int(pipeline_id),
+        status_filter=status_filter,
+        limit=limit,
+    )
+
+    async def compute_limited_pipeline_jobs_data() -> dict[str, Any]:
+        if status_filter == "failed":
+            # Get only failed jobs
+            all_jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
+        else:
+            # Get all jobs
+            all_jobs = await cache_manager.get_pipeline_jobs(int(pipeline_id))
+
+            # Apply status filter if specified
+            if status_filter != "all":
+                all_jobs = [
+                    job for job in all_jobs if job.get("status") == status_filter
+                ]
+
+        # Apply limit
+        limited_jobs = all_jobs[:limit]
+
+        # Enhance job data with resource links
+        enhanced_jobs = []
+        for job in limited_jobs:
+            job_id = job.get("job_id")
+            enhanced_job = job.copy()
+
+            # Add resource links for navigation
+            enhanced_job["resource_links"] = [
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://job/{project_id}/{pipeline_id}/{job_id}",
+                    "text": f"View detailed job analysis for {job.get('name', job_id)} - logs, errors, and files",
+                }
+            ]
+
+            # Add files link if job has errors
+            if job.get("status") == "failed":
+                enhanced_job["resource_links"].append(
+                    {
+                        "type": "resource_link",
+                        "resourceUri": f"gl://files/{project_id}/{job_id}",
+                        "text": f"View files with errors in job {job.get('name', job_id)}",
+                    }
+                )
+
+            enhanced_jobs.append(enhanced_job)
+
+        # Get pipeline info for context
+        pipeline_info = await cache_manager.get_pipeline_info_async(int(pipeline_id))
+
+        return {
+            "pipeline_info": {
+                "pipeline_id": int(pipeline_id),
+                "project_id": project_id,
+                "status": pipeline_info.get("status") if pipeline_info else "unknown",
+                "branch": pipeline_info.get("branch") if pipeline_info else None,
+            },
+            "jobs": enhanced_jobs,
+            "limit": limit,
+            "summary": {
+                "total_jobs_available": len(all_jobs),
+                "jobs_returned": len(enhanced_jobs),
+                "limit_applied": limit < len(all_jobs),
+                "status_filter": status_filter,
+                "failed_jobs": len(
+                    [j for j in enhanced_jobs if j.get("status") == "failed"]
+                ),
+                "successful_jobs": len(
+                    [j for j in enhanced_jobs if j.get("status") == "success"]
+                ),
+                "other_status_jobs": len(
+                    [
+                        j
+                        for j in enhanced_jobs
+                        if j.get("status") not in ["failed", "success"]
+                    ]
+                ),
+            },
+            "resource_links": [
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://jobs/{project_id}/pipeline/{pipeline_id}/{status_filter}",
+                    "text": f"View all {status_filter} jobs in this pipeline",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://pipeline/{project_id}/{pipeline_id}",
+                    "text": "View full pipeline analysis - all jobs, status, and branch information",
+                },
+                {
+                    "type": "resource_link",
+                    "resourceUri": f"gl://files/{project_id}/pipeline/{pipeline_id}",
+                    "text": "View all files with errors across the entire pipeline",
+                },
+            ],
+            "metadata": {
+                "resource_type": "limited_pipeline_jobs",
+                "project_id": project_id,
+                "pipeline_id": int(pipeline_id),
+                "data_source": "database",
+                "cached_at": None,
+            },
+            "mcp_info": get_mcp_info("limited_pipeline_jobs_resource"),
+        }
+
+    # Use cache for the computed data
+    return await cache_manager.get_or_compute(
+        key=cache_key,
+        compute_func=compute_limited_pipeline_jobs_data,
+        data_type="limited_pipeline_jobs",
+        project_id=project_id,
+        pipeline_id=int(pipeline_id),
+    )
+
+
 def register_job_resources(mcp) -> None:
     """Register job resources with MCP server"""
 
@@ -293,6 +418,70 @@ def register_job_resources(mcp) -> None:
         data = await get_pipeline_jobs_resource(project_id, pipeline_id, "success")
         return create_text_resource(
             f"gl://jobs/{project_id}/pipeline/{pipeline_id}/success",
+            json.dumps(data, indent=2),
+        )
+
+    # New limited job resources
+    @mcp.resource("gl://jobs/{project_id}/pipeline/{pipeline_id}/failed/limit/{limit}")
+    async def get_limited_pipeline_failed_jobs_resource_handler(
+        project_id: str, pipeline_id: str, limit: str
+    ) -> TextResourceContents:
+        """Get limited number of failed jobs for a pipeline"""
+        try:
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://jobs/{project_id}/pipeline/{pipeline_id}/failed/limit/{limit}",
+                json.dumps({"error": "Invalid limit parameter"}, indent=2),
+            )
+
+        data = await get_limited_pipeline_jobs_resource(
+            project_id, pipeline_id, "failed", limit_num
+        )
+        return create_text_resource(
+            f"gl://jobs/{project_id}/pipeline/{pipeline_id}/failed/limit/{limit}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource("gl://jobs/{project_id}/pipeline/{pipeline_id}/success/limit/{limit}")
+    async def get_limited_pipeline_success_jobs_resource_handler(
+        project_id: str, pipeline_id: str, limit: str
+    ) -> TextResourceContents:
+        """Get limited number of successful jobs for a pipeline"""
+        try:
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://jobs/{project_id}/pipeline/{pipeline_id}/success/limit/{limit}",
+                json.dumps({"error": "Invalid limit parameter"}, indent=2),
+            )
+
+        data = await get_limited_pipeline_jobs_resource(
+            project_id, pipeline_id, "success", limit_num
+        )
+        return create_text_resource(
+            f"gl://jobs/{project_id}/pipeline/{pipeline_id}/success/limit/{limit}",
+            json.dumps(data, indent=2),
+        )
+
+    @mcp.resource("gl://jobs/{project_id}/pipeline/{pipeline_id}/limit/{limit}")
+    async def get_limited_pipeline_all_jobs_resource_handler(
+        project_id: str, pipeline_id: str, limit: str
+    ) -> TextResourceContents:
+        """Get limited number of all jobs for a pipeline"""
+        try:
+            limit_num = int(limit)
+        except ValueError:
+            return create_text_resource(
+                f"gl://jobs/{project_id}/pipeline/{pipeline_id}/limit/{limit}",
+                json.dumps({"error": "Invalid limit parameter"}, indent=2),
+            )
+
+        data = await get_limited_pipeline_jobs_resource(
+            project_id, pipeline_id, "all", limit_num
+        )
+        return create_text_resource(
+            f"gl://jobs/{project_id}/pipeline/{pipeline_id}/limit/{limit}",
             json.dumps(data, indent=2),
         )
 
