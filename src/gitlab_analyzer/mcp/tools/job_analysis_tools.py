@@ -14,9 +14,121 @@ from typing import Any
 from fastmcp import FastMCP
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
-from gitlab_analyzer.core.analysis import analyze_job_trace
+from gitlab_analyzer.core.analysis import store_job_analysis_step
+from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 from gitlab_analyzer.utils.utils import get_gitlab_analyzer, get_mcp_info
+
+
+async def analyze_job_trace(
+    project_id: str | int,
+    job_id: int,
+    trace_content: str,
+    exclude_file_patterns: list[str] | None = None,
+    disable_file_filtering: bool = False,
+    store_in_db: bool = True,
+) -> dict[str, Any]:
+    """Analyze job trace and extract errors"""
+    try:
+        cache_manager = get_cache_manager()
+
+        # Determine parser type based on trace content
+        parser_type = (
+            "pytest" if _should_use_pytest_parser(trace_content) else "generic"
+        )
+        debug_print(f"🔧 Selected parser type: {parser_type}")
+
+        if parser_type == "pytest":
+            debug_print("🧪 Using pytest parser for detailed test failure analysis...")
+            pytest_parser = PytestLogParser()
+            parsed = pytest_parser.parse_pytest_log(trace_content)
+
+            # Convert PytestFailureDetail objects to error dict format
+            errors: list[dict[str, Any]] = []
+            for _failure_index, failure in enumerate(parsed.detailed_failures):
+                error_dict = {
+                    "exception_type": failure.exception_type,
+                    "exception_message": failure.exception_message,
+                    "file_path": failure.test_file,
+                    "line_number": None,
+                    "test_function": failure.test_function,
+                    "test_name": failure.test_name,
+                    "traceback": failure.traceback,
+                    "error_context": "pytest",
+                    "job_id": job_id,
+                }
+                errors.append(error_dict)
+
+            analysis_data = {
+                "errors": errors,
+                "parser_type": "pytest",
+                "total_errors": len(errors),
+                "files_with_errors": len(
+                    {e["file_path"] for e in errors if e["file_path"]}
+                ),
+            }
+        else:
+            debug_print("🔧 Using generic log parser...")
+            log_parser = LogParser()
+            parsed_data = log_parser.parse_log(trace_content)
+
+            analysis_data = {
+                "errors": parsed_data.get("errors", []),
+                "parser_type": "generic",
+                "total_errors": len(parsed_data.get("errors", [])),
+                "files_with_errors": len(
+                    {
+                        e.get("file_path")
+                        for e in parsed_data.get("errors", [])
+                        if e.get("file_path")
+                    }
+                ),
+            }
+
+        # Store analysis if requested
+        if store_in_db:
+            await store_job_analysis_step(
+                cache_manager=cache_manager,
+                project_id=project_id,
+                pipeline_id=0,  # Will be updated if pipeline context is known
+                job_id=job_id,
+                job={"id": job_id},  # Minimal job object
+                trace_content=trace_content,
+                analysis_data=analysis_data,
+            )
+
+        return analysis_data
+
+    except Exception as e:
+        error_print(f"❌ Error analyzing job trace: {e}")
+        return {
+            "errors": [],
+            "parser_type": "error",
+            "total_errors": 0,
+            "files_with_errors": 0,
+            "error": str(e),
+        }
+
+
+def _should_use_pytest_parser(trace_content: str) -> bool:
+    """Determine if pytest parser should be used based on trace content"""
+    if not trace_content:
+        return False
+
+    pytest_indicators = [
+        "pytest",
+        "FAILED",
+        "::test_",
+        "= FAILURES =",
+        "= ERROR =",
+        "collected",
+        "short test summary",
+        "test session starts",
+        ".py::",
+    ]
+
+    return any(indicator in trace_content for indicator in pytest_indicators)
 
 
 def register_job_analysis_tools(mcp: FastMCP) -> None:
@@ -115,7 +227,7 @@ def register_job_analysis_tools(mcp: FastMCP) -> None:
             # Analyze job trace for errors
             debug_print("🔍 Analyzing job trace for errors...")
             analysis_result = await analyze_job_trace(
-                project_id=int(project_id),
+                project_id=project_id,
                 job_id=job_id,
                 trace_content=trace_content,
                 exclude_file_patterns=exclude_file_patterns or [],

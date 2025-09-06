@@ -189,3 +189,77 @@ class TestGitLabAnalyzer:
 
             # Verify AsyncClient was called with timeout=30.0
             mock_client.assert_called_with(timeout=30.0)
+
+    @pytest.mark.asyncio
+    async def test_get_job_info_success(self):
+        """Test successful job info retrieval"""
+        mock_response_data = {
+            "id": 1001,
+            "name": "test-job",
+            "stage": "test",
+            "status": "failed",
+            "created_at": "2025-01-01T00:00:00Z",
+            "started_at": "2025-01-01T00:01:00Z",
+            "finished_at": "2025-01-01T00:05:00Z",
+            "failure_reason": "script_failure",
+            "web_url": "https://gitlab.example.com/test-project/-/jobs/1001",
+            "pipeline": {"id": 12345, "sha": "abc123"},
+            "ref": "main",
+            "duration": 240,
+        }
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status.return_value = None
+
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            result = await self.analyzer.get_job_info("test-project", 1001)
+
+            assert result == mock_response_data
+            assert result["id"] == 1001
+            assert result["name"] == "test-job"
+            assert result["status"] == "failed"
+            mock_client.return_value.__aenter__.return_value.get.assert_called_once_with(
+                "https://gitlab.example.com/api/v4/projects/test-project/jobs/1001",
+                headers=self.analyzer.headers,
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_job_info_not_found(self):
+        """Test job info retrieval when job not found"""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 404
+
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            result = await self.analyzer.get_job_info("test-project", 9999)
+
+            assert result is None
+            mock_client.return_value.__aenter__.return_value.get.assert_called_once_with(
+                "https://gitlab.example.com/api/v4/projects/test-project/jobs/9999",
+                headers=self.analyzer.headers,
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_job_info_http_error(self):
+        """Test job info retrieval with HTTP error"""
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 500
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Server Error", request=Mock(), response=mock_response
+            )
+
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=mock_response
+            )
+
+            with pytest.raises(httpx.HTTPStatusError):
+                await self.analyzer.get_job_info("test-project", 1001)
