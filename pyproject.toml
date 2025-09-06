@@ -1,6 +1,6 @@
 [project]
 name = "gitlab-pipeline-analyzer"
-version = "0.8.1"
+version = "0.9.0"
 description = "FastMCP server for analyzing GitLab CI/CD pipeline failures"
 authors = [{ name = "Siarhei Skuratovich", email = "sOraCool@gmail.com" }]
 license = "MIT"

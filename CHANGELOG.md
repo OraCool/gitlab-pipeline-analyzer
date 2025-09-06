@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.9.0] - 2025-09-06
+
+### 🚀 **New Features**
+
+- **Job Analysis Tools**: Added comprehensive job analysis capabilities
+  - Enhanced job validation and analysis tools for improved error detection
+  - Integrated pipeline validation checks for better error handling
+  - Improved job-specific error categorization and reporting
+
+### ✨ **Enhanced Features**
+
+- **Error Handling**: Refactored analysis error handling and enhanced test coverage
+  - Updated comprehensive analysis function to return formatted JSON for error responses
+  - Enhanced tests for limited resources with pipeline analysis status checks
+  - Added comprehensive tests for analysis module with pipeline and job analysis validation
+  - Improved error handling in pipeline validation tests with accurate error messages and context
+
+### 🔧 **Technical Improvements**
+
+- **Integration Tests**: Introduced integration tests for core analysis functions
+  - Added validation for pytest job detection and optimal parser selection
+  - Enhanced test coverage with 520 total tests passing (65.27% coverage)
+  - Maintained high code quality standards with comprehensive security checks
+- **Tool Count**: Now includes **14 MCP tools** (increased from 12) for comprehensive pipeline analysis
+- **Documentation**: Updated all documentation to reflect new version 0.9.0 and current tool count
+
 ## [0.8.1] - 2025-09-05
 
 ### 🚀 **New Features**

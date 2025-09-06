@@ -1,7 +1,7 @@
 MCP Tools & Resources Reference
 ===============================
 
-This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server **version 0.8.0** with enhanced merge request integration and smart filtering capabilities.
+This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server **version 0.9.0** with enhanced job analysis tools and improved error handling.
 
 .. contents::
    :local:
@@ -10,11 +10,11 @@ This comprehensive reference documents all available tools and resources in the 
 Overview
 --------
 
-The GitLab Pipeline Analyzer MCP Server provides **12 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
+The GitLab Pipeline Analyzer MCP Server provides **14 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
 
-**NEW in v0.8.0**: Enhanced merge request context integration with Jira ticket extraction and smart filtering based on pipeline type.
+**NEW in v0.9.0**: Enhanced job analysis tools and pipeline validation checks for improved error handling.
 
-🔧 MCP Tools (12 Essential Tools)
+🔧 MCP Tools (14 Essential Tools)
 ---------------------------------
 
 1. Pipeline Analysis Tools
