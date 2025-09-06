@@ -93,6 +93,19 @@ class GitLabAnalyzer:
 
             return jobs
 
+    async def get_job_info(
+        self, project_id: str | int, job_id: int
+    ) -> dict[str, Any] | None:
+        """Get information for a specific job"""
+        url = f"{self.api_url}/projects/{project_id}/jobs/{job_id}"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=self.headers)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return response.json()
+
     async def get_job_trace(self, project_id: str | int, job_id: int) -> str:
         """Get the trace log for a specific job"""
         url = f"{self.api_url}/projects/{project_id}/jobs/{job_id}/trace"

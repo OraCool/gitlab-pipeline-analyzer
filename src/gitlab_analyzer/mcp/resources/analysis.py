@@ -13,6 +13,7 @@ from typing import Any
 from mcp.types import TextResourceContents
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.mcp.utils.pipeline_validation import check_pipeline_analyzed
 from gitlab_analyzer.utils.utils import get_mcp_info
 
 from .utils import create_text_resource
@@ -81,6 +82,13 @@ async def _get_comprehensive_analysis(
             # Pipeline-wide analysis using database data
             if pipeline_id is None:
                 raise ValueError("pipeline_id is required for pipeline scope")
+
+            # Check if pipeline has been analyzed using utility function
+            error_response = await check_pipeline_analyzed(
+                project_id, str(pipeline_id), "pipeline_analysis"
+            )
+            if error_response:
+                return error_response
 
             # Get pipeline data from database
             pipeline_info = cache_manager.get_pipeline_info(int(pipeline_id))

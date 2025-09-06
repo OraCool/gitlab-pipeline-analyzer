@@ -13,6 +13,7 @@ from mcp.types import TextResourceContents
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import generate_cache_key
+from gitlab_analyzer.mcp.utils.pipeline_validation import check_pipeline_analyzed
 from gitlab_analyzer.utils.utils import get_mcp_info
 
 from .utils import create_text_resource
@@ -124,6 +125,13 @@ async def get_pipeline_jobs_resource(
     cache_key = generate_cache_key("pipeline_jobs", project_id, int(pipeline_id))
 
     async def compute_pipeline_jobs_data() -> dict[str, Any]:
+        # Check if pipeline has been analyzed using utility function
+        error_response = await check_pipeline_analyzed(
+            project_id, pipeline_id, "pipeline_jobs"
+        )
+        if error_response:
+            return error_response
+
         if status_filter == "failed":
             # Get only failed jobs
             jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
@@ -236,6 +244,13 @@ async def get_limited_pipeline_jobs_resource(
     )
 
     async def compute_limited_pipeline_jobs_data() -> dict[str, Any]:
+        # Check if pipeline has been analyzed using utility function
+        error_response = await check_pipeline_analyzed(
+            project_id, pipeline_id, "limited_pipeline_jobs"
+        )
+        if error_response:
+            return error_response
+
         if status_filter == "failed":
             # Get only failed jobs
             all_jobs = cache_manager.get_pipeline_failed_jobs(int(pipeline_id))

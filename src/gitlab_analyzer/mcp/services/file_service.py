@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.mcp.utils.pipeline_validation import check_pipeline_analyzed
 from gitlab_analyzer.utils.debug import verbose_debug_print
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,13 @@ class FileService:
         )
 
         try:
+            # Check if pipeline has been analyzed using utility function
+            error_response = await check_pipeline_analyzed(
+                project_id, pipeline_id, "pipeline_files"
+            )
+            if error_response:
+                return error_response
+
             # Get all jobs for this pipeline
             pipeline_jobs = await self.cache_manager.get_pipeline_jobs(int(pipeline_id))
 

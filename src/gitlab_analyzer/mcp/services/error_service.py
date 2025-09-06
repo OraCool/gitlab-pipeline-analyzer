@@ -17,6 +17,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
+from gitlab_analyzer.mcp.utils.pipeline_validation import (
+    check_job_analyzed,
+    check_pipeline_analyzed,
+)
 from gitlab_analyzer.utils.utils import get_mcp_info
 
 logger = logging.getLogger(__name__)
@@ -43,20 +47,10 @@ class ErrorService:
             Job error data as dict
         """
         try:
-            # First check if job exists in database (has been analyzed)
-            job_info = await self.cache_manager.get_job_info_async(int(job_id))
-            if not job_info:
-                return {
-                    "error": "Job not analyzed",
-                    "message": f"Job {job_id} not found in cache. Run pipeline analysis first.",
-                    "project_id": project_id,
-                    "job_id": int(job_id),
-                    "suggested_action": "Use failed_pipeline_analysis() to analyze the pipeline containing this job",
-                    "resource_uri": f"gl://error/{project_id}/{job_id}?mode={mode}",
-                    "mcp_info": get_mcp_info(
-                        "get_job_trace", error=True, parser_type="resource"
-                    ),
-                }
+            # Check if job has been analyzed using utility function
+            error_response = await check_job_analyzed(project_id, job_id, "job_errors")
+            if error_response:
+                return error_response
 
             # Get errors from database (pre-analyzed data)
             job_errors = self.cache_manager.get_job_errors(int(job_id))
@@ -234,6 +228,13 @@ class ErrorService:
             Pipeline error data as dict
         """
         try:
+            # Check if pipeline has been analyzed using utility function
+            error_response = await check_pipeline_analyzed(
+                project_id, pipeline_id, "pipeline_errors"
+            )
+            if error_response:
+                return error_response
+
             # Get all failed jobs in the pipeline
             failed_jobs = self.cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
 
@@ -629,6 +630,13 @@ class ErrorService:
             Limited pipeline error data as dict
         """
         try:
+            # Check if pipeline has been analyzed using utility function
+            error_response = await check_pipeline_analyzed(
+                project_id, pipeline_id, "limited_pipeline_errors"
+            )
+            if error_response:
+                return error_response
+
             # Get all failed jobs in the pipeline
             failed_jobs = self.cache_manager.get_pipeline_failed_jobs(int(pipeline_id))
 
