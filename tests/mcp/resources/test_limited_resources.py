@@ -117,16 +117,18 @@ class TestLimitedErrorResources:
         assert result["project_id"] == "83"
         assert result["limit"] == 2
 
+    @patch("gitlab_analyzer.mcp.services.error_service.check_pipeline_analyzed")
     @patch("gitlab_analyzer.mcp.services.error_service.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_get_limited_pipeline_errors_basic(
-        self, mock_get_mcp_info, mock_get_cache_manager
+        self, mock_get_mcp_info, mock_get_cache_manager, mock_check_pipeline_analyzed
     ):
         """Test basic limited pipeline errors functionality"""
         # Setup mock
         mock_cache = MagicMock()
         mock_get_cache_manager.return_value = mock_cache
         mock_get_mcp_info.return_value = {"tool": "test"}
+        mock_check_pipeline_analyzed.return_value = None  # Pipeline is analyzed
 
         # Refresh the service's cache manager with our mock
         error_service.cache_manager = mock_cache

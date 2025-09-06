@@ -98,12 +98,14 @@ class TestAnalysisResources:
 
         return entries
 
+    @patch("gitlab_analyzer.mcp.resources.analysis.check_pipeline_analyzed")
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_get_comprehensive_analysis_pipeline(
         self,
         mock_get_mcp_info,
         mock_get_cache,
+        mock_check_pipeline_analyzed,
         mock_cache_manager,
         mock_log_entries,
     ):
@@ -111,13 +113,12 @@ class TestAnalysisResources:
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
         mock_get_mcp_info.return_value = {"tool": "test", "timestamp": "2025-01-01"}
+        mock_check_pipeline_analyzed.return_value = None  # Pipeline is analyzed
 
         # Mock cache manager to return None (no cached data)
         mock_cache_manager.get.return_value = None
 
         # Mock async database methods for pipeline analysis
-        from unittest.mock import AsyncMock
-
         mock_cache_manager.get_pipeline_jobs = AsyncMock(
             return_value=[
                 {"id": 1, "status": "failed", "stage": "test", "name": "test-job-1"},
@@ -294,6 +295,7 @@ class TestAnalysisResources:
         # Note: get_gitlab_analyzer is called at the beginning regardless of cache hit
 
     @pytest.mark.parametrize("response_mode", ["minimal", "balanced", "fixing", "full"])
+    @patch("gitlab_analyzer.mcp.resources.analysis.check_pipeline_analyzed")
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     @patch("gitlab_analyzer.utils.utils.optimize_tool_response")
@@ -302,6 +304,7 @@ class TestAnalysisResources:
         mock_optimize,
         mock_get_mcp_info,
         mock_get_cache,
+        mock_check_pipeline_analyzed,
         mock_cache_manager,
         mock_log_entries,
         response_mode,
@@ -311,10 +314,9 @@ class TestAnalysisResources:
         mock_get_cache.return_value = mock_cache_manager
         mock_cache_manager.get.return_value = None  # No cached data
         mock_get_mcp_info.return_value = {"tool": "test"}
+        mock_check_pipeline_analyzed.return_value = None  # Pipeline is analyzed
 
         # Mock async database methods for pipeline analysis
-        from unittest.mock import AsyncMock
-
         mock_cache_manager.get_pipeline_jobs = AsyncMock(
             return_value=[
                 {"id": 1, "status": "failed", "stage": "test", "name": "test-job"},
@@ -406,12 +408,14 @@ class TestAnalysisResources:
         for pattern in expected_patterns:
             assert pattern in call_args
 
+    @patch("gitlab_analyzer.mcp.resources.analysis.check_pipeline_analyzed")
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
     @patch("gitlab_analyzer.utils.utils.get_mcp_info")
     async def test_success_rate_calculation(
         self,
         mock_get_mcp_info,
         mock_get_cache,
+        mock_check_pipeline_analyzed,
         mock_cache_manager,
     ):
         """Test success rate calculation"""
@@ -419,10 +423,9 @@ class TestAnalysisResources:
         mock_get_cache.return_value = mock_cache_manager
         mock_cache_manager.get.return_value = None  # No cached data
         mock_get_mcp_info.return_value = {"tool": "test"}
+        mock_check_pipeline_analyzed.return_value = None  # Pipeline is analyzed
 
         # Mock async database methods with specific job data for success rate calculation
-        from unittest.mock import AsyncMock
-
         jobs = [
             {"id": 1, "status": "success", "stage": "test", "name": "test1"},
             {"id": 2, "status": "success", "stage": "build", "name": "build1"},
@@ -453,17 +456,17 @@ class TestAnalysisResources:
         # success_rate = (total - failed) / total = (5 - 1) / 5 = 0.8
         assert summary["success_rate"] == 0.8
 
+    @patch("gitlab_analyzer.mcp.resources.analysis.check_pipeline_analyzed")
     @patch("gitlab_analyzer.mcp.resources.analysis.get_cache_manager")
     async def test_get_comprehensive_analysis_error_handling(
-        self, mock_get_cache, mock_cache_manager
+        self, mock_get_cache, mock_check_pipeline_analyzed, mock_cache_manager
     ):
         """Test error handling in comprehensive analysis"""
         # Setup mocks
         mock_get_cache.return_value = mock_cache_manager
+        mock_check_pipeline_analyzed.return_value = None  # Pipeline is analyzed
 
         # Make cache manager raise an exception to simulate database error
-        from unittest.mock import AsyncMock
-
         mock_cache_manager.get_pipeline_jobs = AsyncMock(
             side_effect=Exception("Database error")
         )

@@ -88,7 +88,7 @@ async def _get_comprehensive_analysis(
                 project_id, str(pipeline_id), "pipeline_analysis"
             )
             if error_response:
-                return error_response
+                return json.dumps(error_response, indent=2)
 
             # Get pipeline data from database
             pipeline_info = cache_manager.get_pipeline_info(int(pipeline_id))
