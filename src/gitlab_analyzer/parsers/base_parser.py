@@ -101,9 +101,13 @@ class BaseParser:
         (r".*formatting.*issues.*", "linting_error"),
         (r"No matches for ignored import.*", "import_linting_error"),
         (r".*import.*not allowed.*", "import_linting_error"),
-        (r"Found \d+ error", "linting_error"),
-        # Build system errors
-        (r"make: \*\*\*.*Error.*", "build_error"),
+        # Note: Removed "Found \d+ error" pattern to avoid duplicate error extraction
+        # The summary line should not be treated as a separate error
+        # Build system errors - exclude linting and test-related make failures
+        (
+            r"make: \*\*\* \[(?!.*(?:lint|test|check|format))(.+)\] Error (\d+)",
+            "build_error",
+        ),  # make command failures (but not for linting/testing)
         (r".*build failed.*", "build_error"),
         (r".*compilation error.*", "build_error"),
         # Docker/infrastructure errors

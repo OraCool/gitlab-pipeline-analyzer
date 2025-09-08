@@ -63,7 +63,8 @@ class LogParser(BaseParser):
             r"(.+\.py):(\d+):(\d+):\s+([A-Z]\d+)\s+\[?\*?\]?\s*(.+)",
             "error",
         ),  # Ruff format: file.py:line:col: CODE [*] message
-        (r"Found (\d+) error", "error"),  # Ruff summary: "Found 1 error"
+        # Note: Removed "Found (\d+) error" pattern to avoid duplicate error extraction
+        # The summary line should not be treated as a separate error
         (r"(.+) error.* fixable with", "error"),  # Ruff fixable errors summary
         # Import linting failures
         (r"No matches for ignored import (.+)", "error"),  # import-linter failures

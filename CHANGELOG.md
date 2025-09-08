@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error analysis with machine learning insights
 - Expanded GitLab integration features
 
+## [0.9.1] - 2025-09-08
+
+### 🐛 **Bug Fixes**
+
+- **Error Parsing**: Fixed duplicate error extraction from Ruff linting output
+  - Removed patterns that matched summary messages ("Found 1 error", "No fixes available")
+  - Added negative lookahead to exclude lint-related make command errors
+  - Now correctly shows only actual linting violations instead of duplicating them with summary messages
+
+### 📚 **Documentation**
+
+- Updated tool count from 14 to 13 in README.md to reflect actual MCP tools
+
 ## [0.9.0] - 2025-09-06
 
 ### 🚀 **New Features**
