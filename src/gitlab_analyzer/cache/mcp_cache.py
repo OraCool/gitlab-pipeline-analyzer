@@ -1371,9 +1371,7 @@ class McpCache:
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(
-                    f"DELETE FROM jobs WHERE created_at < {cutoff_sql}"
-                )  # nosec B608
+                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
                 await conn.execute(
                     f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
@@ -1558,9 +1556,7 @@ class McpCache:
                         (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(
-                        f"SELECT COUNT(*) FROM {table}"
-                    )  # nosec B608
+                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     verbose_debug_print(
@@ -1853,16 +1849,12 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(
-                            f"SELECT COUNT(*) FROM {table}"
-                        )  # nosec B608
+                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
 
                         # Get table info for schema validation
-                        info_cursor = await conn.execute(
-                            f"PRAGMA table_info({table})"
-                        )  # nosec B608
+                        info_cursor = await conn.execute(f"PRAGMA table_info({table})")  # nosec B608
                         columns = await info_cursor.fetchall()
 
                         table_status[table] = {

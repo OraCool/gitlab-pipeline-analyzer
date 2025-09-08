@@ -1,6 +1,101 @@
 # Changelog
 
-All notable changes to this project will be documented in this - **Code Quality**: Maintained high code quality standards with 66.57% test coverage
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.10.0] - 2025-09-08
+
+### 🚀 **New Features**
+
+- **Merge Request Resource Architecture**: Implemented dedicated MR resource pattern for comprehensive code review analysis
+
+  - New `gl://mr/{project_id}/{mr_iid}` resource URI pattern for direct MR access
+  - Separated pipeline overview from detailed MR review data for improved performance
+  - Complete MR metadata including title, description, author, branch information, and web URLs
+
+- **Advanced Resource Access Integration**: Enhanced resource access tools with MR pattern support
+
+  - Added merge request pattern to `get_mcp_resource` tool routing
+  - Seamless navigation between pipeline and MR resources
+  - Improved error handling and resource not found scenarios
+
+- **Database Query Optimization**: New cache layer method for MR-based pipeline lookup
+  - Added `get_pipeline_by_mr_iid()` method for efficient MR to pipeline mapping
+  - Support for multiple pipelines per MR with latest pipeline selection
+  - Project-scoped MR IID handling for accurate data retrieval
+
+### ✨ **Enhanced Features**
+
+- **Resource Architecture Refinement**: Optimized resource structure based on user feedback
+
+  - Pipeline resources now show only `unresolved_discussions` count for lightweight overview
+  - Complete review data moved to dedicated MR resources for detailed analysis
+  - Improved resource separation of concerns for better user experience
+
+- **Comprehensive Code Review Data**: Full integration of GitLab code review information
+  - Complete discussion threads with context and resolution status
+  - Approval workflow status and reviewer information
+  - Review statistics including comment counts and feedback categorization
+  - Jira ticket integration with automatic parsing and linking
+
+### 🧪 **Testing & Quality**
+
+- **Comprehensive Test Coverage**: Added 19 new tests for merge request functionality
+
+  - **Merge Request Resource Tests**: 10 comprehensive tests covering successful retrieval, error handling, JSON parsing, and integration scenarios
+  - **Cache Layer Tests**: 5 new tests for `get_pipeline_by_mr_iid` method including success, not found, multiple pipelines, and edge cases
+  - **Resource Access Tool Tests**: 4 new tests for MR pattern integration and routing validation
+  - All tests passing with robust edge case coverage and exception handling
+
+- **Code Quality**: Maintained high standards with 546/546 tests passing (65.80% coverage)
+  - Enhanced async/sync compatibility testing for database operations
+  - Comprehensive mock strategy for isolated component testing
+  - Direct database operation testing for cache functionality validation
+
+### 🔧 **Technical Improvements**
+
+- **Async Database Compatibility**: Improved async/sync database operation handling
+
+  - Enhanced test fixtures with direct database insertion capabilities
+  - Better separation of async cache manager operations from sync test utilities
+  - Robust error handling for database connection scenarios
+
+- **Resource Integration**: Seamless integration of new MR resources with existing MCP infrastructure
+
+  - Proper resource registration and decoration patterns
+  - URI pattern matching and validation
+  - Navigation link generation for related resources
+
+- **Performance Optimizations**: Efficient resource access with minimal overhead
+  - Cached resource data serving for instant access
+  - Intelligent resource routing without unnecessary re-analysis
+  - Optimized database queries for MR-based pipeline lookup
+
+### 📊 **Statistics**
+
+- **Total Tools**: Now includes 14 comprehensive MCP tools (was 13)
+- **Test Coverage**: 546 total tests with 65.80% coverage
+- **Database Features**: Enhanced schema with optimized MR-to-pipeline mapping
+- **Resource Patterns**: 8+ supported resource URI patterns including new MR pattern
+
+### 🎯 **User Experience**
+
+- **Simplified Workflow**: Clear separation between pipeline overview and detailed MR analysis
+
+  - Use pipeline resources for quick failure overview and basic review context
+  - Use MR resources for comprehensive code review analysis and detailed feedback
+  - Intuitive resource URI patterns for direct access to specific data types
+
+- **Enhanced Navigation**: Improved resource discoverability and cross-referencing
+  - Automatic resource link suggestions in tool responses
+  - Related resource URIs provided for seamless workflow transitions
+  - Clear resource patterns documented for direct URI construction
+
+## [0.9.1] - 2025-09-08 - **Code Quality**: Maintained high code quality standards with 66.57% test coverage
 
 - 491 total tests passing with comprehensive coverage
 - All security checks passed (13,637 lines analyzed)

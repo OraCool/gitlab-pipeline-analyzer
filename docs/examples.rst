@@ -1,7 +1,7 @@
 Examples and Use Cases
 ======================
 
-This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server **version 0.8.1** with its comprehensive toolkit of 11 essential tools, MCP resources, merge request integration, and 13+ intelligent prompts.
+This section provides practical examples of using the GitLab Pipeline Analyzer MCP Server **version 0.10.0** with its comprehensive toolkit of 14 essential tools, MCP resources, merge request integration, and 13+ intelligent prompts.
 
 .. contents::
    :local:
@@ -774,7 +774,7 @@ Resource Navigation Patterns
     ↓
     gl://pipeline/123/76474172/error_001         # Individual error
 
-This comprehensive examples guide demonstrates the full power of the GitLab Pipeline Analyzer MCP Server with its 12 essential tools, MCP resources, and intelligent prompt system for effective CI/CD pipeline analysis and debugging.
+This comprehensive examples guide demonstrates the full power of the GitLab Pipeline Analyzer MCP Server with its 14 essential tools, MCP resources, and intelligent prompt system for effective CI/CD pipeline analysis and debugging.
 
 Next Steps
 ----------
