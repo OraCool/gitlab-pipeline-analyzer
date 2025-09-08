@@ -81,6 +81,7 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
         # Add MR information only if this is a merge request pipeline
         mr_info = None
         jira_tickets = []
+        review_summary = None
 
         if is_merge_request_pipeline and pipeline_db_data.get("mr_iid") is not None:
             mr_info = {
@@ -91,7 +92,37 @@ async def get_pipeline_resource(project_id: str, pipeline_id: str) -> dict[str, 
                 "web_url": pipeline_db_data.get("mr_web_url"),
             }
 
-            # Parse Jira tickets from JSON string only for MR pipelines
+            # Parse review summary from JSON string if available
+            if pipeline_db_data.get("review_summary"):
+                import contextlib
+                import json
+
+                with contextlib.suppress(json.JSONDecodeError, TypeError):
+                    review_summary = json.loads(pipeline_db_data["review_summary"])
+                    # Only add unresolved discussions to pipeline resource
+                    if review_summary and not review_summary.get("error"):
+                        mr_info["review_statistics"] = review_summary.get(
+                            "review_statistics", {}
+                        )
+                        mr_info["unresolved_discussions_count"] = pipeline_db_data.get(
+                            "unresolved_discussions_count", 0
+                        )
+                        mr_info["review_comments_count"] = pipeline_db_data.get(
+                            "review_comments_count", 0
+                        )
+
+                        # Only include unresolved discussions for pipeline resource
+                        if review_summary.get("unresolved_discussions"):
+                            mr_info["unresolved_discussions"] = review_summary.get(
+                                "unresolved_discussions", []
+                            )
+
+                        # Parse approval status if available
+                        if pipeline_db_data.get("approval_status"):
+                            with contextlib.suppress(json.JSONDecodeError, TypeError):
+                                mr_info["approval_status"] = json.loads(
+                                    pipeline_db_data["approval_status"]
+                                )  # Parse Jira tickets from JSON string only for MR pipelines
             if pipeline_db_data.get("jira_tickets"):
                 from ...utils.jira_utils import parse_jira_tickets_from_storage
 

@@ -127,6 +127,11 @@ class PipelineRecord:
     mr_author: str | None = None  # MR author username
     mr_web_url: str | None = None  # Direct MR web URL
     jira_tickets: str | None = None  # JSON array of Jira ticket IDs
+    # Code Review fields
+    review_summary: str | None = None  # JSON-encoded review summary data
+    unresolved_discussions_count: int | None = None  # Count of unresolved discussions
+    review_comments_count: int | None = None  # Count of code review comments
+    approval_status: str | None = None  # JSON-encoded approval status
 
     @classmethod
     def from_gitlab_pipeline(cls, pipeline_data: dict[str, Any]) -> "PipelineRecord":
@@ -158,6 +163,7 @@ class PipelineRecord:
         self,
         mr_overview: dict[str, Any],
         jira_tickets: list[str] | None = None,
+        review_summary: dict[str, Any] | None = None,
     ) -> "PipelineRecord":
         """
         Create a new PipelineRecord with merge request data added.
@@ -165,11 +171,31 @@ class PipelineRecord:
         Args:
             mr_overview: MR overview data from get_merge_request_overview
             jira_tickets: List of Jira ticket IDs extracted from MR
+            review_summary: Review summary data from get_merge_request_review_summary
 
         Returns:
             New PipelineRecord instance with MR data populated
         """
         from ..utils.jira_utils import format_jira_tickets_for_storage
+
+        # Process review summary data
+        review_summary_json = None
+        unresolved_count = None
+        review_comments_count = None
+        approval_status_json = None
+
+        if review_summary and not review_summary.get("error"):
+            # Serialize review summary for storage
+            review_summary_json = json.dumps(review_summary, ensure_ascii=False)
+
+            # Extract key metrics
+            stats = review_summary.get("review_statistics", {})
+            unresolved_count = stats.get("unresolved_discussions_count", 0)
+            review_comments_count = stats.get("review_comments_count", 0)
+
+            # Store approval status separately for easy querying
+            approval_status = review_summary.get("approval_status", {})
+            approval_status_json = json.dumps(approval_status, ensure_ascii=False)
 
         # Create a copy with MR data
         return PipelineRecord(
@@ -191,6 +217,11 @@ class PipelineRecord:
             mr_author=mr_overview.get("author", {}).get("username"),
             mr_web_url=mr_overview.get("web_url"),
             jira_tickets=format_jira_tickets_for_storage(jira_tickets or []),
+            # Add review fields
+            review_summary=review_summary_json,
+            unresolved_discussions_count=unresolved_count,
+            review_comments_count=review_comments_count,
+            approval_status=approval_status_json,
         )
 
 

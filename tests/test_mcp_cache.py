@@ -571,3 +571,303 @@ class TestMCPCacheAdvanced:
         # Should return jobs list (may be empty but should be a list)
         jobs = await manager.get_pipeline_jobs(22222)
         assert isinstance(jobs, list)
+
+
+class TestMCPCacheMergeRequestQueries:
+    """Tests for merge request-related cache queries."""
+
+    async def _store_test_pipeline_with_mr_data(self, manager, pipeline_data):
+        """Helper method to store pipeline data with MR information for testing"""
+        import aiosqlite
+
+        async with aiosqlite.connect(manager.db_path) as db:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO pipelines
+                (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at,
+                 source_branch, target_branch, mr_iid, mr_title, mr_description, mr_author,
+                 mr_web_url, jira_tickets, review_summary, unresolved_discussions_count,
+                 review_comments_count, approval_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    pipeline_data["pipeline_id"],
+                    pipeline_data["project_id"],
+                    pipeline_data["ref"],
+                    pipeline_data["sha"],
+                    pipeline_data["status"],
+                    pipeline_data["web_url"],
+                    pipeline_data["created_at"],
+                    pipeline_data["updated_at"],
+                    pipeline_data["source_branch"],
+                    pipeline_data["target_branch"],
+                    pipeline_data.get("mr_iid"),
+                    pipeline_data.get("mr_title"),
+                    pipeline_data.get("mr_description"),
+                    pipeline_data.get("mr_author"),
+                    pipeline_data.get("mr_web_url"),
+                    pipeline_data.get("jira_tickets"),
+                    pipeline_data.get("review_summary"),
+                    pipeline_data.get("unresolved_discussions_count"),
+                    pipeline_data.get("review_comments_count"),
+                    pipeline_data.get("approval_status"),
+                ),
+            )
+            await db.commit()
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_by_mr_iid_success(self, temp_cache_manager):
+        """Test successful retrieval of pipeline by MR IID."""
+        manager = temp_cache_manager
+
+        # Prepare test data
+        pipeline_data = {
+            "pipeline_id": 33333,
+            "project_id": 83,
+            "ref": "refs/merge-requests/567/merge",
+            "sha": "mr_test_sha",
+            "status": "failed",
+            "web_url": "https://gitlab.example.com/project/83/-/pipelines/33333",
+            "created_at": "2025-09-08T10:00:00Z",
+            "updated_at": "2025-09-08T11:00:00Z",
+            "source_branch": "feature-branch",
+            "target_branch": "main",
+            "mr_iid": 567,
+            "mr_title": "Test merge request",
+            "mr_description": "This is a test MR description",
+            "mr_author": "test_author",
+            "mr_web_url": "https://gitlab.example.com/project/83/-/merge_requests/567",
+            "jira_tickets": '["TICKET-123", "TICKET-456"]',
+            "review_summary": '{"review_comments": [], "approval_status": {"approved_count": 0}}',
+            "unresolved_discussions_count": 1,
+            "review_comments_count": 2,
+            "approval_status": '{"approved_count": 0, "unapproved_count": 1}',
+        }
+
+        # Store pipeline with MR data
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data)
+
+        # Retrieve pipeline by MR IID
+        result = await manager.get_pipeline_by_mr_iid(83, 567)
+
+        # Verify result structure
+        assert result is not None
+        assert isinstance(result, dict)
+
+        # Verify basic pipeline data
+        assert result["pipeline_id"] == 33333
+        assert result["project_id"] == 83
+        assert result["ref"] == "refs/merge-requests/567/merge"
+        assert result["sha"] == "mr_test_sha"
+        assert result["status"] == "failed"
+        assert (
+            result["web_url"]
+            == "https://gitlab.example.com/project/83/-/pipelines/33333"
+        )
+
+        # Verify MR-specific data
+        assert result["mr_iid"] == 567
+        assert result["mr_title"] == "Test merge request"
+        assert result["mr_description"] == "This is a test MR description"
+        assert result["mr_author"] == "test_author"
+        assert (
+            result["mr_web_url"]
+            == "https://gitlab.example.com/project/83/-/merge_requests/567"
+        )
+
+        # Verify code review data
+        assert result["jira_tickets"] == '["TICKET-123", "TICKET-456"]'
+        assert (
+            result["review_summary"]
+            == '{"review_comments": [], "approval_status": {"approved_count": 0}}'
+        )
+        assert result["unresolved_discussions_count"] == 1
+        assert result["review_comments_count"] == 2
+        assert (
+            result["approval_status"] == '{"approved_count": 0, "unapproved_count": 1}'
+        )
+
+        # Verify timestamps
+        assert result["created_at"] == "2025-09-08T10:00:00Z"
+        assert result["updated_at"] == "2025-09-08T11:00:00Z"
+
+        # Verify branches
+        assert result["source_branch"] == "feature-branch"
+        assert result["target_branch"] == "main"
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_by_mr_iid_not_found(self, temp_cache_manager):
+        """Test retrieval when MR IID doesn't exist."""
+        manager = temp_cache_manager
+
+        # Try to retrieve non-existent MR
+        result = await manager.get_pipeline_by_mr_iid(83, 999)
+
+        # Should return None
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_by_mr_iid_multiple_pipelines(self, temp_cache_manager):
+        """Test retrieval when multiple pipelines exist for same MR (should return latest)."""
+        manager = temp_cache_manager
+
+        # Store first pipeline for MR 789
+        pipeline_data_1 = {
+            "pipeline_id": 44444,
+            "project_id": 83,
+            "ref": "refs/merge-requests/789/merge",
+            "sha": "old_sha",
+            "status": "failed",
+            "web_url": "https://gitlab.example.com/project/83/-/pipelines/44444",
+            "created_at": "2025-09-08T09:00:00Z",
+            "updated_at": "2025-09-08T09:30:00Z",
+            "source_branch": "feature",
+            "target_branch": "main",
+            "mr_iid": 789,
+            "mr_title": "Old version of MR",
+            "mr_description": "Old description",
+            "mr_author": "test_author",
+            "mr_web_url": "https://gitlab.example.com/project/83/-/merge_requests/789",
+        }
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data_1)
+
+        # Store second (newer) pipeline for same MR 789
+        pipeline_data_2 = {
+            "pipeline_id": 55555,
+            "project_id": 83,
+            "ref": "refs/merge-requests/789/merge",
+            "sha": "new_sha",
+            "status": "passed",
+            "web_url": "https://gitlab.example.com/project/83/-/pipelines/55555",
+            "created_at": "2025-09-08T10:00:00Z",
+            "updated_at": "2025-09-08T10:30:00Z",
+            "source_branch": "feature",
+            "target_branch": "main",
+            "mr_iid": 789,
+            "mr_title": "Updated MR title",
+            "mr_description": "Updated description",
+            "mr_author": "test_author",
+            "mr_web_url": "https://gitlab.example.com/project/83/-/merge_requests/789",
+        }
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data_2)
+
+        # Retrieve pipeline by MR IID - should get the latest one (highest pipeline_id)
+        result = await manager.get_pipeline_by_mr_iid(83, 789)
+
+        # Verify it returns the newer pipeline
+        assert result is not None
+        assert result["pipeline_id"] == 55555  # Should be the newer pipeline
+        assert result["mr_title"] == "Updated MR title"
+        assert result["mr_description"] == "Updated description"
+        assert result["sha"] == "new_sha"
+        assert result["status"] == "passed"
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_by_mr_iid_different_project(self, temp_cache_manager):
+        """Test that MR IID is scoped to project."""
+        manager = temp_cache_manager
+
+        # Store pipeline for project 83, MR 123
+        pipeline_data_83 = {
+            "pipeline_id": 66666,
+            "project_id": 83,
+            "ref": "refs/merge-requests/123/merge",
+            "sha": "project_83_sha",
+            "status": "failed",
+            "web_url": "https://gitlab.example.com/project/83/-/pipelines/66666",
+            "created_at": "2025-09-08T10:00:00Z",
+            "updated_at": "2025-09-08T11:00:00Z",
+            "source_branch": "feature",
+            "target_branch": "main",
+            "mr_iid": 123,
+            "mr_title": "Project 83 MR",
+            "mr_author": "test_author",
+            "mr_web_url": "https://gitlab.example.com/project/83/-/merge_requests/123",
+        }
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data_83)
+
+        # Store pipeline for project 84, same MR IID 123
+        pipeline_data_84 = {
+            "pipeline_id": 77777,
+            "project_id": 84,
+            "ref": "refs/merge-requests/123/merge",
+            "sha": "project_84_sha",
+            "status": "passed",
+            "web_url": "https://gitlab.example.com/project/84/-/pipelines/77777",
+            "created_at": "2025-09-08T10:00:00Z",
+            "updated_at": "2025-09-08T11:00:00Z",
+            "source_branch": "feature",
+            "target_branch": "main",
+            "mr_iid": 123,
+            "mr_title": "Project 84 MR",
+            "mr_author": "test_author",
+            "mr_web_url": "https://gitlab.example.com/project/84/-/merge_requests/123",
+        }
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data_84)
+
+        # Retrieve MR 123 from project 83
+        result_83 = await manager.get_pipeline_by_mr_iid(83, 123)
+        assert result_83 is not None
+        assert result_83["project_id"] == 83
+        assert result_83["pipeline_id"] == 66666
+        assert result_83["mr_title"] == "Project 83 MR"
+
+        # Retrieve MR 123 from project 84
+        result_84 = await manager.get_pipeline_by_mr_iid(84, 123)
+        assert result_84 is not None
+        assert result_84["project_id"] == 84
+        assert result_84["pipeline_id"] == 77777
+        assert result_84["mr_title"] == "Project 84 MR"
+
+        # Verify they are different results
+        assert result_83["pipeline_id"] != result_84["pipeline_id"]
+
+    @pytest.mark.asyncio
+    async def test_get_pipeline_by_mr_iid_with_null_fields(self, temp_cache_manager):
+        """Test retrieval with NULL/None fields in database."""
+        manager = temp_cache_manager
+
+        # Store minimal pipeline with some NULL fields
+        pipeline_data = {
+            "pipeline_id": 88888,
+            "project_id": 83,
+            "ref": "refs/merge-requests/456/merge",
+            "sha": "minimal_sha",
+            "status": "failed",
+            "web_url": "https://gitlab.example.com/project/83/-/pipelines/88888",
+            "created_at": "2025-09-08T10:00:00Z",
+            "updated_at": "2025-09-08T11:00:00Z",
+            "source_branch": "feature",
+            "target_branch": "main",
+            "mr_iid": 456,
+            "mr_title": "Minimal MR",
+            # Leave optional fields as None
+            "mr_description": None,
+            "mr_author": None,
+            "mr_web_url": None,
+            "jira_tickets": None,
+            "review_summary": None,
+            "unresolved_discussions_count": None,
+            "review_comments_count": None,
+            "approval_status": None,
+        }
+        await self._store_test_pipeline_with_mr_data(manager, pipeline_data)
+
+        # Retrieve pipeline
+        result = await manager.get_pipeline_by_mr_iid(83, 456)
+
+        # Verify basic fields are present
+        assert result is not None
+        assert result["pipeline_id"] == 88888
+        assert result["mr_iid"] == 456
+        assert result["mr_title"] == "Minimal MR"
+
+        # Verify NULL fields are handled properly
+        assert result["mr_description"] is None
+        assert result["mr_author"] is None
+        assert result["mr_web_url"] is None
+        assert result["jira_tickets"] is None
+        assert result["review_summary"] is None
+        assert result["unresolved_discussions_count"] is None
+        assert result["review_comments_count"] is None
+        assert result["approval_status"] is None

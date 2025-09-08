@@ -11,6 +11,7 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 - Support for pytest, build, and general CI/CD failures
 - **✨ NEW in v0.8.0**: Complete merge request information integration with Jira ticket extraction
 - **🎯 NEW in v0.8.0**: Smart filtering of MR data based on pipeline type (only shows MR data for actual MR pipelines)
+- **📝 NEW in v0.8.2**: Code review integration - automatically includes discussions, notes, approval status, and unresolved feedback from merge requests for AI-powered context-aware fixes
 
 ### 💾 **Intelligent Caching**
 
@@ -841,14 +842,14 @@ await client.call_tool("get_file_errors", {
 
 ### Version 0.8.0 New Features
 
-#### 🚀 Merge Request Pipeline Analysis
+#### 🚀 Merge Request Pipeline Analysis with Code Review Integration
 
 ```python
 import asyncio
 from fastmcp import Client
 
-async def analyze_mr_pipeline():
-    """Analyze a merge request pipeline with new v0.8.0 features"""
+async def analyze_mr_pipeline_with_reviews():
+    """Analyze a merge request pipeline with v0.8.0 features: MR context and Jira tickets"""
     client = Client("gitlab_analyzer.py")
     async with client:
         # Analyze failed MR pipeline - now includes MR context and Jira tickets
@@ -863,7 +864,7 @@ async def analyze_mr_pipeline():
             print(f"   Title: {result['merge_request']['title']}")
             print(f"   Source → Target: {result['source_branch']} → {result['target_branch']}")
 
-            # Show Jira tickets extracted from MR
+            # Show Jira tickets extracted from MR - NEW in v0.8.0!
             jira_tickets = result.get("jira_tickets", [])
             if jira_tickets:
                 print(f"🎫 Jira Tickets: {', '.join(jira_tickets)}")
@@ -872,7 +873,43 @@ async def analyze_mr_pipeline():
             print(f"   Branch: {result['source_branch']}")
             print("   (No MR data included for branch pipelines)")
 
-asyncio.run(analyze_mr_pipeline())
+        print(f"📊 Status: {result.get('status')}")
+
+asyncio.run(analyze_mr_pipeline_with_reviews())
+```
+
+#### 🔍 Code Review Context for Intelligent Fixes
+
+The enhanced pipeline analysis now provides crucial code review context that can be used by AI agents to understand:
+
+- **Review Feedback**: What issues reviewers identified before the pipeline failed
+- **Unresolved Discussions**: Outstanding concerns that may be related to the failure
+- **Approval Status**: Whether the code has reviewer approval despite CI failures
+- **Code Quality Concerns**: Specific feedback about code structure, performance, or maintainability
+
+This context enables more intelligent automated fixes by understanding both the technical failure and the human review feedback.
+
+### Version 0.8.2 New Features
+
+#### 📝 Code Review Integration
+
+Building on the v0.8.0 MR context, v0.8.2 adds comprehensive code review integration to provide AI agents with human review feedback alongside technical failure data.
+
+#### 📊 Example v0.8.0 Pipeline Resource
+
+```json
+{
+  "pipeline_type": "merge_request",
+  "merge_request": {
+    "iid": 123,
+    "title": "[PROJ-456] Fix user authentication bug",
+    "description": "Resolves PROJ-456 by updating token validation",
+    "source_branch": "feature/fix-auth",
+    "target_branch": "main"
+  },
+  "jira_tickets": ["PROJ-456"]
+  // ... other pipeline data
+}
 ```
 
 #### 🎯 Smart MR Data Filtering
@@ -919,6 +956,42 @@ tickets = extract_jira_tickets(text)
 # Returns: ["PROJ-123", "MMGPP-456", "TEAM-789", "CORE-101"]
 ```
 
+#### 📝 Code Review Integration (v0.8.2+)
+
+GitLab MCP Analyzer now automatically includes human review feedback for Merge Request pipelines, providing AI agents with crucial context about code quality concerns:
+
+```python
+# Analysis of MR pipeline automatically includes review data
+result = await client.call_tool("failed_pipeline_analysis", {
+    "project_id": "83",
+    "pipeline_id": 1594344
+})
+
+# Review data is included in pipeline analysis
+review_data = result.get("review_summary", {})
+print(f"Approval Status: {review_data.get('approval_status', 'unknown')}")
+print(f"Unresolved Discussions: {review_data.get('unresolved_discussions_count', 0)}")
+print(f"Review Comments: {review_data.get('review_comments_count', 0)}")
+
+# Access detailed feedback
+for discussion in review_data.get("discussions", []):
+    if not discussion.get("resolved", True):
+        print(f"🔍 Unresolved: {discussion.get('body', 'No content')}")
+        for note in discussion.get("notes", []):
+            if note.get("type") == "suggestion":
+                print(f"💡 Suggestion: {note.get('body', 'No content')}")
+```
+
+**Review Integration Features:**
+
+- **Approval Status**: Tracks MR approval state (approved, unapproved, requires_approval)
+- **Discussion Context**: Captures all MR discussions including unresolved items
+- **Code Suggestions**: Includes inline code suggestions from reviewers
+- **Review Notes**: Aggregates all review comments and feedback
+- **Quality Concerns**: Highlights code quality issues raised by humans
+
+This enables AI agents to understand not just what failed technically, but also what human reviewers have identified as concerns, leading to more contextually appropriate automated fixes.
+
 ## Example
 
 ```python
@@ -926,10 +999,10 @@ import asyncio
 from fastmcp import Client
 
 async def analyze_pipeline():
-    """Example: Analyze a failed pipeline with v0.8.0 features"""
+    """Example: Analyze a failed pipeline with v0.8.2 features including code review"""
     client = Client("gitlab_analyzer.py")
     async with client:
-        # Try to get existing pipeline data first (recommended v0.8.0 workflow)
+        # Try to get existing pipeline data first (recommended v0.8.0+ workflow)
         try:
             result = await client.call_tool("get_mcp_resource", {
                 "resource_uri": "gl://pipeline/83/1594344"
@@ -947,9 +1020,33 @@ async def analyze_pipeline():
         if result.get("pipeline_type") == "merge_request":
             mr_info = result.get("merge_request", {})
             print(f"🔀 MR: {mr_info.get('title', 'Unknown')}")
+
+            # Show Jira ticket context
             jira_tickets = result.get("jira_tickets", [])
             if jira_tickets:
                 print(f"🎫 Jira: {', '.join(jira_tickets)}")
+
+            # Show code review context (v0.8.2+)
+            review_data = result.get("review_summary", {})
+            if review_data:
+                approval = review_data.get("approval_status", "unknown")
+                unresolved = review_data.get("unresolved_discussions_count", 0)
+                comments = review_data.get("review_comments_count", 0)
+
+                print(f"📝 Review Status: {approval}")
+                if unresolved > 0:
+                    print(f"🔍 Unresolved Issues: {unresolved}")
+                if comments > 0:
+                    print(f"💬 Review Comments: {comments}")
+
+                # Show human feedback for AI context
+                discussions = review_data.get("discussions", [])
+                unresolved_feedback = [d for d in discussions if not d.get("resolved", True)]
+                if unresolved_feedback:
+                    print("\n🚨 Human Review Concerns:")
+                    for discussion in unresolved_feedback[:3]:  # Show first 3
+                        body = discussion.get("body", "")[:100]
+                        print(f"   • {body}...")
         else:
             print(f"🌿 Branch: {result.get('source_branch', 'Unknown')}")
 

@@ -28,6 +28,7 @@ from gitlab_analyzer.mcp.resources.job import (
     get_job_resource,
     get_pipeline_jobs_resource,
 )
+from gitlab_analyzer.mcp.resources.merge_request import get_merge_request_resource
 from gitlab_analyzer.mcp.resources.pipeline import get_pipeline_resource
 from gitlab_analyzer.mcp.services.error_service import error_service
 from gitlab_analyzer.mcp.services.file_analysis_service import get_file_analysis_service
@@ -90,6 +91,19 @@ def _parse_file_path(file_path: str) -> tuple[str, str]:
         return actual_file_path, "trace"
     else:
         return decoded_file_path, "normal"
+
+
+async def _handle_merge_request_resource(parts: list[str]) -> dict[str, Any]:
+    """Handle merge request resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        mr_iid = parts[2]
+        debug_print(f"🔍 Accessing merge request {mr_iid} in project {project_id}")
+        result = await get_merge_request_resource(project_id, mr_iid)
+        verbose_debug_print("✅ Merge request resource retrieved successfully")
+        return result
+    else:
+        raise ValueError("Invalid merge request URI format - insufficient parts")
 
 
 async def _handle_pipeline_resource(parts: list[str]) -> dict[str, Any]:
@@ -571,6 +585,9 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         if path.startswith("pipeline/"):
             debug_print("🏗️  Processing pipeline resource request")
             result = await _handle_pipeline_resource(parts)
+        elif path.startswith("mr/"):
+            debug_print("📋 Processing merge request resource request")
+            result = await _handle_merge_request_resource(parts)
         elif path.startswith("jobs/"):
             debug_print("👥 Processing jobs resource request")
             result = await _handle_jobs_resource(parts)
@@ -600,6 +617,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                 "auto_cleanup": cleanup_status,
                 "available_patterns": [
                     "gl://pipeline/{project_id}/{pipeline_id}",
+                    "gl://mr/{project_id}/{mr_iid}",
                     "gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success]",
                     "gl://job/{project_id}/{pipeline_id}/{job_id}",
                     "gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}]",
@@ -693,6 +711,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
 
         SUPPORTED RESOURCE PATTERNS:
         - gl://pipeline/{project_id}/{pipeline_id} - Pipeline analysis
+        - gl://mr/{project_id}/{mr_iid} - Merge request code review data
         - gl://jobs/{project_id}/pipeline/{pipeline_id}[/failed|/success] - Pipeline jobs
         - gl://job/{project_id}/{pipeline_id}/{job_id} - Individual job analysis
         - gl://files/{project_id}/pipeline/{pipeline_id}[/page/{page}/limit/{limit}] - Pipeline files
@@ -726,6 +745,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         EXAMPLES:
         - get_mcp_resource("gl://jobs/123/pipeline/1594344/failed") - Get failed jobs
         - get_mcp_resource("gl://pipeline/123/1594344") - Get pipeline analysis
+        - get_mcp_resource("gl://mr/123/456") - Get comprehensive merge request review data
         - get_mcp_resource("gl://files/123/pipeline/1594344") - Get files with errors
         - get_mcp_resource("gl://files/123/pipeline/1594344/enhanced?mode=detailed&include_trace=true") - Enhanced files with trace
         - get_mcp_resource("gl://error/123/76474172") - Get job error analysis

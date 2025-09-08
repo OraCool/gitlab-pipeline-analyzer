@@ -465,3 +465,147 @@ class TestResourceAccessTools:
             # These will fail because we're not mocking the underlying functions
             # but at least we test that the pattern parsing works
             assert isinstance(result, dict)
+
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_merge_request_resource")
+    async def test_get_mcp_resource_merge_request(self, mock_get_mr, mock_mcp):
+        """Test accessing merge request resource"""
+        mock_get_mr.return_value = {
+            "merge_request": {
+                "iid": 567,
+                "title": "Test MR",
+                "author": "test_author",
+            },
+            "code_review": {
+                "review_comments": [],
+                "approval_status": {"approved_count": 0},
+            },
+            "metadata": {
+                "resource_type": "merge_request",
+                "project_id": "83",
+                "mr_iid": 567,
+            },
+        }
+
+        # Register tools
+        register_resource_access_tools(mock_mcp)
+
+        # Find the get_mcp_resource function
+        get_mcp_resource_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
+                get_mcp_resource_func = call[0][0]
+                break
+
+        assert get_mcp_resource_func is not None, "get_mcp_resource function not found"
+
+        # Test merge request resource access
+        result = await get_mcp_resource_func("gl://mr/83/567")
+
+        # Verify the result structure
+        assert "merge_request" in result
+        assert "code_review" in result
+        assert "metadata" in result
+
+        # Verify specific fields
+        assert result["merge_request"]["iid"] == 567
+        assert result["merge_request"]["title"] == "Test MR"
+        assert result["metadata"]["resource_type"] == "merge_request"
+
+        # Verify the mock was called with correct parameters
+        mock_get_mr.assert_called_once_with("83", "567")
+
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_merge_request_resource")
+    async def test_get_mcp_resource_merge_request_not_found(
+        self, mock_get_mr, mock_mcp
+    ):
+        """Test accessing non-existent merge request resource"""
+        mock_get_mr.return_value = {
+            "error": "mr_not_analyzed",
+            "message": "Merge request 999 has not been analyzed yet.",
+            "mr_iid": 999,
+            "project_id": "83",
+            "metadata": {
+                "resource_type": "merge_request",
+                "data_source": "none",
+                "status": "not_analyzed",
+            },
+        }
+
+        # Register tools
+        register_resource_access_tools(mock_mcp)
+
+        # Find the function
+        get_mcp_resource_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
+                get_mcp_resource_func = call[0][0]
+                break
+
+        # Test non-existent merge request
+        result = await get_mcp_resource_func("gl://mr/83/999")
+
+        # Verify error response
+        assert result["error"] == "mr_not_analyzed"
+        assert "not been analyzed yet" in result["message"]
+        assert result["mr_iid"] == 999
+        assert result["metadata"]["status"] == "not_analyzed"
+
+        # Verify the mock was called
+        mock_get_mr.assert_called_once_with("83", "999")
+
+    async def test_merge_request_pattern_in_available_patterns(self, mock_mcp):
+        """Test that merge request pattern is included in available patterns"""
+        # Register tools
+        register_resource_access_tools(mock_mcp)
+
+        # Find the function
+        get_mcp_resource_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
+                get_mcp_resource_func = call[0][0]
+                break
+
+        # Test with an unsupported pattern to get available patterns
+        result = await get_mcp_resource_func("gl://unsupported/pattern")
+
+        # Verify merge request pattern is in available patterns
+        assert "available_patterns" in result
+        patterns = result["available_patterns"]
+        assert "gl://mr/{project_id}/{mr_iid}" in patterns
+
+    @patch("gitlab_analyzer.mcp.tools.resource_access_tools.get_merge_request_resource")
+    async def test_get_mcp_resource_merge_request_exception(
+        self, mock_get_mr, mock_mcp
+    ):
+        """Test exception handling for merge request resource"""
+        mock_get_mr.side_effect = Exception("Database connection failed")
+
+        # Register tools
+        register_resource_access_tools(mock_mcp)
+
+        # Find the function
+        get_mcp_resource_func = None
+        for call in mock_mcp.tool.call_args_list:
+            if (
+                hasattr(call[0][0], "__name__")
+                and call[0][0].__name__ == "get_mcp_resource"
+            ):
+                get_mcp_resource_func = call[0][0]
+                break
+
+        # Test exception handling
+        result = await get_mcp_resource_func("gl://mr/83/567")
+
+        # Verify error response
+        assert "error" in result
+        assert "Failed to access resource" in result["error"]
+        assert result["resource_uri"] == "gl://mr/83/567"

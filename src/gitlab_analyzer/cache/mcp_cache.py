@@ -242,6 +242,17 @@ class McpCache:
                     ("mr_author", "TEXT"),
                     ("mr_web_url", "TEXT"),
                     ("jira_tickets", "TEXT"),
+                    # New review fields
+                    ("review_summary", "TEXT"),  # JSON-encoded review summary data
+                    (
+                        "unresolved_discussions_count",
+                        "INTEGER",
+                    ),  # Count of unresolved discussions
+                    (
+                        "review_comments_count",
+                        "INTEGER",
+                    ),  # Count of code review comments
+                    ("approval_status", "TEXT"),  # JSON-encoded approval status
                 ]
 
                 for field_name, field_type in mr_fields:
@@ -518,6 +529,11 @@ class McpCache:
             mr_author = None
             mr_web_url = None
             jira_tickets = "[]"
+            # Initialize review fields
+            review_summary = None
+            unresolved_discussions_count = None
+            review_comments_count = None
+            approval_status = None
 
             if pipeline_type == "merge_request":
                 merge_request_info = pipeline_info.get("merge_request_info", {})
@@ -536,6 +552,27 @@ class McpCache:
                         mr_description = mr_overview.get("description")
                         mr_author = mr_overview.get("author", {}).get("username")
                         mr_web_url = mr_overview.get("web_url")
+
+                    # Extract review data if available
+                    mr_review_summary = pipeline_info.get("mr_review_summary", {})
+                    if mr_review_summary and not mr_review_summary.get("error"):
+                        # Store the complete review summary as JSON
+                        import json
+
+                        review_summary = json.dumps(
+                            mr_review_summary, ensure_ascii=False
+                        )
+
+                        # Extract key metrics for easier querying
+                        stats = mr_review_summary.get("review_statistics", {})
+                        unresolved_discussions_count = stats.get(
+                            "unresolved_discussions_count", 0
+                        )
+                        review_comments_count = stats.get("review_comments_count", 0)
+
+                        # Store approval status separately for easy access
+                        approval_data = mr_review_summary.get("approval_status", {})
+                        approval_status = json.dumps(approval_data, ensure_ascii=False)
 
                     # Extract Jira tickets if available
                     jira_ticket_list = pipeline_info.get("jira_tickets", [])
@@ -569,6 +606,10 @@ class McpCache:
                     mr_author,
                     mr_web_url,
                     jira_tickets,
+                    review_summary,
+                    unresolved_discussions_count,
+                    review_comments_count,
+                    approval_status,
                 )
 
                 await db.execute(
@@ -576,8 +617,9 @@ class McpCache:
                     INSERT OR REPLACE INTO pipelines
                     (pipeline_id, project_id, ref, sha, status, web_url, created_at, updated_at,
                      source_branch, target_branch, mr_iid, mr_title, mr_description, mr_author,
-                     mr_web_url, jira_tickets)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     mr_web_url, jira_tickets, review_summary, unresolved_discussions_count,
+                     review_comments_count, approval_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     data_to_store,
                 )
@@ -805,7 +847,8 @@ class McpCache:
                 """
                 SELECT pipeline_id, project_id, ref, sha, status, web_url,
                        created_at, updated_at, source_branch, target_branch,
-                       mr_iid, mr_title, mr_description, mr_author, mr_web_url, jira_tickets
+                       mr_iid, mr_title, mr_description, mr_author, mr_web_url, jira_tickets,
+                       review_summary, unresolved_discussions_count, review_comments_count, approval_status
                 FROM pipelines WHERE pipeline_id = ?
                 """,
                 (pipeline_id,),
@@ -829,6 +872,54 @@ class McpCache:
                     "mr_author": row[13],
                     "mr_web_url": row[14],
                     "jira_tickets": row[15],
+                    "review_summary": row[16],
+                    "unresolved_discussions_count": row[17],
+                    "review_comments_count": row[18],
+                    "approval_status": row[19],
+                }
+            return None
+
+    async def get_pipeline_by_mr_iid(
+        self, project_id: int, mr_iid: int
+    ) -> dict[str, Any] | None:
+        """Get pipeline information by merge request IID"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                SELECT pipeline_id, project_id, ref, sha, status, web_url,
+                       created_at, updated_at, source_branch, target_branch,
+                       mr_iid, mr_title, mr_description, mr_author, mr_web_url, jira_tickets,
+                       review_summary, unresolved_discussions_count, review_comments_count, approval_status
+                FROM pipelines
+                WHERE project_id = ? AND mr_iid = ?
+                ORDER BY pipeline_id DESC
+                LIMIT 1
+                """,
+                (project_id, mr_iid),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "pipeline_id": row[0],
+                    "project_id": row[1],
+                    "ref": row[2],
+                    "sha": row[3],
+                    "status": row[4],
+                    "web_url": row[5],
+                    "created_at": row[6],
+                    "updated_at": row[7],
+                    "source_branch": row[8],
+                    "target_branch": row[9],
+                    "mr_iid": row[10],
+                    "mr_title": row[11],
+                    "mr_description": row[12],
+                    "mr_author": row[13],
+                    "mr_web_url": row[14],
+                    "jira_tickets": row[15],
+                    "review_summary": row[16],
+                    "unresolved_discussions_count": row[17],
+                    "review_comments_count": row[18],
+                    "approval_status": row[19],
                 }
             return None
 
@@ -1280,7 +1371,9 @@ class McpCache:
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
+                await conn.execute(
+                    f"DELETE FROM jobs WHERE created_at < {cutoff_sql}"
+                )  # nosec B608
                 await conn.execute(
                     f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
@@ -1465,7 +1558,9 @@ class McpCache:
                         (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    )  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     verbose_debug_print(
@@ -1758,12 +1853,16 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                        cursor = await conn.execute(
+                            f"SELECT COUNT(*) FROM {table}"
+                        )  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
 
                         # Get table info for schema validation
-                        info_cursor = await conn.execute(f"PRAGMA table_info({table})")  # nosec B608
+                        info_cursor = await conn.execute(
+                            f"PRAGMA table_info({table})"
+                        )  # nosec B608
                         columns = await info_cursor.fetchall()
 
                         table_status[table] = {

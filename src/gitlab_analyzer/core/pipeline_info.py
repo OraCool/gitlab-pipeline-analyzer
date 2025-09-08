@@ -68,6 +68,7 @@ async def get_comprehensive_pipeline_info(
     target_branch = original_ref
     merge_request_info = None
     mr_overview = None
+    mr_review_summary = None
     jira_tickets = []
     can_auto_fix = True
 
@@ -86,6 +87,7 @@ async def get_comprehensive_pipeline_info(
             target_branch = merge_request_info["source_branch"]
 
             # Get comprehensive MR overview
+            mr_review_summary = None
             try:
                 mr_overview = await analyzer.get_merge_request_overview(
                     project_id, mr_iid
@@ -93,6 +95,17 @@ async def get_comprehensive_pipeline_info(
 
                 # Extract Jira tickets from MR data
                 jira_tickets = extract_jira_from_mr(mr_overview)
+
+                # Get code review summary for additional context
+                try:
+                    mr_review_summary = await analyzer.get_merge_request_review_summary(
+                        project_id, mr_iid
+                    )
+                except (httpx.HTTPError, httpx.RequestError, KeyError) as review_error:
+                    # If review summary fails, continue without it
+                    mr_review_summary = {
+                        "error": f"Failed to get review summary: {str(review_error)}"
+                    }
 
             except (httpx.HTTPError, httpx.RequestError, KeyError) as overview_error:
                 # If overview fails, still continue with basic MR info
@@ -121,6 +134,7 @@ async def get_comprehensive_pipeline_info(
         "pipeline_type": pipeline_type,  # "branch" or "merge_request"
         "merge_request_info": merge_request_info,  # MR details if applicable
         "mr_overview": mr_overview,  # Structured MR overview if applicable
+        "mr_review_summary": mr_review_summary,  # Code review summary if applicable
         "jira_tickets": jira_tickets,  # List of Jira tickets from MR
         "can_auto_fix": can_auto_fix,  # Whether auto-fix should proceed
         "analysis_timestamp": datetime.now().isoformat(),

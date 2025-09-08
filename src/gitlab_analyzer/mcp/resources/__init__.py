@@ -9,6 +9,7 @@ from .analysis import register_analysis_resources
 from .error import register_error_resources
 from .file import register_file_resources
 from .job import register_job_resources
+from .merge_request import register_merge_request_resources
 from .pipeline import register_pipeline_resources
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "register_analysis_resources",
     "register_error_resources",
     "register_file_resources",
+    "register_merge_request_resources",
 ]
 
 
@@ -27,3 +29,4 @@ def register_all_resources(mcp) -> None:
     register_analysis_resources(mcp)
     register_error_resources(mcp)
     register_file_resources(mcp)
+    register_merge_request_resources(mcp)
