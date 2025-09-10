@@ -399,6 +399,40 @@ class McpCache:
             # Store individual errors and build file index
             self._store_errors_and_file_index(conn, job_record.job_id, parsed_data)
 
+    def _should_exclude_error_from_storage(self, error_data: dict[str, Any]) -> bool:
+        """Check if an error should be excluded from storage based on file paths and message content"""
+        from ..utils.utils import DEFAULT_EXCLUDE_PATHS
+
+        # Check file path
+        file_path = error_data.get("file", "")
+        if file_path and any(
+            exclude_path in file_path for exclude_path in DEFAULT_EXCLUDE_PATHS
+        ):
+            return True
+
+        # Check message content for library/framework paths
+        message = error_data.get("message", "")
+        if message:
+            # Check for virtual environment and package paths in the message
+            exclude_patterns = [
+                ".venv/lib/python",
+                "site-packages/",
+                "/root/.local",
+                "/usr/lib/python",
+                "/.local/share/uv/python",
+                # Test framework internal paths that are just stack trace noise
+                "parameterized/parameterized.py:",
+                "unittest/mock.py:",
+                "pytest/",
+                "/django/test/",
+                "/rest_framework/",
+            ]
+
+            if any(pattern in message for pattern in exclude_patterns):
+                return True
+
+        return False
+
     def _store_errors_and_file_index(
         self, conn: sqlite3.Connection, job_id: int, parsed_data: dict[str, Any]
     ):
@@ -411,6 +445,10 @@ class McpCache:
         file_errors: dict[str, list[str]] = {}  # file_path -> [error_ids]
 
         for i, error_data in enumerate(errors):
+            # Filter out library/virtual environment errors before storing
+            if self._should_exclude_error_from_storage(error_data):
+                continue
+
             error_record = ErrorRecord.from_parsed_error(job_id, error_data, i)
 
             # Store error
@@ -699,6 +737,10 @@ class McpCache:
             async with aiosqlite.connect(self.db_path) as db:
                 # Store individual errors
                 for i, error in enumerate(errors):
+                    # Filter out library/virtual environment errors before storing
+                    if self._should_exclude_error_from_storage(error):
+                        continue
+
                     error_id = generate_standard_error_id(job_id, i)
                     fingerprint = f"{error.get('exception_type', 'unknown')}_{error.get('file_path', 'unknown')}_{error.get('line_number', 0)}"
 
@@ -726,6 +768,10 @@ class McpCache:
 
                     # Find error IDs for this file
                     for i, error in enumerate(errors):
+                        # Skip filtered errors when building file index
+                        if self._should_exclude_error_from_storage(error):
+                            continue
+
                         error_file = error.get("file_path", "unknown")
                         if error_file == file_path or (
                             error_file == "unknown" and file_path == "unknown"
@@ -1371,7 +1417,9 @@ class McpCache:
                 count = count_row[0] if count_row else 0
 
                 # Delete old entries
-                await conn.execute(f"DELETE FROM jobs WHERE created_at < {cutoff_sql}")  # nosec B608
+                await conn.execute(
+                    f"DELETE FROM jobs WHERE created_at < {cutoff_sql}"
+                )  # nosec B608
                 await conn.execute(
                     f"DELETE FROM errors WHERE created_at < {cutoff_sql}"  # nosec B608
                 )
@@ -1556,7 +1604,9 @@ class McpCache:
                         (str(project_id),),
                     )
                 else:
-                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                    cursor = await conn.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    )  # nosec B608
                     count_row = await cursor.fetchone()
                     count = count_row[0] if count_row else 0
                     verbose_debug_print(
@@ -1849,12 +1899,16 @@ class McpCache:
 
                 for table in tables:
                     try:
-                        cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608
+                        cursor = await conn.execute(
+                            f"SELECT COUNT(*) FROM {table}"
+                        )  # nosec B608
                         count_row = await cursor.fetchone()
                         count = count_row[0] if count_row else 0
 
                         # Get table info for schema validation
-                        info_cursor = await conn.execute(f"PRAGMA table_info({table})")  # nosec B608
+                        info_cursor = await conn.execute(
+                            f"PRAGMA table_info({table})"
+                        )  # nosec B608
                         columns = await info_cursor.fetchall()
 
                         table_status[table] = {

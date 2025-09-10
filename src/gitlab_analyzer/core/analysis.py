@@ -167,12 +167,17 @@ def is_pytest_job(
     # Check trace content for pytest indicators
     if trace_content:
         pytest_indicators = [
-            "pytest",
-            "==== FAILURES ====",
-            "==== test session starts ====",
-            "collected \\d+ items?",
-            "::.*FAILED",
-            "conftest.py",
+            r"pytest",
+            r"=+\s*FAILURES\s*=+",  # More flexible FAILURES section detection
+            r"=+\s*test session starts\s*=+",
+            r"collected \d+ items?",
+            r"::\w+.*FAILED",  # pytest test failure format
+            r"conftest\.py",
+            r"uv run.*pytest",  # Common uv + pytest pattern
+            r"coverage run -m pytest",  # Coverage + pytest pattern
+            r"make.*test",  # Make test commands that might run pytest
+            r"FAILED.*::\w+",  # Alternative FAILED pattern
+            r"short test summary info",  # Pytest summary section
         ]
 
         for indicator in pytest_indicators:
@@ -232,11 +237,23 @@ def parse_job_logs(
             trace_content, include_traceback, exclude_paths
         )
 
-        # If pytest parser finds no errors, fall back to generic parser
+        # Check if pytest parser found meaningful pytest structure
+        # Even if error_count is 0, if it found test summaries or pytest sections,
+        # we should trust it and not fall back to generic parser
+        has_pytest_structure = (
+            pytest_result.get("test_summary") is not None
+            or pytest_result.get("parser_type") == "pytest"
+            or any(
+                key in pytest_result
+                for key in ["detailed_failures", "summary_failures"]
+            )
+        )
+
+        # Only fall back to generic parser if pytest found no structure at all
         # This handles cases where pytest jobs fail during setup/import phase
-        if pytest_result.get("error_count", 0) == 0:
+        if pytest_result.get("error_count", 0) == 0 and not has_pytest_structure:
             logger.debug(
-                f"Pytest parser found no errors for job {job_name}, trying generic parser"
+                f"Pytest parser found no pytest structure for job {job_name}, trying generic parser"
             )
             generic_result = parse_generic_logs(trace_content)
 

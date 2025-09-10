@@ -545,6 +545,38 @@ async def _handle_analysis_resource(
         raise ValueError("Invalid analysis URI format - expected analysis/project")
 
 
+async def _handle_root_cause_resource(
+    parts: list[str], query_params: dict[str, str]
+) -> dict[str, Any]:
+    """Handle root-cause resource requests."""
+    if len(parts) >= 3:
+        project_id = parts[1]
+        pipeline_id = parts[2]
+        mode = query_params.get(
+            "mode", "minimal"
+        )  # Default to minimal for AI optimization
+
+        debug_print(
+            f"🔍 Accessing root cause analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
+        )
+
+        # Import the root cause analysis function
+        import json
+        from gitlab_analyzer.mcp.resources.analysis import _get_root_cause_analysis
+
+        result_json = await _get_root_cause_analysis(project_id, pipeline_id, mode)
+        result = (
+            json.loads(result_json) if isinstance(result_json, str) else result_json
+        )
+
+        verbose_debug_print("✅ Root cause analysis resource retrieved successfully")
+        return result
+    else:
+        raise ValueError(
+            "Invalid root-cause URI format - expected root-cause/project/pipeline"
+        )
+
+
 async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
     """
     Implementation of get_mcp_resource that can be imported for testing.
@@ -609,6 +641,11 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
         elif path.startswith("analysis/"):
             debug_print("📊 Processing analysis resource request")
             result = await _handle_analysis_resource(parts, query_params)
+        elif path.startswith("root-cause/"):
+            debug_print(
+                "🔍 Processing AI-optimized root cause analysis resource request"
+            )
+            result = await _handle_root_cause_resource(parts, query_params)
         else:
             error_print(f"❌ Unsupported resource URI pattern: {resource_uri}")
             return {
@@ -633,6 +670,7 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     "gl://analysis/{project_id}[?mode={mode}]",
                     "gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}]",
                     "gl://analysis/{project_id}/job/{job_id}[?mode={mode}]",
+                    "gl://root-cause/{project_id}/{pipeline_id}[?mode={mode}]",
                 ],
             }
 
@@ -729,6 +767,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - gl://analysis/{project_id}[?mode={mode}] - Project-level analysis
         - gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}] - Pipeline analysis
         - gl://analysis/{project_id}/job/{job_id}[?mode={mode}] - Job analysis
+        - gl://root-cause/{project_id}/{pipeline_id}[?mode={mode}] - AI-optimized root cause analysis
 
         RESOURCE FEATURES:
         - Uses cached data for fast response
@@ -754,6 +793,7 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://file/123/76474172/src/main.py/trace?mode=detailed&include_trace=true") - Get file with traceback
         - get_mcp_resource("gl://analysis/123/pipeline/1594344?mode=detailed") - Detailed analysis
         - get_mcp_resource("gl://file/123/76474172/src/main.py") - Specific file analysis
+        - get_mcp_resource("gl://root-cause/123/1621656") - AI-optimized root cause analysis
         """
         # Delegate to the implementation function
         return await get_mcp_resource_impl(resource_uri)
