@@ -67,7 +67,9 @@ class ErrorService:
                     "level": "error",  # All from get_job_errors are errors
                     "line_number": db_error.get("line"),
                     "file_path": db_error.get("file_path"),
-                    "exception_type": db_error.get("error_type"),
+                    "exception_type": db_error.get(
+                        "exception"
+                    ),  # Map from 'exception' field
                     "fingerprint": db_error.get("fingerprint"),
                     "detail": db_error.get("detail", {}),
                 }
@@ -76,8 +78,10 @@ class ErrorService:
                 # Track error files and types for statistics
                 if error_data.get("file_path"):
                     error_files.add(str(error_data["file_path"]))
-                if error_data.get("error_type"):
-                    error_types.add(error_data["error_type"])
+                if error_data.get(
+                    "exception_type"
+                ):  # Use exception_type for consistency
+                    error_types.add(error_data["exception_type"])
 
             return {
                 "error_analysis": {
