@@ -8,9 +8,7 @@ URL Encoding for File Paths:
 File paths in URIs should be URL-encoded to handle special characters,
 spaces, and Unicode characters properly. For example:
 - "src/main.py" becomes "src%2Fmain.py"
-- "path with spaces/file.py" becomes "path%20with%20spaces%2Ffi                result = await error_service.get_pipeline_errors(
-                    project_id, pipeline_id, mode
-                )py"
+- "path with spaces/file.py" becomes "path%20with%20spaces%2Ffile.py"
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
@@ -548,10 +546,9 @@ async def _handle_analysis_resource(
 async def _handle_root_cause_resource(
     parts: list[str], query_params: dict[str, str]
 ) -> dict[str, Any]:
-    """Handle root-cause resource requests with filtering support."""
+    """Handle root-cause resource requests with filtering support for both pipeline and job analysis."""
     if len(parts) >= 3:
         project_id = parts[1]
-        pipeline_id = parts[2]
         mode = query_params.get(
             "mode", "minimal"
         )  # Default to minimal for AI optimization
@@ -578,37 +575,79 @@ async def _handle_root_cause_resource(
             except (ValueError, TypeError):
                 debug_print("⚠️ Invalid confidence parameter, ignoring")
 
-        debug_print(
-            f"�🔍 Accessing root cause analysis for pipeline {pipeline_id} in project {project_id}"
-        )
-        debug_print(f"⚙️ Mode: {mode}")
-        if severity_filter:
-            debug_print(f"🎯 Severity filter: {severity_filter}")
-        if category_filter:
-            debug_print(f"📂 Category filter: {category_filter}")
+        # Check if this is a job-specific or pipeline-specific request
+        if len(parts) >= 4 and parts[2] == "job":
+            # gl://root-cause/123/job/456 - Job root cause analysis
+            job_id = parts[3]
+            debug_print(
+                f"🔍 Accessing job root cause analysis for job {job_id} in project {project_id}"
+            )
+            debug_print(f"⚙️ Mode: {mode}")
+            if severity_filter:
+                debug_print(f"🎯 Severity filter: {severity_filter}")
+            if category_filter:
+                debug_print(f"📂 Category filter: {category_filter}")
 
-        # Import the root cause analysis function
-        import json
-        from gitlab_analyzer.mcp.resources.analysis import _get_root_cause_analysis
+            # Import the job root cause analysis function
+            import json
+            from gitlab_analyzer.mcp.resources.analysis import (
+                _get_job_root_cause_analysis,
+            )
 
-        result_json = await _get_root_cause_analysis(
-            project_id,
-            pipeline_id,
-            mode,
-            limit=limit,
-            severity_filter=severity_filter,
-            category_filter=category_filter,
-            min_confidence=min_confidence
-        )
-        result = (
-            json.loads(result_json) if isinstance(result_json, str) else result_json
-        )
+            result_json = await _get_job_root_cause_analysis(
+                project_id,
+                job_id,
+                mode,
+                limit=limit,
+                severity_filter=severity_filter,
+                category_filter=category_filter,
+                min_confidence=min_confidence,
+            )
+            result = (
+                json.loads(result_json) if isinstance(result_json, str) else result_json
+            )
 
-        verbose_debug_print("✅ Root cause analysis resource retrieved successfully")
-        return result
+            verbose_debug_print(
+                "✅ Job root cause analysis resource retrieved successfully"
+            )
+            return result
+        else:
+            # gl://root-cause/123/456 - Pipeline root cause analysis
+            pipeline_id = parts[2]
+
+            debug_print(
+                f"🔍 Accessing pipeline root cause analysis for pipeline {pipeline_id} in project {project_id}"
+            )
+            debug_print(f"⚙️ Mode: {mode}")
+            if severity_filter:
+                debug_print(f"🎯 Severity filter: {severity_filter}")
+            if category_filter:
+                debug_print(f"📂 Category filter: {category_filter}")
+
+            # Import the pipeline root cause analysis function
+            import json
+            from gitlab_analyzer.mcp.resources.analysis import _get_root_cause_analysis
+
+            result_json = await _get_root_cause_analysis(
+                project_id,
+                pipeline_id,
+                mode,
+                limit=limit,
+                severity_filter=severity_filter,
+                category_filter=category_filter,
+                min_confidence=min_confidence,
+            )
+            result = (
+                json.loads(result_json) if isinstance(result_json, str) else result_json
+            )
+
+            verbose_debug_print(
+                "✅ Pipeline root cause analysis resource retrieved successfully"
+            )
+            return result
     else:
         raise ValueError(
-            "Invalid root-cause URI format - expected root-cause/project/pipeline"
+            "Invalid root-cause URI format - expected root-cause/project/pipeline or root-cause/project/job/id"
         )
 
 
@@ -711,6 +750,12 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     "gl://root-cause/{project_id}/{pipeline_id}?category={type}",
                     "gl://root-cause/{project_id}/{pipeline_id}?confidence={min_confidence}",
                     "gl://root-cause/{project_id}/{pipeline_id}?limit={N}&severity={level}&confidence={min}",
+                    "gl://root-cause/{project_id}/job/{job_id}[?mode={mode}]",
+                    "gl://root-cause/{project_id}/job/{job_id}?limit={N}",
+                    "gl://root-cause/{project_id}/job/{job_id}?severity={level}",
+                    "gl://root-cause/{project_id}/job/{job_id}?category={type}",
+                    "gl://root-cause/{project_id}/job/{job_id}?confidence={min_confidence}",
+                    "gl://root-cause/{project_id}/job/{job_id}?limit={N}&severity={level}&confidence={min}",
                 ],
             }
 
@@ -813,6 +858,12 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - gl://root-cause/{project_id}/{pipeline_id}?category={type} - Filter by category
         - gl://root-cause/{project_id}/{pipeline_id}?confidence={min_confidence} - Filter by confidence
         - gl://root-cause/{project_id}/{pipeline_id}?limit={N}&severity={level}&confidence={min} - Combined filters
+        - gl://root-cause/{project_id}/job/{job_id}[?mode={mode}] - Job root cause analysis
+        - gl://root-cause/{project_id}/job/{job_id}?limit={N} - Limited job root cause results
+        - gl://root-cause/{project_id}/job/{job_id}?severity={level} - Filter job errors by severity
+        - gl://root-cause/{project_id}/job/{job_id}?category={type} - Filter job errors by category
+        - gl://root-cause/{project_id}/job/{job_id}?confidence={min_confidence} - Filter job errors by confidence
+        - gl://root-cause/{project_id}/job/{job_id}?limit={N}&severity={level}&confidence={min} - Combined job filters
 
         RESOURCE FEATURES:
         - Uses cached data for fast response
@@ -844,6 +895,10 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://root-cause/123/1621656?category=syntax") - Get syntax-related issues
         - get_mcp_resource("gl://root-cause/123/1621656?confidence=0.8") - Get high-confidence issues
         - get_mcp_resource("gl://root-cause/123/1621656?limit=2&severity=high&confidence=0.7") - Combined filters
+        - get_mcp_resource("gl://root-cause/123/job/78317505") - Job-specific root cause analysis
+        - get_mcp_resource("gl://root-cause/123/job/78317505?limit=3") - Get top 3 job root causes
+        - get_mcp_resource("gl://root-cause/123/job/78317505?severity=high") - Get high severity job errors
+        - get_mcp_resource("gl://root-cause/123/job/78317505?category=test") - Get test-related job issues
         """
         # Delegate to the implementation function
         return await get_mcp_resource_impl(resource_uri)

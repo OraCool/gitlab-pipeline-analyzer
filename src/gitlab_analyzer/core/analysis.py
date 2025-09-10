@@ -158,7 +158,63 @@ def is_pytest_job(
         f"🔍 PYTEST DETECTION: Analyzing job '{job_name}' (stage: '{job_stage}')"
     )
 
-    # Check job name patterns
+    # FIRST: Check trace content for explicit linting patterns (highest priority)
+    if trace_content:
+        linting_indicators = [
+            r"make:.*\[.*lint.*\].*Error",  # make lint failures like "make: *** [makes/py.mk:55: py/lint/ruff] Error 1"
+            r"lint.*failed",  # general lint failures
+            r"ruff.*check.*failed",  # ruff specific failures
+            r"black.*check.*failed",  # black specific failures
+            r"flake8.*failed",  # flake8 specific failures
+            r"pylint.*failed",  # pylint specific failures
+        ]
+
+        for indicator in linting_indicators:
+            if re.search(indicator, trace_content, re.IGNORECASE):
+                debug_print(
+                    f"❌ PYTEST DETECTION: Trace contains linting pattern '{indicator}' - this is a linting job"
+                )
+                return False
+
+    # SECOND: Check for explicit non-pytest jobs by name (but be more specific)
+    # Only exclude if it's clearly NOT a test job
+    non_pytest_name_patterns = [
+        r"^lint-",  # Jobs starting with "lint-"
+        r"^format-",  # Jobs starting with "format-"
+        r"^build-",  # Jobs starting with "build-"
+        r"^deploy-",  # Jobs starting with "deploy-"
+        r"^package-",  # Jobs starting with "package-"
+        r"^publish-",  # Jobs starting with "publish-"
+        r"^security-",  # Jobs starting with "security-"
+        r"^audit-",  # Jobs starting with "audit-"
+        r"^compliance-",  # Jobs starting with "compliance-"
+    ]
+
+    # If job name explicitly indicates non-pytest work, return False
+    for pattern in non_pytest_name_patterns:
+        if re.search(pattern, job_name.lower()):
+            debug_print(
+                f"❌ PYTEST DETECTION: Job name '{job_name}' matches non-pytest pattern '{pattern}'"
+            )
+            return False
+
+    # THIRD: Check stage patterns, but only exclude obvious non-test stages
+    # Be careful not to exclude "quality" stage if it contains test jobs
+    non_pytest_stage_patterns = [
+        r"^build$",  # Only exact "build" stage
+        r"^deploy$",  # Only exact "deploy" stage
+        r"^package$",  # Only exact "package" stage
+        r"^publish$",  # Only exact "publish" stage
+    ]
+
+    for pattern in non_pytest_stage_patterns:
+        if re.search(pattern, job_stage.lower()):
+            debug_print(
+                f"❌ PYTEST DETECTION: Job stage '{job_stage}' matches non-pytest pattern '{pattern}'"
+            )
+            return False
+
+    # Check job name patterns for pytest
     pytest_name_patterns = [
         r"test",
         r"pytest",
@@ -174,7 +230,7 @@ def is_pytest_job(
             )
             return True
 
-    # Check job stage patterns
+    # Check job stage patterns for pytest
     pytest_stage_patterns = [r"test", r"testing", r"unit", r"integration"]
 
     for pattern in pytest_stage_patterns:
@@ -184,31 +240,50 @@ def is_pytest_job(
             )
             return True
 
-    # Check trace content for pytest indicators
+    # Check trace content for pytest indicators (more specific patterns)
     if trace_content:
         verbose_debug_print(
             f"🔍 PYTEST DETECTION: Checking trace content ({len(trace_content)} chars)"
         )
-        pytest_indicators = [
-            r"pytest",
-            r"=+\s*FAILURES\s*=+",  # More flexible FAILURES section detection
-            r"=+\s*test session starts\s*=+",
-            r"collected \d+ items?",
+
+        # High-confidence pytest indicators (structural markers)
+        high_confidence_indicators = [
+            r"=+\s*FAILURES\s*=+",  # pytest FAILURES section
+            r"=+\s*test session starts\s*=+",  # pytest session start
+            r"collected \d+ items?",  # pytest collection message
             r"::\w+.*FAILED",  # pytest test failure format
-            r"conftest\.py",
-            r"uv run.*pytest",  # Common uv + pytest pattern
-            r"coverage run -m pytest",  # Coverage + pytest pattern
-            r"make.*test",  # Make test commands that might run pytest
+            r"conftest\.py",  # pytest configuration file
+            r"short test summary info",  # pytest summary section
             r"FAILED.*::\w+",  # Alternative FAILED pattern
-            r"short test summary info",  # Pytest summary section
         ]
 
-        for indicator in pytest_indicators:
+        for indicator in high_confidence_indicators:
             if re.search(indicator, trace_content, re.IGNORECASE):
                 debug_print(
-                    f"✅ PYTEST DETECTION: Trace contains pytest indicator '{indicator}'"
+                    f"✅ PYTEST DETECTION: Trace contains high-confidence pytest indicator '{indicator}'"
                 )
                 return True
+
+        # Medium-confidence indicators (command patterns)
+        command_indicators = [
+            r"uv run.*pytest",  # Common uv + pytest pattern
+            r"coverage run -m pytest",  # Coverage + pytest pattern
+            r"python -m pytest",  # Direct pytest module run
+            r"pytest.*\.py",  # pytest with python files
+        ]
+
+        for indicator in command_indicators:
+            if re.search(indicator, trace_content, re.IGNORECASE):
+                debug_print(
+                    f"✅ PYTEST DETECTION: Trace contains command indicator '{indicator}'"
+                )
+                return True
+
+        # Low-confidence: only if job name/stage don't explicitly exclude pytest
+        # Remove the generic "pytest" pattern that was causing false positives
+        verbose_debug_print(
+            "🔍 PYTEST DETECTION: No high or medium confidence pytest indicators found"
+        )
     else:
         verbose_debug_print("🔍 PYTEST DETECTION: No trace content provided")
 

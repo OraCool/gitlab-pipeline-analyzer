@@ -392,49 +392,54 @@ def _filter_root_causes(
     limit: int | None = None,
     severity_filter: str | None = None,
     category_filter: str | None = None,
-    min_confidence: float | None = None
+    min_confidence: float | None = None,
 ) -> list[dict]:
     """Filter and limit root causes based on specified criteria."""
     filtered = root_causes.copy()
-    
+
     # Apply confidence filter
     if min_confidence is not None:
-        filtered = [cause for cause in filtered if cause.get("confidence", 0) >= min_confidence]
-    
+        filtered = [
+            cause for cause in filtered if cause.get("confidence", 0) >= min_confidence
+        ]
+
     # Apply severity filter
     if severity_filter:
         severity_filter = severity_filter.lower()
         filtered = [
-            cause for cause in filtered
+            cause
+            for cause in filtered
             if cause.get("pattern", {}).get("severity", "").lower() == severity_filter
         ]
-    
+
     # Apply category filter
     if category_filter:
         filtered = [
-            cause for cause in filtered
-            if category_filter.lower() in cause.get("pattern", {}).get("category", "").lower()
+            cause
+            for cause in filtered
+            if category_filter.lower()
+            in cause.get("pattern", {}).get("category", "").lower()
         ]
-    
+
     # Apply limit
     if limit and limit > 0:
         filtered = filtered[:limit]
-    
+
     return filtered
 
 
 async def _get_job_root_cause_analysis(
-    project_id: int,
-    job_id: int,
+    project_id: str,
+    job_id: str,
     response_mode: str = "minimal",
-    limit: int = None,
-    severity_filter: str = None,
-    category_filter: str = None,
-    min_confidence: float = None,
+    limit: int | None = None,
+    severity_filter: str | None = None,
+    category_filter: str | None = None,
+    min_confidence: float | None = None,
 ) -> str:
     """
     Internal function to get job-specific root cause analysis with filtering options.
-    
+
     Args:
         project_id: GitLab project ID
         job_id: GitLab job ID
@@ -443,15 +448,359 @@ async def _get_job_root_cause_analysis(
         severity_filter: Filter by severity level
         category_filter: Filter by category
         min_confidence: Minimum confidence threshold
-    
+
     Returns:
         JSON string with job root cause analysis
     """
-    # For now, delegate to comprehensive analysis - this can be enhanced later
-    # with job-specific root cause logic
-    return await _get_comprehensive_analysis(
-        project_id, job_id=job_id, response_mode=response_mode
+    debug_print(
+        f"🔍 Starting job root cause analysis for {project_id}/{job_id} (mode: {response_mode})"
     )
+
+    try:
+        cache_manager = get_cache_manager()
+
+        # Create cache key for job root cause analysis
+        cache_key = f"job_root_cause_{project_id}_{job_id}_{response_mode}"
+        verbose_debug_print(f"🔑 Using cache key: {cache_key}")
+
+        # Try to get from cache first
+        cached_data = await cache_manager.get(cache_key)
+        if cached_data:
+            debug_print("💾 Found cached job root cause analysis")
+            # Apply filtering to cached data if needed
+            if any([limit, severity_filter, category_filter, min_confidence]):
+                debug_print("🔍 Applying filters to cached data")
+                cached_analysis = cached_data.get("root_cause_analysis", {})
+                root_causes = cached_analysis.get("root_causes", [])
+                filtered_causes = _filter_root_causes(
+                    root_causes,
+                    limit=limit,
+                    severity_filter=severity_filter,
+                    category_filter=category_filter,
+                    min_confidence=min_confidence,
+                )
+                # Update cached data with filtered results
+                cached_analysis["root_causes"] = filtered_causes
+                cached_analysis["root_causes_summary"]["total_causes_identified"] = len(
+                    filtered_causes
+                )
+                cached_data["root_cause_analysis"] = cached_analysis
+            return json.dumps(cached_data, indent=2)
+
+        # Get job data from database
+        verbose_debug_print("📊 Fetching job data from database...")
+        job_info = await cache_manager.get_job_info_async(int(job_id))
+        job_errors = cache_manager.get_job_errors(int(job_id))
+
+        debug_print(f"📊 Job data: {len(job_errors)} errors found")
+
+        if not job_errors:
+            result = {
+                "root_cause_analysis": {
+                    "project_id": project_id,
+                    "job_id": int(job_id),
+                    "summary": "No errors found - job appears successful",
+                    "status": "success",
+                    "job_info": job_info,
+                    "error_count": 0,
+                },
+                "resource_uri": f"gl://root-cause/{project_id}/job/{job_id}",
+                "cached_at": datetime.now(timezone.utc).isoformat(),
+            }
+        else:
+            # Convert dict errors to Error objects
+            verbose_debug_print("🔍 Converting errors to Error objects...")
+            error_objects = []
+            for error_dict in job_errors:
+                try:
+                    error = Error.from_dict(error_dict)
+                    error.job_id = int(job_id)
+                    error_objects.append(error)
+                except Exception as e:
+                    logger.warning(f"Failed to convert error to Error object: {e}")
+                    continue
+
+            debug_print(f"🔍 Total errors converted: {len(error_objects)}")
+
+            # Initialize AI-optimized analyzers
+            verbose_debug_print("🤖 Initializing AI-optimized analyzers...")
+            root_cause_analyzer = RootCauseAnalyzer()
+            error_summarizer = ErrorSummarizer()
+
+            # Perform root cause analysis
+            debug_print("🔍 Performing job root cause analysis...")
+            root_cause_analysis = root_cause_analyzer.analyze(error_objects)
+
+            # Generate AI-optimized summary
+            verbose_debug_print("📝 Generating AI-optimized summary...")
+            summary = error_summarizer.generate_root_cause_summary(root_cause_analysis)
+            debug_print(
+                f"📝 Summary generated: {len(summary.key_insights)} key insights, context reduced by ~{summary.context_reduction_percentage}%"
+            )
+
+            # Convert dataclass to dict for JSON serialization
+            from dataclasses import asdict
+
+            summary_dict = asdict(summary)
+
+            # Create a safe serializable version of the analysis
+            def make_serializable(obj):
+                """Convert objects to JSON-serializable format."""
+                if hasattr(obj, "__dict__"):
+                    result = {}
+                    for key, value in obj.__dict__.items():
+                        if key == "pattern" and hasattr(value, "name"):
+                            # For ErrorPattern objects, just keep essential info
+                            result[key] = {
+                                "name": value.name,
+                                "category": value.category,
+                                "description": value.description,
+                                "severity": value.severity,
+                            }
+                        elif hasattr(value, "__dict__"):
+                            result[key] = make_serializable(value)
+                        elif isinstance(value, list):
+                            result[key] = [
+                                (
+                                    make_serializable(item)
+                                    if hasattr(item, "__dict__")
+                                    else item
+                                )
+                                for item in value
+                            ]
+                        elif isinstance(value, set):
+                            result[key] = list(value)
+                        else:
+                            result[key] = value
+                    return result
+                return obj
+
+            analysis_dict = make_serializable(root_cause_analysis)
+
+            # Create a comprehensive root causes breakdown
+            verbose_debug_print("🏗️ Building comprehensive root causes breakdown...")
+            root_causes = []
+
+            def _deduplicate_sample_errors(errors: list, max_samples: int) -> list:
+                """Deduplicate sample errors based on message, file_path, and line_number."""
+                seen = set()
+                unique_errors = []
+
+                for error in errors:
+                    # Create a key based on error identifying characteristics
+                    error_key = (
+                        error.message,
+                        error.file_path,
+                        error.line_number,
+                        error.exception_type,
+                    )
+
+                    if error_key not in seen:
+                        seen.add(error_key)
+                        unique_errors.append(error)
+
+                        if len(unique_errors) >= max_samples:
+                            break
+
+                return unique_errors
+
+            # Add primary cause
+            if (
+                root_cause_analysis.primary_cause
+                and root_cause_analysis.primary_cause.errors
+            ):
+                primary_cause = root_cause_analysis.primary_cause
+                debug_print(
+                    f"🎯 Primary cause: {primary_cause.pattern.name} ({len(primary_cause.errors)} errors, confidence: {primary_cause.confidence:.2f})"
+                )
+
+                # Get deduplicated sample errors
+                unique_sample_errors = _deduplicate_sample_errors(
+                    primary_cause.errors, 3
+                )
+
+                root_causes.append(
+                    {
+                        "type": "primary",
+                        "pattern": {
+                            "name": primary_cause.pattern.name,
+                            "category": primary_cause.pattern.category,
+                            "description": primary_cause.pattern.description,
+                            "severity": primary_cause.pattern.severity,
+                        },
+                        "error_count": len(primary_cause.errors),
+                        "confidence": primary_cause.confidence,
+                        "impact_score": primary_cause.impact_score,
+                        "affected_files": list(primary_cause.affected_files),
+                        "sample_errors": [
+                            {
+                                "message": (
+                                    error.message[:400] + "..."
+                                    if len(error.message) > 400
+                                    else error.message
+                                ),
+                                "file_path": error.file_path,
+                                "line_number": error.line_number,
+                                "exception_type": error.exception_type,
+                            }
+                            for error in unique_sample_errors
+                        ],
+                        "error_references": [f"gl://errors/{project_id}/{job_id}"],
+                    }
+                )
+
+                verbose_debug_print(
+                    f"   📊 Primary cause affects {len(primary_cause.affected_files)} files"
+                )
+
+            # Add secondary causes
+            debug_print(
+                f"📋 Processing {len(root_cause_analysis.secondary_causes)} secondary causes..."
+            )
+            for i, secondary_cause in enumerate(root_cause_analysis.secondary_causes):
+                if secondary_cause.errors:
+                    verbose_debug_print(
+                        f"   #{i+2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
+                    )
+
+                    # Get deduplicated sample errors
+                    unique_sample_errors = _deduplicate_sample_errors(
+                        secondary_cause.errors, 2
+                    )
+
+                    root_causes.append(
+                        {
+                            "type": "secondary",
+                            "rank": i
+                            + 2,  # Primary is rank 1, so secondary starts at 2
+                            "pattern": {
+                                "name": secondary_cause.pattern.name,
+                                "category": secondary_cause.pattern.category,
+                                "description": secondary_cause.pattern.description,
+                                "severity": secondary_cause.pattern.severity,
+                            },
+                            "error_count": len(secondary_cause.errors),
+                            "confidence": secondary_cause.confidence,
+                            "impact_score": secondary_cause.impact_score,
+                            "affected_files": list(secondary_cause.affected_files),
+                            "sample_errors": [
+                                {
+                                    "message": (
+                                        error.message[:400] + "..."
+                                        if len(error.message) > 400
+                                        else error.message
+                                    ),
+                                    "file_path": error.file_path,
+                                    "line_number": error.line_number,
+                                    "exception_type": error.exception_type,
+                                }
+                                for error in unique_sample_errors
+                            ],
+                            "error_references": [f"gl://errors/{project_id}/{job_id}"],
+                        }
+                    )
+
+            # Apply filtering and limiting
+            if any([limit, severity_filter, category_filter, min_confidence]):
+                debug_print(
+                    f"🔍 Applying filters: limit={limit}, severity={severity_filter}, category={category_filter}, confidence={min_confidence}"
+                )
+                filtered_causes = _filter_root_causes(
+                    root_causes,
+                    limit=limit,
+                    severity_filter=severity_filter,
+                    category_filter=category_filter,
+                    min_confidence=min_confidence,
+                )
+                debug_print(
+                    f"📊 Filtered from {len(root_causes)} to {len(filtered_causes)} root causes"
+                )
+                root_causes = filtered_causes
+
+            result = {
+                "root_cause_analysis": {
+                    "project_id": project_id,
+                    "job_id": int(job_id),
+                    "ai_optimized_summary": summary_dict,
+                    "root_causes": root_causes,
+                    "root_causes_summary": {
+                        "total_causes_identified": len(root_causes),
+                        "primary_issue": (
+                            root_causes[0]["pattern"]["description"]
+                            if root_causes
+                            else "No clear root cause identified"
+                        ),
+                        "total_errors_analyzed": len(error_objects),
+                        "confidence": root_cause_analysis.confidence,
+                        "most_affected_files": (
+                            list(root_cause_analysis.affected_files)[:5]
+                            if hasattr(root_cause_analysis, "affected_files")
+                            else []
+                        ),
+                    },
+                    "detailed_analysis": analysis_dict,
+                    "job_context": {
+                        "status": job_info.get("status") if job_info else "unknown",
+                        "stage": job_info.get("stage") if job_info else "unknown",
+                        "name": job_info.get("name") if job_info else "unknown",
+                        "duration": job_info.get("duration") if job_info else None,
+                        "pipeline_id": (
+                            job_info.get("pipeline_id") if job_info else None
+                        ),
+                    },
+                },
+                "resource_uri": f"gl://root-cause/{project_id}/job/{job_id}",
+                "cached_at": datetime.now(timezone.utc).isoformat(),
+                "metadata": {
+                    "analysis_type": "ai_optimized_job_root_cause",
+                    "response_mode": response_mode,
+                    "context_reduction": "optimized_for_ai_consumption",
+                    "error_count": len(error_objects),
+                },
+            }
+
+            debug_print(
+                f"✅ Job root cause analysis complete: {len(root_causes)} causes identified"
+            )
+
+        # Apply response mode optimization
+        verbose_debug_print(f"⚙️ Applying response mode optimization: {response_mode}")
+        from gitlab_analyzer.utils.utils import optimize_tool_response
+
+        result = optimize_tool_response(result, response_mode)
+
+        mcp_info = get_mcp_info(
+            tool_used="job_root_cause_analysis", error=False, parser_type="ai_optimized"
+        )
+        result["mcp_info"] = mcp_info
+
+        # Cache the result (without filters applied so base data is available)
+        verbose_debug_print(f"💾 Caching result with key: {cache_key}")
+        await cache_manager.set(
+            cache_key,
+            result,
+            data_type="root_cause",
+            project_id=project_id,
+            job_id=int(job_id),
+        )
+
+        debug_print("✅ Job root cause analysis cached and ready to return")
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        debug_print(
+            f"❌ Error in job root cause analysis for {project_id}/{job_id}: {str(e)}"
+        )
+        logger.error(
+            "Error getting job root cause analysis %s/%s: %s", project_id, job_id, e
+        )
+        error_result = {
+            "error": f"Failed to get job root cause analysis: {str(e)}",
+            "project_id": project_id,
+            "job_id": int(job_id),
+            "resource_uri": f"gl://root-cause/{project_id}/job/{job_id}",
+        }
+        return json.dumps(error_result, indent=2)
 
 
 async def _get_root_cause_analysis(
@@ -461,7 +810,7 @@ async def _get_root_cause_analysis(
     limit: int | None = None,
     severity_filter: str | None = None,
     category_filter: str | None = None,
-    min_confidence: float | None = None
+    min_confidence: float | None = None,
 ) -> str:
     """Get AI-optimized root cause analysis for a pipeline."""
     debug_print(
@@ -730,15 +1079,19 @@ async def _get_root_cause_analysis(
 
             # Apply filtering and limiting
             if any([limit, severity_filter, category_filter, min_confidence]):
-                debug_print(f"🔍 Applying filters: limit={limit}, severity={severity_filter}, category={category_filter}, confidence={min_confidence}")
+                debug_print(
+                    f"🔍 Applying filters: limit={limit}, severity={severity_filter}, category={category_filter}, confidence={min_confidence}"
+                )
                 filtered_causes = _filter_root_causes(
                     root_causes,
                     limit=limit,
                     severity_filter=severity_filter,
                     category_filter=category_filter,
-                    min_confidence=min_confidence
+                    min_confidence=min_confidence,
                 )
-                debug_print(f"📊 Filtered from {len(root_causes)} to {len(filtered_causes)} root causes")
+                debug_print(
+                    f"📊 Filtered from {len(root_causes)} to {len(filtered_causes)} root causes"
+                )
                 root_causes = filtered_causes
 
             result = {
@@ -1030,7 +1383,7 @@ def register_analysis_resources(mcp) -> None:
             limit_int = int(limit)
         except (ValueError, TypeError):
             limit_int = None
-        
+
         result = await _get_root_cause_analysis(
             project_id, pipeline_id, "minimal", limit=limit_int
         )
@@ -1101,12 +1454,213 @@ def register_analysis_resources(mcp) -> None:
             confidence_float = float(confidence)
         except (ValueError, TypeError):
             confidence_float = None
-        
+
         result = await _get_root_cause_analysis(
             project_id, pipeline_id, "minimal", min_confidence=confidence_float
         )
         return create_text_resource(
             "gl://root-cause/{project_id}/{pipeline_id}?confidence={confidence}", result
+        )
+
+    # Job-specific root cause analysis resources
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}")
+    async def get_job_root_cause_resource(
+        project_id: str, job_id: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized root cause analysis for a specific job.
+
+        This resource provides minimal, focused error analysis specifically
+        designed for AI consumption with maximum context reduction.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+
+        Returns:
+            Job root cause analysis with AI-optimized summary
+        """
+        result = await _get_job_root_cause_analysis(project_id, job_id, "minimal")
+        return create_text_resource("gl://root-cause/{project_id}/job/{job_id}", result)
+
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}?mode={mode}")
+    async def get_job_root_cause_resource_with_mode(
+        project_id: str, job_id: str, mode: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis with specific response mode.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            mode: Response mode - "minimal", "balanced", "detailed"
+
+        Returns:
+            Job root cause analysis optimized for the specified mode
+        """
+        result = await _get_job_root_cause_analysis(project_id, job_id, mode)
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?mode={mode}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}?limit={limit}")
+    async def get_job_root_cause_resource_with_limit(
+        project_id: str, job_id: str, limit: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis with limit.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            limit: Maximum number of root causes to return
+
+        Returns:
+            Job root cause analysis with limited results
+        """
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = None
+
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", limit=limit_int
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?limit={limit}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}?severity={severity}")
+    async def get_job_root_cause_resource_with_severity(
+        project_id: str, job_id: str, severity: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis filtered by severity.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            severity: Severity level filter (critical, high, medium, low)
+
+        Returns:
+            Job root cause analysis filtered by severity
+        """
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", severity_filter=severity
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?severity={severity}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}?category={category}")
+    async def get_job_root_cause_resource_with_category(
+        project_id: str, job_id: str, category: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis filtered by category.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            category: Category filter (e.g., 'syntax', 'import', 'test', etc.)
+
+        Returns:
+            Job root cause analysis filtered by category
+        """
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", category_filter=category
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?category={category}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/job/{job_id}?confidence={confidence}")
+    async def get_job_root_cause_resource_with_confidence(
+        project_id: str, job_id: str, confidence: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis filtered by minimum confidence.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            confidence: Minimum confidence threshold (0.0-1.0)
+
+        Returns:
+            Job root cause analysis filtered by confidence
+        """
+        try:
+            confidence_float = float(confidence)
+        except (ValueError, TypeError):
+            confidence_float = None
+
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", min_confidence=confidence_float
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?confidence={confidence}", result
+        )
+
+    @mcp.resource(
+        "gl://root-cause/{project_id}/job/{job_id}?limit={limit}&severity={severity}"
+    )
+    async def get_job_root_cause_resource_with_limit_and_severity(
+        project_id: str, job_id: str, limit: str, severity: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis with limit and severity filter.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            limit: Maximum number of root causes to return
+            severity: Severity level filter (critical, high, medium, low)
+
+        Returns:
+            Job root cause analysis with limited results filtered by severity
+        """
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = None
+
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", limit=limit_int, severity_filter=severity
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?limit={limit}&severity={severity}",
+            result,
+        )
+
+    @mcp.resource(
+        "gl://root-cause/{project_id}/job/{job_id}?limit={limit}&category={category}"
+    )
+    async def get_job_root_cause_resource_with_limit_and_category(
+        project_id: str, job_id: str, limit: str, category: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized job root cause analysis with limit and category filter.
+
+        Args:
+            project_id: GitLab project ID
+            job_id: GitLab job ID
+            limit: Maximum number of root causes to return
+            category: Category filter (e.g., 'syntax', 'import', 'test', etc.)
+
+        Returns:
+            Job root cause analysis with limited results filtered by category
+        """
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = None
+
+        result = await _get_job_root_cause_analysis(
+            project_id, job_id, "minimal", limit=limit_int, category_filter=category
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/job/{job_id}?limit={limit}&category={category}",
+            result,
         )
 
     logger.info("Analysis resources registered")
