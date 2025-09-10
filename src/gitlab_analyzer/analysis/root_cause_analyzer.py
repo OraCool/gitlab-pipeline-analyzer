@@ -3,9 +3,9 @@
 from dataclasses import dataclass
 from typing import Any
 
-from ..patterns.error_patterns import pattern_matcher, DynamicErrorPattern
-from .error_model import Error
+from ..patterns.error_patterns import DynamicErrorPattern, pattern_matcher
 from ..utils.debug import debug_print, verbose_debug_print, very_verbose_debug_print
+from .error_model import Error
 
 
 @dataclass
@@ -32,7 +32,7 @@ class ErrorGroup:
 class RootCauseAnalysis:
     """Complete root cause analysis for a set of errors."""
 
-    primary_cause: ErrorGroup
+    primary_cause: ErrorGroup | None
     secondary_causes: list[ErrorGroup]
     summary: dict[str, Any]
     fix_suggestions: list[str]
@@ -41,14 +41,15 @@ class RootCauseAnalysis:
     @property
     def total_errors(self) -> int:
         """Total number of errors analyzed."""
-        return self.primary_cause.error_count + sum(
-            group.error_count for group in self.secondary_causes
-        )
+        primary_count = self.primary_cause.error_count if self.primary_cause else 0
+        return primary_count + sum(group.error_count for group in self.secondary_causes)
 
     @property
     def affected_files(self) -> set[str]:
         """All files affected by the analyzed errors."""
-        files = self.primary_cause.affected_files.copy()
+        files = (
+            self.primary_cause.affected_files.copy() if self.primary_cause else set()
+        )
         for group in self.secondary_causes:
             files.update(group.affected_files)
         return files
@@ -85,7 +86,7 @@ class RootCauseAnalyzer:
         ranked_groups = self._rank_error_groups(error_groups)
         for i, group in enumerate(ranked_groups[:3]):  # Show top 3
             debug_print(
-                f"  #{i+1}: {group.pattern.pattern_id} (impact: {group.impact_score}, confidence: {group.confidence:.2f}, errors: {group.error_count})"
+                f"  #{i + 1}: {group.pattern.pattern_id} (impact: {group.impact_score}, confidence: {group.confidence:.2f}, errors: {group.error_count})"
             )
 
         # Step 4: Identify primary and secondary causes
@@ -107,7 +108,7 @@ class RootCauseAnalyzer:
             )
             for i, cause in enumerate(secondary_causes[:2]):  # Show top 2 secondary
                 verbose_debug_print(
-                    f"   #{i+1}: {cause.pattern.category} ({cause.error_count} errors)"
+                    f"   #{i + 1}: {cause.pattern.category} ({cause.error_count} errors)"
                 )
 
         # Step 5: Generate summary and suggestions
@@ -165,8 +166,6 @@ class RootCauseAnalyzer:
                 verbose_debug_print(
                     f"   📦 Created group for {pattern.category}: {len(matching_errors)} errors"
                 )
-
-        return groups
 
         return groups
 
@@ -274,7 +273,7 @@ class RootCauseAnalyzer:
 
         for i, group in enumerate(groups[:3]):  # Top 3 groups only
             very_verbose_debug_print(
-                f"   🔍 Processing group #{i+1}: {group.pattern.category} (confidence: {group.confidence:.2f})"
+                f"   🔍 Processing group #{i + 1}: {group.pattern.category} (confidence: {group.confidence:.2f})"
             )
 
             # Lower confidence threshold to include single-occurrence critical errors
@@ -351,41 +350,74 @@ class RootCauseAnalyzer:
         template = group.pattern.fix_template
         error = group.errors[0]  # Use first error as representative
 
-        # Extract specific details from error message
-        match = group.pattern.pattern.search(error.message)
-        if match:
-            # Replace placeholders in template with actual values
-            groups = match.groups()
-            if groups:
-                # Common replacements - handle None values safely
-                def safe_replace(
-                    text: str, placeholder: str, value: str | None, fallback: str
-                ) -> str:
-                    replacement = value if value is not None else fallback
-                    return text.replace(placeholder, replacement)
+        # For DynamicErrorPattern, we don't have regex patterns but we can still extract details
+        # Replace placeholders in template with actual values from pattern metadata
+        template = template.replace(
+            "{affected_files_count}", str(len(group.pattern.affected_files))
+        )
+        template = template.replace("{frequency}", str(group.pattern.frequency))
 
-                template = safe_replace(
-                    template, "{class}", groups[0] if groups else None, "Object"
-                )
-                template = safe_replace(
-                    template,
-                    "{attribute}",
-                    groups[1] if len(groups) > 1 else None,
-                    "attribute",
-                )
-                template = safe_replace(
-                    template, "{method}", groups[0] if groups else None, "method"
-                )
-                template = safe_replace(
-                    template, "{function}", groups[0] if groups else None, "function"
-                )
-                template = safe_replace(
-                    template, "{module}", groups[0] if groups else None, "module"
-                )
+        # Try to extract specific details from error message using simple text analysis
+        error_message = error.message.lower()
 
-        # Add file location for context
-        if error.file_path and error.line_number:
-            template += f" (in {error.file_path}:{error.line_number})"
+        # Common replacements based on error category and message content
+        def safe_replace(
+            text: str, placeholder: str, value: str | None, fallback: str
+        ) -> str:
+            replacement = value if value is not None else fallback
+            return text.replace(placeholder, replacement)
+
+        # Extract class/object names (look for patterns like "AttributeError: 'ClassName' object")
+        if (
+            "object has no attribute" in error_message
+            or "attributeerror" in error_message
+        ):
+            # Try to extract class name from error messages like "'ClassName' object has no attribute"
+            import re
+
+            class_match = re.search(r"'([^']+)'\s+object", error_message)
+            class_name = class_match.group(1) if class_match else None
+            template = safe_replace(template, "{class}", class_name, "Object")
+
+            # Extract attribute name
+            attr_match = re.search(r"no attribute\s+'([^']+)'", error_message)
+            attr_name = attr_match.group(1) if attr_match else None
+            template = safe_replace(template, "{attribute}", attr_name, "attribute")
+
+        # Extract method names for method-related errors
+        if "method" in error_message:
+            method_match = re.search(
+                r"method\s+'?([a-zA-Z_][a-zA-Z0-9_]*)'?", error_message
+            )
+            method_name = method_match.group(1) if method_match else None
+            template = safe_replace(template, "{method}", method_name, "method")
+
+        # Extract function names for function-related errors
+        if "function" in error_message or "callable" in error_message:
+            func_match = re.search(
+                r"function\s+'?([a-zA-Z_][a-zA-Z0-9_]*)'?", error_message
+            )
+            func_name = func_match.group(1) if func_match else None
+            template = safe_replace(template, "{function}", func_name, "function")
+
+        # Extract module names for import errors
+        if "import" in error_message or "module" in error_message:
+            module_match = re.search(
+                r"module\s+'?([a-zA-Z_][a-zA-Z0-9_.]*)'?", error_message
+            )
+            if not module_match:
+                module_match = re.search(
+                    r"import\s+([a-zA-Z_][a-zA-Z0-9_.]*)", error_message
+                )
+            module_name = module_match.group(1) if module_match else None
+            template = safe_replace(template, "{module}", module_name, "module")
+
+        # Add file context if available
+        if error.file_path:
+            template += f" (see: {error.file_path}"
+            if error.line_number:
+                template += f":{error.line_number}"
+            template += ")"
 
         return template
 

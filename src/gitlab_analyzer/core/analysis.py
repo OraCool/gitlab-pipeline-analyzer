@@ -476,7 +476,7 @@ def parse_pytest_logs(
         )
         for i, failure in enumerate(pytest_result.detailed_failures):
             verbose_debug_print(
-                f"  ➤ Failure {i+1}: {failure.test_name} - {failure.exception_type}"
+                f"  ➤ Failure {i + 1}: {failure.test_name} - {failure.exception_type}"
             )
             error_data = {
                 "test_file": failure.test_file or "unknown",
@@ -521,25 +521,6 @@ def parse_pytest_logs(
                 error_data["traceback"] = filtered_traceback
 
             errors.append(error_data)
-
-    return {
-        "parser_type": "pytest",
-        "errors": errors,
-        "warnings": warnings,  # Pytest parser doesn't extract warnings yet
-        "error_count": len(errors),
-        "warning_count": len(warnings),
-        "test_summary": (
-            {
-                "total_tests": pytest_result.statistics.total_tests,
-                "passed": pytest_result.statistics.passed,
-                "failed": pytest_result.statistics.failed,
-                "skipped": pytest_result.statistics.skipped,
-                "duration": pytest_result.statistics.duration_formatted,
-            }
-            if pytest_result.statistics.total_tests
-            else None
-        ),
-    }
 
     debug_print(
         f"✅ PYTEST PARSER COMPLETE: Returning {len(errors)} errors, {len(warnings)} warnings"
@@ -656,7 +637,7 @@ def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
             or not error.get("message", "").strip()  # Keep this for empty messages
         ):
             verbose_debug_print(
-                f"  ❌ Filtered out error {i+1}: {error.get('message', 'No message')[:50]}..."
+                f"  ❌ Filtered out error {i + 1}: {error.get('message', 'No message')[:50]}..."
             )
             filtered_out += 1
             continue
@@ -665,7 +646,7 @@ def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
         # Real errors with failed file path extraction should still be stored
 
         verbose_debug_print(
-            f"  ✅ Keeping error {i+1}: {error.get('message', 'No message')[:50]}..."
+            f"  ✅ Keeping error {i + 1}: {error.get('message', 'No message')[:50]}..."
         )
         filtered_errors.append(error)
 

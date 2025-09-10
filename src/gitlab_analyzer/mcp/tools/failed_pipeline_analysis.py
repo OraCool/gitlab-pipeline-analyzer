@@ -285,7 +285,9 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 # This ensures consistency with job analysis tools
                 from gitlab_analyzer.core.analysis import parse_job_logs
 
-                debug_print(f"🔧 Using enhanced parsing with auto-detection for job {job.name} (stage: {job.stage})")
+                debug_print(
+                    f"🔧 Using enhanced parsing with auto-detection for job {job.name} (stage: {job.stage})"
+                )
                 parsed_result = parse_job_logs(
                     trace_content=trace,
                     parser_type="auto",
@@ -295,18 +297,21 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     exclude_paths=exclude_patterns,
                 )
 
-                debug_print(f"� Enhanced parsing result: {parsed_result.get('parser_type', 'unknown')} parser")
-                
+                debug_print(
+                    f"� Enhanced parsing result: {parsed_result.get('parser_type', 'unknown')} parser"
+                )
+
                 # Convert to expected format for consistency with existing pipeline analysis logic
                 errors = parsed_result.get("errors", [])
-                
+
                 # Ensure all errors have required fields for storage
                 standardized_errors = []
                 for error in errors:
                     standardized_error = {
                         "exception_type": error.get("exception_type", "unknown"),
                         "exception_message": error.get("message", ""),
-                        "file_path": error.get("test_file") or error.get("file_path", ""),
+                        "file_path": error.get("test_file")
+                        or error.get("file_path", ""),
                         "line_number": error.get("line_number"),
                         "test_function": error.get("test_function", ""),
                         "test_name": error.get("test_name", ""),
@@ -317,7 +322,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         "traceback": error.get("traceback", []),
                     }
                     standardized_errors.append(standardized_error)
-                
+
                 errors = standardized_errors
                 debug_print(f"📊 Enhanced parsing found {len(errors)} errors")
 

@@ -7,8 +7,8 @@ designed for AI assistant consumption with minimal context.
 from dataclasses import dataclass
 from typing import Any
 
-from .root_cause_analyzer import RootCauseAnalysis, ErrorGroup
 from .error_model import Error
+from .root_cause_analyzer import ErrorGroup, RootCauseAnalysis
 
 
 @dataclass
@@ -195,9 +195,7 @@ class ErrorSummarizer:
         # Simplify and make more actionable
         if "Check if" in template:
             return template.replace("Check if", "Verify").split(".")[0]
-        elif "Ensure" in template:
-            return template.split(".")[0]
-        elif "Add" in template or "Import" in template:
+        elif "Ensure" in template or "Add" in template or "Import" in template:
             return template.split(".")[0]
         else:
             # Generic fallback

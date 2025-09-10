@@ -590,6 +590,7 @@ async def _handle_root_cause_resource(
 
             # Import the job root cause analysis function
             import json
+
             from gitlab_analyzer.mcp.resources.analysis import (
                 _get_job_root_cause_analysis,
             )
@@ -626,6 +627,7 @@ async def _handle_root_cause_resource(
 
             # Import the pipeline root cause analysis function
             import json
+
             from gitlab_analyzer.mcp.resources.analysis import _get_root_cause_analysis
 
             result_json = await _get_root_cause_analysis(

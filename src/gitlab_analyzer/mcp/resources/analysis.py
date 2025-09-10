@@ -12,13 +12,13 @@ from typing import Any
 
 from mcp.types import TextResourceContents
 
+from gitlab_analyzer.analysis.error_model import Error
+from gitlab_analyzer.analysis.root_cause_analyzer import RootCauseAnalyzer
+from gitlab_analyzer.analysis.summarizer import ErrorSummarizer
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.mcp.utils.pipeline_validation import check_pipeline_analyzed
-from gitlab_analyzer.utils.utils import get_mcp_info
-from gitlab_analyzer.analysis.summarizer import ErrorSummarizer
-from gitlab_analyzer.analysis.root_cause_analyzer import RootCauseAnalyzer
-from gitlab_analyzer.analysis.error_model import Error
 from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
+from gitlab_analyzer.utils.utils import get_mcp_info
 
 from .utils import create_text_resource
 
@@ -660,7 +660,7 @@ async def _get_job_root_cause_analysis(
             for i, secondary_cause in enumerate(root_cause_analysis.secondary_causes):
                 if secondary_cause.errors:
                     verbose_debug_print(
-                        f"   #{i+2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
+                        f"   #{i + 2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
                     )
 
                     # Get deduplicated sample errors
@@ -1033,7 +1033,7 @@ async def _get_root_cause_analysis(
             for i, secondary_cause in enumerate(root_cause_analysis.secondary_causes):
                 if secondary_cause.errors:
                     verbose_debug_print(
-                        f"   #{i+2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
+                        f"   #{i + 2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
                     )
 
                     # Get deduplicated sample errors

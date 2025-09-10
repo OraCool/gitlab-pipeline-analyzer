@@ -4,10 +4,10 @@ Analyzes actual error messages to identify common patterns and root causes.
 """
 
 import re
-from dataclasses import dataclass
-from typing import Any
 from collections import Counter
+from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Any
 
 
 @dataclass
