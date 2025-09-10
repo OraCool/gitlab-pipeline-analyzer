@@ -61,9 +61,21 @@ class ErrorService:
             error_types = set()
 
             for db_error in job_errors:
+                # Extract test function info from detail if available
+                test_function = db_error.get("test_function", "")
+                if not test_function and "detail" in db_error:
+                    test_function = db_error["detail"].get("test_function", "")
+
+                # Enhance error message with test function if available
+                base_message = db_error["message"]
+                if test_function:
+                    enhanced_message = f"Test: {test_function} - {base_message}"
+                else:
+                    enhanced_message = base_message
+
                 error_data = {
                     "id": db_error["id"],
-                    "message": db_error["message"],
+                    "message": enhanced_message,
                     "level": "error",  # All from get_job_errors are errors
                     "line_number": db_error.get("line"),
                     "file_path": db_error.get("file_path"),
@@ -71,6 +83,7 @@ class ErrorService:
                         "exception"
                     ),  # Map from 'exception' field
                     "fingerprint": db_error.get("fingerprint"),
+                    "test_function": test_function,  # Add test function as separate field
                     "detail": db_error.get("detail", {}),
                 }
                 all_errors.append(error_data)
