@@ -32,7 +32,7 @@ class DynamicErrorPattern:
     @property
     def description(self) -> str:
         """Get a description of this pattern."""
-        return f"{self.category} pattern found {self.frequency} times: {self.representative_message[:100]}{'...' if len(self.representative_message) > 100 else ''}"
+        return f"{self.category} pattern found {self.frequency} times: {self.representative_message[:300]}{'...' if len(self.representative_message) > 300 else ''}"
 
     @property
     def severity(self) -> str:
@@ -64,8 +64,14 @@ class DynamicErrorPattern:
             self.category,
             "Review and fix errors in affected files (affects {affected_files_count} files) - appears {frequency} times",
         )
+
+        # Handle single occurrence vs multiple occurrences
+        occurrence_text = (
+            "appears once" if self.frequency == 1 else f"appears {self.frequency} times"
+        )
+
         return template.format(
-            affected_files_count=len(self.affected_files), frequency=self.frequency
+            affected_files_count=len(self.affected_files), frequency=occurrence_text
         )
 
     @property
@@ -147,6 +153,10 @@ class DynamicErrorPattern:
     @property
     def is_significant(self) -> bool:
         """Check if this pattern is significant enough to be a root cause."""
+        # Include single-occurrence errors if they have high severity or affect critical paths
+        if self.frequency >= 1 and self.severity_score > 0.5:
+            return True
+        # Also include patterns with multiple occurrences even with lower severity
         return self.frequency > 1 and self.severity_score > 0.3
 
 
@@ -402,13 +412,32 @@ class DynamicErrorPatternMatcher:
         file_diversity = len(affected_files)
         job_diversity = len(affected_jobs)
 
-        # Severity score: higher for more frequent, more widespread errors
-        severity_score = min(
-            1.0, (frequency * 0.3) + (file_diversity * 0.2) + (job_diversity * 0.2)
-        )
-
-        # Categorize based on message content
+        # Categorize based on message content (before severity calculation)
         category = self._categorize_pattern(representative)
+
+        # Enhanced severity score: higher for more frequent, more widespread errors
+        # Base score from frequency (min 0.4 for single errors to make them significant)
+        frequency_score = min(1.0, 0.4 + (frequency - 1) * 0.2)
+
+        # File diversity bonus
+        file_bonus = min(0.3, file_diversity * 0.1)
+
+        # Job diversity bonus
+        job_bonus = min(0.2, job_diversity * 0.1)
+
+        # Category-based bonus for critical error types
+        critical_categories = {
+            "Test Error": 0.2,  # Test failures are often critical for CI/CD
+            "Import/Module Error": 0.15,
+            "Attribute/Method Error": 0.15,
+            "Syntax Error": 0.1,
+            "Connection Error": 0.1,
+        }
+        category_bonus = critical_categories.get(category, 0.05)
+
+        severity_score = min(
+            1.0, frequency_score + file_bonus + job_bonus + category_bonus
+        )
 
         return DynamicErrorPattern(
             pattern_id=pattern_id,
@@ -494,8 +523,8 @@ class DynamicErrorPatternMatcher:
                     "frequency": p.frequency,
                     "severity": p.severity_score,
                     "representative_message": (
-                        p.representative_message[:100] + "..."
-                        if len(p.representative_message) > 100
+                        p.representative_message[:300] + "..."
+                        if len(p.representative_message) > 300
                         else p.representative_message
                     ),
                     "affected_files": len(p.affected_files),

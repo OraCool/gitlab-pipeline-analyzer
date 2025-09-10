@@ -528,6 +528,29 @@ async def _get_root_cause_analysis(
             verbose_debug_print("🏗️ Building comprehensive root causes breakdown...")
             root_causes = []
 
+            def _deduplicate_sample_errors(errors: list, max_samples: int) -> list:
+                """Deduplicate sample errors based on message, file_path, and line_number."""
+                seen = set()
+                unique_errors = []
+
+                for error in errors:
+                    # Create a key based on error identifying characteristics
+                    error_key = (
+                        error.message,
+                        error.file_path,
+                        error.line_number,
+                        error.exception_type,
+                    )
+
+                    if error_key not in seen:
+                        seen.add(error_key)
+                        unique_errors.append(error)
+
+                        if len(unique_errors) >= max_samples:
+                            break
+
+                return unique_errors
+
             # Add primary cause
             if (
                 root_cause_analysis.primary_cause
@@ -536,6 +559,11 @@ async def _get_root_cause_analysis(
                 primary_cause = root_cause_analysis.primary_cause
                 debug_print(
                     f"🎯 Primary cause: {primary_cause.pattern.name} ({len(primary_cause.errors)} errors, confidence: {primary_cause.confidence:.2f})"
+                )
+
+                # Get deduplicated sample errors
+                unique_sample_errors = _deduplicate_sample_errors(
+                    primary_cause.errors, 3
                 )
 
                 root_causes.append(
@@ -554,25 +582,21 @@ async def _get_root_cause_analysis(
                         "sample_errors": [
                             {
                                 "message": (
-                                    error.message[:200] + "..."
-                                    if len(error.message) > 200
+                                    error.message[:400] + "..."
+                                    if len(error.message) > 400
                                     else error.message
                                 ),
                                 "file_path": error.file_path,
                                 "line_number": error.line_number,
                                 "exception_type": error.exception_type,
                             }
-                            for error in primary_cause.errors[
-                                :3
-                            ]  # Show up to 3 sample errors
+                            for error in unique_sample_errors
                         ],
                         "error_references": [
                             f"gl://errors/{project_id}/{getattr(error, 'job_id', 'unknown')}"
-                            for error in primary_cause.errors[:3]
+                            for error in unique_sample_errors
                             if hasattr(error, "job_id")
-                        ][
-                            :3
-                        ],  # Show up to 3 error resource links
+                        ],
                     }
                 )
 
@@ -588,6 +612,11 @@ async def _get_root_cause_analysis(
                 if secondary_cause.errors:
                     verbose_debug_print(
                         f"   #{i+2}: {secondary_cause.pattern.name} ({len(secondary_cause.errors)} errors)"
+                    )
+
+                    # Get deduplicated sample errors
+                    unique_sample_errors = _deduplicate_sample_errors(
+                        secondary_cause.errors, 2
                     )
 
                     root_causes.append(
@@ -608,25 +637,21 @@ async def _get_root_cause_analysis(
                             "sample_errors": [
                                 {
                                     "message": (
-                                        error.message[:200] + "..."
-                                        if len(error.message) > 200
+                                        error.message[:400] + "..."
+                                        if len(error.message) > 400
                                         else error.message
                                     ),
                                     "file_path": error.file_path,
                                     "line_number": error.line_number,
                                     "exception_type": error.exception_type,
                                 }
-                                for error in secondary_cause.errors[
-                                    :2
-                                ]  # Show up to 2 sample errors for secondary
+                                for error in unique_sample_errors
                             ],
                             "error_references": [
                                 f"gl://errors/{project_id}/{getattr(error, 'job_id', 'unknown')}"
-                                for error in secondary_cause.errors[:2]
+                                for error in unique_sample_errors
                                 if hasattr(error, "job_id")
-                            ][
-                                :2
-                            ],  # Show up to 2 error resource links for secondary
+                            ],
                         }
                     )
 

@@ -63,7 +63,7 @@ class RootCauseAnalyzer:
     def analyze(self, errors: list[Error]) -> RootCauseAnalysis:
         """Perform complete root cause analysis on a list of errors using dynamic pattern detection."""
         debug_print(f"🔍 Starting dynamic root cause analysis for {len(errors)} errors")
-        
+
         if not errors:
             debug_print("⚠️ No errors to analyze, returning empty analysis")
             return self._empty_analysis()
@@ -75,36 +75,50 @@ class RootCauseAnalyzer:
 
         # Step 2: Create error groups from dynamic patterns
         verbose_debug_print("� Creating error groups from dynamic patterns...")
-        error_groups = self._create_groups_from_dynamic_patterns(dynamic_patterns, errors)
+        error_groups = self._create_groups_from_dynamic_patterns(
+            dynamic_patterns, errors
+        )
         debug_print(f"📊 Created {len(error_groups)} error groups")
 
         # Step 3: Rank groups by impact and significance
         verbose_debug_print("🎯 Ranking error groups by impact...")
         ranked_groups = self._rank_error_groups(error_groups)
         for i, group in enumerate(ranked_groups[:3]):  # Show top 3
-            debug_print(f"  #{i+1}: {group.pattern.pattern_id} (impact: {group.impact_score}, confidence: {group.confidence:.2f}, errors: {group.error_count})")
+            debug_print(
+                f"  #{i+1}: {group.pattern.pattern_id} (impact: {group.impact_score}, confidence: {group.confidence:.2f}, errors: {group.error_count})"
+            )
 
         # Step 4: Identify primary and secondary causes
         primary_cause = ranked_groups[0] if ranked_groups else None
         secondary_causes = ranked_groups[1:] if len(ranked_groups) > 1 else []
-        
+
         if primary_cause:
-            debug_print(f"🎯 Primary cause identified: {primary_cause.pattern.category}")
-            verbose_debug_print(f"   Pattern: {primary_cause.pattern.representative_message[:100]}...")
+            debug_print(
+                f"🎯 Primary cause identified: {primary_cause.pattern.category}"
+            )
+            verbose_debug_print(
+                f"   Pattern: {primary_cause.pattern.representative_message[:100]}..."
+            )
             verbose_debug_print(f"   Affects {len(primary_cause.affected_files)} files")
-        
+
         if secondary_causes:
-            debug_print(f"📋 Secondary causes: {len(secondary_causes)} additional patterns")
+            debug_print(
+                f"📋 Secondary causes: {len(secondary_causes)} additional patterns"
+            )
             for i, cause in enumerate(secondary_causes[:2]):  # Show top 2 secondary
-                verbose_debug_print(f"   #{i+1}: {cause.pattern.category} ({cause.error_count} errors)")
+                verbose_debug_print(
+                    f"   #{i+1}: {cause.pattern.category} ({cause.error_count} errors)"
+                )
 
         # Step 5: Generate summary and suggestions
         verbose_debug_print("📝 Generating summary and fix suggestions...")
         summary = self._generate_summary(primary_cause, secondary_causes, errors)
         fix_suggestions = self._generate_fix_suggestions(ranked_groups)
         confidence = self._calculate_confidence(ranked_groups)
-        
-        debug_print(f"✅ Analysis complete: confidence={confidence:.2f}, {len(fix_suggestions)} suggestions")
+
+        debug_print(
+            f"✅ Analysis complete: confidence={confidence:.2f}, {len(fix_suggestions)} suggestions"
+        )
 
         return RootCauseAnalysis(
             primary_cause=primary_cause,
@@ -114,26 +128,32 @@ class RootCauseAnalyzer:
             confidence=confidence,
         )
 
-    def _create_groups_from_dynamic_patterns(self, patterns: list[DynamicErrorPattern], all_errors: list[Error]) -> list[ErrorGroup]:
+    def _create_groups_from_dynamic_patterns(
+        self, patterns: list[DynamicErrorPattern], all_errors: list[Error]
+    ) -> list[ErrorGroup]:
         """Create error groups from dynamically discovered patterns."""
         groups = []
-        
+
         for pattern in patterns:
             # Find errors that match this pattern
             matching_errors = []
             for error in all_errors:
                 # Check if error message is in the pattern's similar messages
-                if any(error.message in similar_msg or similar_msg in error.message
-                       for similar_msg in pattern.similar_messages):
+                if any(
+                    error.message in similar_msg or similar_msg in error.message
+                    for similar_msg in pattern.similar_messages
+                ):
                     matching_errors.append(error)
-            
+
             if matching_errors:
                 # Calculate confidence based on pattern strength and error consistency
-                confidence = min(1.0, pattern.severity_score + (pattern.frequency / len(all_errors)))
-                
+                confidence = min(
+                    1.0, pattern.severity_score + (pattern.frequency / len(all_errors))
+                )
+
                 # Calculate impact score using existing method
                 impact_score = self._calculate_impact_score(matching_errors)
-                
+
                 group = ErrorGroup(
                     pattern=pattern,
                     errors=matching_errors,
@@ -141,56 +161,74 @@ class RootCauseAnalyzer:
                     impact_score=impact_score,
                 )
                 groups.append(group)
-                
-                verbose_debug_print(f"   📦 Created group for {pattern.category}: {len(matching_errors)} errors")
-        
+
+                verbose_debug_print(
+                    f"   📦 Created group for {pattern.category}: {len(matching_errors)} errors"
+                )
+
         return groups
 
         return groups
 
     def _rank_error_groups(self, groups: list[ErrorGroup]) -> list[ErrorGroup]:
         """Rank error groups by impact and confidence."""
-        verbose_debug_print(f"🏆 Ranking {len(groups)} error groups by impact and confidence...")
+        verbose_debug_print(
+            f"🏆 Ranking {len(groups)} error groups by impact and confidence..."
+        )
 
         def ranking_key(group: ErrorGroup) -> tuple[int, float, int]:
             # Sort by: impact_score (desc), confidence (desc), error_count (desc)
             key = (-group.impact_score, -group.confidence, -group.error_count)
-            very_verbose_debug_print(f"   📊 {group.pattern.pattern_id}: impact={group.impact_score}, confidence={group.confidence:.2f}, errors={group.error_count}")
+            very_verbose_debug_print(
+                f"   📊 {group.pattern.pattern_id}: impact={group.impact_score}, confidence={group.confidence:.2f}, errors={group.error_count}"
+            )
             return key
 
         ranked = sorted(groups, key=ranking_key)
-        
+
         if ranked:
-            debug_print(f"🥇 Top ranked group: {ranked[0].pattern.pattern_id} (impact: {ranked[0].impact_score})")
+            debug_print(
+                f"🥇 Top ranked group: {ranked[0].pattern.pattern_id} (impact: {ranked[0].impact_score})"
+            )
             if len(ranked) > 1:
-                debug_print(f"🥈 Second ranked: {ranked[1].pattern.pattern_id} (impact: {ranked[1].impact_score})")
-        
+                debug_print(
+                    f"🥈 Second ranked: {ranked[1].pattern.pattern_id} (impact: {ranked[1].impact_score})"
+                )
+
         return ranked
 
     def _calculate_impact_score(self, errors: list[Error]) -> int:
         """Calculate impact score based on error characteristics."""
         score = len(errors)  # Base score from error count
-        very_verbose_debug_print(f"     💯 Base score from {len(errors)} errors: {score}")
+        very_verbose_debug_print(
+            f"     💯 Base score from {len(errors)} errors: {score}"
+        )
 
         # Add weight for unique files affected
         unique_files = len({error.file_path for error in errors if error.file_path})
         file_bonus = unique_files * 2
         score += file_bonus
-        very_verbose_debug_print(f"     📁 File impact bonus: {unique_files} files × 2 = +{file_bonus}")
+        very_verbose_debug_print(
+            f"     📁 File impact bonus: {unique_files} files × 2 = +{file_bonus}"
+        )
 
         # Add weight for test failures (higher impact)
         test_failures = sum(1 for error in errors if self._is_test_failure(error))
         test_bonus = test_failures * 3
         score += test_bonus
         if test_bonus > 0:
-            very_verbose_debug_print(f"     🧪 Test failure bonus: {test_failures} failures × 3 = +{test_bonus}")
+            very_verbose_debug_print(
+                f"     🧪 Test failure bonus: {test_failures} failures × 3 = +{test_bonus}"
+            )
 
         # Add weight for critical paths (services, models, etc.)
         critical_files = sum(1 for error in errors if self._is_critical_file(error))
         critical_bonus = critical_files * 2
         score += critical_bonus
         if critical_bonus > 0:
-            very_verbose_debug_print(f"     🎯 Critical file bonus: {critical_files} files × 2 = +{critical_bonus}")
+            very_verbose_debug_print(
+                f"     🎯 Critical file bonus: {critical_files} files × 2 = +{critical_bonus}"
+            )
 
         very_verbose_debug_print(f"     🏁 Final impact score: {score}")
         return score
@@ -212,7 +250,11 @@ class RootCauseAnalyzer:
         primary_error = primary.errors[0] if primary.errors else None
 
         return {
-            "issue": primary.pattern.representative_message[:100] + "..." if len(primary.pattern.representative_message) > 100 else primary.pattern.representative_message,
+            "issue": (
+                primary.pattern.representative_message[:100] + "..."
+                if len(primary.pattern.representative_message) > 100
+                else primary.pattern.representative_message
+            ),
             "primary_error": self._format_primary_error(primary_error),
             "affected_files": len(primary.affected_files),
             "error_groups": len(secondary) + 1,
@@ -226,21 +268,34 @@ class RootCauseAnalyzer:
     def _generate_fix_suggestions(self, groups: list[ErrorGroup]) -> list[str]:
         """Generate actionable fix suggestions from dynamic patterns."""
         suggestions = []
-        verbose_debug_print(f"💡 Generating fix suggestions from {len(groups)} error groups...")
+        verbose_debug_print(
+            f"💡 Generating fix suggestions from {len(groups)} error groups..."
+        )
 
         for i, group in enumerate(groups[:3]):  # Top 3 groups only
-            very_verbose_debug_print(f"   🔍 Processing group #{i+1}: {group.pattern.category} (confidence: {group.confidence:.2f})")
-            
-            if group.confidence > 0.5:
+            very_verbose_debug_print(
+                f"   🔍 Processing group #{i+1}: {group.pattern.category} (confidence: {group.confidence:.2f})"
+            )
+
+            # Lower confidence threshold to include single-occurrence critical errors
+            min_confidence = 0.3 if group.pattern.frequency == 1 else 0.5
+
+            if group.confidence > min_confidence:
                 # Generate fix suggestion based on pattern category and frequency
                 suggestion = self._generate_dynamic_fix_suggestion(group)
                 if suggestion:
                     suggestions.append(suggestion)
-                    debug_print(f"   ✅ Added suggestion for {group.pattern.category}: {suggestion[:50]}...")
+                    debug_print(
+                        f"   ✅ Added suggestion for {group.pattern.category}: {suggestion[:50]}..."
+                    )
                 else:
-                    very_verbose_debug_print(f"   ❌ No suggestion generated for {group.pattern.category}")
+                    very_verbose_debug_print(
+                        f"   ❌ No suggestion generated for {group.pattern.category}"
+                    )
             else:
-                very_verbose_debug_print(f"   ⚠️ Skipping {group.pattern.category}: confidence too low ({group.confidence:.2f} < 0.5)")
+                very_verbose_debug_print(
+                    f"   ⚠️ Skipping {group.pattern.category}: confidence too low ({group.confidence:.2f} < {min_confidence})"
+                )
 
         debug_print(f"💡 Generated {len(suggestions)} fix suggestions")
         return suggestions
@@ -249,7 +304,7 @@ class RootCauseAnalyzer:
         """Generate fix suggestion based on dynamic pattern analysis."""
         pattern = group.pattern
         category = pattern.category.lower()
-        
+
         # Generate suggestions based on pattern category
         base_suggestion = ""
         if "import" in category or "module" in category:
@@ -270,7 +325,7 @@ class RootCauseAnalyzer:
             base_suggestion = "Verify access permissions and authentication"
         else:
             base_suggestion = "Review error pattern and affected code areas"
-        
+
         # Add context from the pattern
         if pattern.affected_files:
             files_count = len(pattern.affected_files)
@@ -279,11 +334,13 @@ class RootCauseAnalyzer:
                 base_suggestion += f" (affects file: {file_list[0]})"
             else:
                 base_suggestion += f" (affects {files_count} files)"
-        
-        # Add frequency context
-        if pattern.frequency > 1:
+
+        # Add frequency context with proper grammar
+        if pattern.frequency == 1:
+            base_suggestion += " - appears once"
+        elif pattern.frequency > 1:
             base_suggestion += f" - appears {pattern.frequency} times"
-        
+
         return base_suggestion
 
     def _customize_fix_suggestion(self, group: ErrorGroup) -> str | None:
