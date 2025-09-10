@@ -548,7 +548,7 @@ async def _handle_analysis_resource(
 async def _handle_root_cause_resource(
     parts: list[str], query_params: dict[str, str]
 ) -> dict[str, Any]:
-    """Handle root-cause resource requests."""
+    """Handle root-cause resource requests with filtering support."""
     if len(parts) >= 3:
         project_id = parts[1]
         pipeline_id = parts[2]
@@ -556,15 +556,50 @@ async def _handle_root_cause_resource(
             "mode", "minimal"
         )  # Default to minimal for AI optimization
 
+        # Extract filtering parameters from query string
+        limit = None
+        severity_filter = query_params.get("severity")
+        category_filter = query_params.get("category")
+        min_confidence = None
+
+        # Parse limit parameter
+        if "limit" in query_params:
+            try:
+                limit = int(query_params["limit"])
+                debug_print(f"🔢 Limit filter: {limit}")
+            except (ValueError, TypeError):
+                debug_print("⚠️ Invalid limit parameter, ignoring")
+
+        # Parse confidence parameter
+        if "confidence" in query_params:
+            try:
+                min_confidence = float(query_params["confidence"])
+                debug_print(f"� Confidence filter: {min_confidence}")
+            except (ValueError, TypeError):
+                debug_print("⚠️ Invalid confidence parameter, ignoring")
+
         debug_print(
-            f"🔍 Accessing root cause analysis for pipeline {pipeline_id} in project {project_id} (mode={mode})"
+            f"�🔍 Accessing root cause analysis for pipeline {pipeline_id} in project {project_id}"
         )
+        debug_print(f"⚙️ Mode: {mode}")
+        if severity_filter:
+            debug_print(f"🎯 Severity filter: {severity_filter}")
+        if category_filter:
+            debug_print(f"📂 Category filter: {category_filter}")
 
         # Import the root cause analysis function
         import json
         from gitlab_analyzer.mcp.resources.analysis import _get_root_cause_analysis
 
-        result_json = await _get_root_cause_analysis(project_id, pipeline_id, mode)
+        result_json = await _get_root_cause_analysis(
+            project_id,
+            pipeline_id,
+            mode,
+            limit=limit,
+            severity_filter=severity_filter,
+            category_filter=category_filter,
+            min_confidence=min_confidence
+        )
         result = (
             json.loads(result_json) if isinstance(result_json, str) else result_json
         )
@@ -671,6 +706,11 @@ async def get_mcp_resource_impl(resource_uri: str) -> dict[str, Any]:
                     "gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}]",
                     "gl://analysis/{project_id}/job/{job_id}[?mode={mode}]",
                     "gl://root-cause/{project_id}/{pipeline_id}[?mode={mode}]",
+                    "gl://root-cause/{project_id}/{pipeline_id}?limit={N}",
+                    "gl://root-cause/{project_id}/{pipeline_id}?severity={level}",
+                    "gl://root-cause/{project_id}/{pipeline_id}?category={type}",
+                    "gl://root-cause/{project_id}/{pipeline_id}?confidence={min_confidence}",
+                    "gl://root-cause/{project_id}/{pipeline_id}?limit={N}&severity={level}&confidence={min}",
                 ],
             }
 
@@ -768,6 +808,11 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - gl://analysis/{project_id}/pipeline/{pipeline_id}[?mode={mode}] - Pipeline analysis
         - gl://analysis/{project_id}/job/{job_id}[?mode={mode}] - Job analysis
         - gl://root-cause/{project_id}/{pipeline_id}[?mode={mode}] - AI-optimized root cause analysis
+        - gl://root-cause/{project_id}/{pipeline_id}?limit={N} - Limited root cause results
+        - gl://root-cause/{project_id}/{pipeline_id}?severity={level} - Filter by severity
+        - gl://root-cause/{project_id}/{pipeline_id}?category={type} - Filter by category
+        - gl://root-cause/{project_id}/{pipeline_id}?confidence={min_confidence} - Filter by confidence
+        - gl://root-cause/{project_id}/{pipeline_id}?limit={N}&severity={level}&confidence={min} - Combined filters
 
         RESOURCE FEATURES:
         - Uses cached data for fast response
@@ -794,6 +839,11 @@ def register_resource_access_tools(mcp: FastMCP) -> None:
         - get_mcp_resource("gl://analysis/123/pipeline/1594344?mode=detailed") - Detailed analysis
         - get_mcp_resource("gl://file/123/76474172/src/main.py") - Specific file analysis
         - get_mcp_resource("gl://root-cause/123/1621656") - AI-optimized root cause analysis
+        - get_mcp_resource("gl://root-cause/123/1621656?limit=3") - Get top 3 root causes
+        - get_mcp_resource("gl://root-cause/123/1621656?severity=critical") - Get critical severity only
+        - get_mcp_resource("gl://root-cause/123/1621656?category=syntax") - Get syntax-related issues
+        - get_mcp_resource("gl://root-cause/123/1621656?confidence=0.8") - Get high-confidence issues
+        - get_mcp_resource("gl://root-cause/123/1621656?limit=2&severity=high&confidence=0.7") - Combined filters
         """
         # Delegate to the implementation function
         return await get_mcp_resource_impl(resource_uri)

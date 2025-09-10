@@ -387,8 +387,81 @@ async def get_analysis_resource_data(
         }
 
 
+def _filter_root_causes(
+    root_causes: list[dict],
+    limit: int | None = None,
+    severity_filter: str | None = None,
+    category_filter: str | None = None,
+    min_confidence: float | None = None
+) -> list[dict]:
+    """Filter and limit root causes based on specified criteria."""
+    filtered = root_causes.copy()
+    
+    # Apply confidence filter
+    if min_confidence is not None:
+        filtered = [cause for cause in filtered if cause.get("confidence", 0) >= min_confidence]
+    
+    # Apply severity filter
+    if severity_filter:
+        severity_filter = severity_filter.lower()
+        filtered = [
+            cause for cause in filtered
+            if cause.get("pattern", {}).get("severity", "").lower() == severity_filter
+        ]
+    
+    # Apply category filter
+    if category_filter:
+        filtered = [
+            cause for cause in filtered
+            if category_filter.lower() in cause.get("pattern", {}).get("category", "").lower()
+        ]
+    
+    # Apply limit
+    if limit and limit > 0:
+        filtered = filtered[:limit]
+    
+    return filtered
+
+
+async def _get_job_root_cause_analysis(
+    project_id: int,
+    job_id: int,
+    response_mode: str = "minimal",
+    limit: int = None,
+    severity_filter: str = None,
+    category_filter: str = None,
+    min_confidence: float = None,
+) -> str:
+    """
+    Internal function to get job-specific root cause analysis with filtering options.
+    
+    Args:
+        project_id: GitLab project ID
+        job_id: GitLab job ID
+        response_mode: Response optimization mode
+        limit: Maximum number of root causes to return
+        severity_filter: Filter by severity level
+        category_filter: Filter by category
+        min_confidence: Minimum confidence threshold
+    
+    Returns:
+        JSON string with job root cause analysis
+    """
+    # For now, delegate to comprehensive analysis - this can be enhanced later
+    # with job-specific root cause logic
+    return await _get_comprehensive_analysis(
+        project_id, job_id=job_id, response_mode=response_mode
+    )
+
+
 async def _get_root_cause_analysis(
-    project_id: str, pipeline_id: str, response_mode: str = "minimal"
+    project_id: str,
+    pipeline_id: str,
+    response_mode: str = "minimal",
+    limit: int | None = None,
+    severity_filter: str | None = None,
+    category_filter: str | None = None,
+    min_confidence: float | None = None
 ) -> str:
     """Get AI-optimized root cause analysis for a pipeline."""
     debug_print(
@@ -654,6 +727,19 @@ async def _get_root_cause_analysis(
                             ],
                         }
                     )
+
+            # Apply filtering and limiting
+            if any([limit, severity_filter, category_filter, min_confidence]):
+                debug_print(f"🔍 Applying filters: limit={limit}, severity={severity_filter}, category={category_filter}, confidence={min_confidence}")
+                filtered_causes = _filter_root_causes(
+                    root_causes,
+                    limit=limit,
+                    severity_filter=severity_filter,
+                    category_filter=category_filter,
+                    min_confidence=min_confidence
+                )
+                debug_print(f"📊 Filtered from {len(root_causes)} to {len(filtered_causes)} root causes")
+                root_causes = filtered_causes
 
             result = {
                 "root_cause_analysis": {
@@ -923,6 +1009,104 @@ def register_analysis_resources(mcp) -> None:
         result = await _get_root_cause_analysis(project_id, pipeline_id, mode)
         return create_text_resource(
             "gl://root-cause/{project_id}/{pipeline_id}?mode={mode}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/{pipeline_id}?limit={limit}")
+    async def get_root_cause_resource_with_limit(
+        project_id: str, pipeline_id: str, limit: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized root cause analysis with limit.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            limit: Maximum number of root causes to return
+
+        Returns:
+            Root cause analysis with limited results
+        """
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = None
+        
+        result = await _get_root_cause_analysis(
+            project_id, pipeline_id, "minimal", limit=limit_int
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/{pipeline_id}?limit={limit}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/{pipeline_id}?severity={severity}")
+    async def get_root_cause_resource_with_severity(
+        project_id: str, pipeline_id: str, severity: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized root cause analysis filtered by severity.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            severity: Severity level filter (critical, high, medium, low)
+
+        Returns:
+            Root cause analysis filtered by severity
+        """
+        result = await _get_root_cause_analysis(
+            project_id, pipeline_id, "minimal", severity_filter=severity
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/{pipeline_id}?severity={severity}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/{pipeline_id}?category={category}")
+    async def get_root_cause_resource_with_category(
+        project_id: str, pipeline_id: str, category: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized root cause analysis filtered by category.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            category: Category filter (e.g., 'syntax', 'import', 'test', etc.)
+
+        Returns:
+            Root cause analysis filtered by category
+        """
+        result = await _get_root_cause_analysis(
+            project_id, pipeline_id, "minimal", category_filter=category
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/{pipeline_id}?category={category}", result
+        )
+
+    @mcp.resource("gl://root-cause/{project_id}/{pipeline_id}?confidence={confidence}")
+    async def get_root_cause_resource_with_confidence(
+        project_id: str, pipeline_id: str, confidence: str
+    ) -> TextResourceContents:
+        """
+        Get AI-optimized root cause analysis filtered by minimum confidence.
+
+        Args:
+            project_id: GitLab project ID
+            pipeline_id: GitLab pipeline ID
+            confidence: Minimum confidence threshold (0.0-1.0)
+
+        Returns:
+            Root cause analysis filtered by confidence
+        """
+        try:
+            confidence_float = float(confidence)
+        except (ValueError, TypeError):
+            confidence_float = None
+        
+        result = await _get_root_cause_analysis(
+            project_id, pipeline_id, "minimal", min_confidence=confidence_float
+        )
+        return create_text_resource(
+            "gl://root-cause/{project_id}/{pipeline_id}?confidence={confidence}", result
         )
 
     logger.info("Analysis resources registered")
