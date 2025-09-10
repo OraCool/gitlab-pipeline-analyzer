@@ -14,6 +14,7 @@ from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.cache.models import generate_standard_error_id
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +67,23 @@ async def store_job_analysis_step(
         import aiosqlite
 
         async with aiosqlite.connect(cache_manager.db_path) as conn:
-            # Step 1: Update job with trace hash (job metadata already stored)
+            # Step 1: Insert or update job with trace hash and metadata
             await conn.execute(
                 """
-                UPDATE jobs
-                SET trace_hash = ?, completed_at = datetime('now')
-                WHERE job_id = ?
+                INSERT OR REPLACE INTO jobs
+                (job_id, project_id, pipeline_id, ref, sha, status, trace_hash, parser_version, created_at, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 """,
-                (f"trace_{job_id}", job_id),
+                (
+                    job_id,
+                    int(project_id),
+                    pipeline_id,
+                    job.get("ref", "unknown"),
+                    job.get("sha", "unknown"),
+                    job.get("status", "unknown"),
+                    f"trace_{job_id}",
+                    cache_manager.parser_version,
+                ),
             )
 
             # Step 2: Note - Trace storage handled by trace_segments table
@@ -144,6 +154,10 @@ def is_pytest_job(
     Returns:
         True if job appears to be running pytest
     """
+    debug_print(
+        f"🔍 PYTEST DETECTION: Analyzing job '{job_name}' (stage: '{job_stage}')"
+    )
+
     # Check job name patterns
     pytest_name_patterns = [
         r"test",
@@ -155,6 +169,9 @@ def is_pytest_job(
 
     for pattern in pytest_name_patterns:
         if re.search(pattern, job_name.lower()):
+            debug_print(
+                f"✅ PYTEST DETECTION: Job name '{job_name}' matches pattern '{pattern}'"
+            )
             return True
 
     # Check job stage patterns
@@ -162,10 +179,16 @@ def is_pytest_job(
 
     for pattern in pytest_stage_patterns:
         if re.search(pattern, job_stage.lower()):
+            debug_print(
+                f"✅ PYTEST DETECTION: Job stage '{job_stage}' matches pattern '{pattern}'"
+            )
             return True
 
     # Check trace content for pytest indicators
     if trace_content:
+        verbose_debug_print(
+            f"🔍 PYTEST DETECTION: Checking trace content ({len(trace_content)} chars)"
+        )
         pytest_indicators = [
             r"pytest",
             r"=+\s*FAILURES\s*=+",  # More flexible FAILURES section detection
@@ -182,8 +205,16 @@ def is_pytest_job(
 
         for indicator in pytest_indicators:
             if re.search(indicator, trace_content, re.IGNORECASE):
+                debug_print(
+                    f"✅ PYTEST DETECTION: Trace contains pytest indicator '{indicator}'"
+                )
                 return True
+    else:
+        verbose_debug_print("🔍 PYTEST DETECTION: No trace content provided")
 
+    debug_print(
+        f"❌ PYTEST DETECTION: Job '{job_name}' (stage: '{job_stage}') does not appear to be pytest"
+    )
     return False
 
 
@@ -201,8 +232,17 @@ def get_optimal_parser(
     Returns:
         Parser type: "pytest" or "generic"
     """
+    debug_print(
+        f"🎯 PARSER SELECTION: Selecting optimal parser for job '{job_name}' (stage: '{job_stage}')"
+    )
+
     if is_pytest_job(job_name, job_stage, trace_content):
+        debug_print(
+            f"✅ PARSER SELECTION: Selected 'pytest' parser for job '{job_name}'"
+        )
         return "pytest"
+
+    debug_print(f"✅ PARSER SELECTION: Selected 'generic' parser for job '{job_name}'")
     return "generic"
 
 
@@ -228,13 +268,29 @@ def parse_job_logs(
     Returns:
         Parsed log data with errors, warnings, and metadata
     """
+    debug_print(
+        f"🔧 PARSE JOB LOGS: Starting log parsing for job '{job_name}' with parser_type='{parser_type}'"
+    )
+    verbose_debug_print(f"📊 Trace content length: {len(trace_content)} characters")
+
     if parser_type == "auto":
         parser_type = get_optimal_parser(job_name, job_stage, trace_content)
+        debug_print(
+            f"🎯 PARSE JOB LOGS: Auto-detection selected '{parser_type}' parser"
+        )
 
     if parser_type == "pytest":
+        debug_print(f"🧪 PARSE JOB LOGS: Using pytest parser for job '{job_name}'")
         # Try pytest parser first
         pytest_result = parse_pytest_logs(
             trace_content, include_traceback, exclude_paths
+        )
+
+        debug_print(
+            f"📊 PYTEST RESULTS: Found {pytest_result.get('error_count', 0)} errors from pytest parser"
+        )
+        verbose_debug_print(
+            f"📊 PYTEST RESULTS: Parser type: {pytest_result.get('parser_type')}"
         )
 
         # Check if pytest parser found meaningful pytest structure
@@ -249,9 +305,18 @@ def parse_job_logs(
             )
         )
 
+        debug_print(f"🔍 PYTEST STRUCTURE: has_pytest_structure={has_pytest_structure}")
+        if pytest_result.get("test_summary"):
+            verbose_debug_print(
+                f"📊 PYTEST SUMMARY: {pytest_result.get('test_summary')}"
+            )
+
         # Only fall back to generic parser if pytest found no structure at all
         # This handles cases where pytest jobs fail during setup/import phase
         if pytest_result.get("error_count", 0) == 0 and not has_pytest_structure:
+            debug_print(
+                f"⚠️ FALLBACK: Pytest parser found no pytest structure for job '{job_name}', trying generic parser"
+            )
             logger.debug(
                 f"Pytest parser found no pytest structure for job {job_name}, trying generic parser"
             )
@@ -259,6 +324,9 @@ def parse_job_logs(
 
             # If generic parser finds errors, use it but preserve pytest metadata
             if generic_result.get("error_count", 0) > 0:
+                debug_print(
+                    f"✅ FALLBACK SUCCESS: Generic parser found {generic_result.get('error_count')} errors for pytest job '{job_name}'"
+                )
                 logger.info(
                     f"Generic parser found {generic_result.get('error_count')} errors for pytest job {job_name}"
                 )
@@ -273,10 +341,25 @@ def parse_job_logs(
                         "fallback_reason": "pytest_parser_found_no_errors",
                     }
                 )
+                debug_print(
+                    "🔄 HYBRID PARSING: Merged pytest structure with generic errors"
+                )
+            else:
+                debug_print(
+                    f"❌ FALLBACK FAILED: Generic parser also found no errors for pytest job '{job_name}'"
+                )
 
+        debug_print(
+            f"✅ PYTEST PARSING COMPLETE: Returning {pytest_result.get('error_count', 0)} errors with parser_type='{pytest_result.get('parser_type')}'"
+        )
         return pytest_result
     else:
-        return parse_generic_logs(trace_content)
+        debug_print(f"🔧 PARSE JOB LOGS: Using generic parser for job '{job_name}'")
+        result = parse_generic_logs(trace_content)
+        debug_print(
+            f"✅ GENERIC PARSING COMPLETE: Found {result.get('error_count', 0)} errors"
+        )
+        return result
 
 
 def parse_pytest_logs(
@@ -295,14 +378,31 @@ def parse_pytest_logs(
     Returns:
         Parsed pytest data with detailed failure information
     """
+    debug_print("🧪 PYTEST PARSER: Starting pytest log parsing")
+    verbose_debug_print(f"📊 Input trace length: {len(trace_content)} characters")
+
     pytest_result = PytestLogParser.parse_pytest_log(trace_content)
+
+    debug_print(
+        f"📊 PYTEST PARSER: Raw parser found {len(pytest_result.detailed_failures)} detailed failures"
+    )
+    if pytest_result.statistics.total_tests:
+        debug_print(
+            f"📊 PYTEST STATS: {pytest_result.statistics.total_tests} total tests, {pytest_result.statistics.failed} failed, {pytest_result.statistics.passed} passed"
+        )
 
     # Convert to standardized format
     errors = []
     warnings: list[dict[str, Any]] = []
 
     if pytest_result.detailed_failures:
-        for failure in pytest_result.detailed_failures:
+        debug_print(
+            f"🔧 PYTEST PARSER: Converting {len(pytest_result.detailed_failures)} detailed failures to standardized format"
+        )
+        for i, failure in enumerate(pytest_result.detailed_failures):
+            verbose_debug_print(
+                f"  ➤ Failure {i+1}: {failure.test_name} - {failure.exception_type}"
+            )
             error_data = {
                 "test_file": failure.test_file or "unknown",
                 "test_function": failure.test_function or "unknown",
@@ -366,6 +466,29 @@ def parse_pytest_logs(
         ),
     }
 
+    debug_print(
+        f"✅ PYTEST PARSER COMPLETE: Returning {len(errors)} errors, {len(warnings)} warnings"
+    )
+
+    return {
+        "parser_type": "pytest",
+        "errors": errors,
+        "warnings": warnings,  # Pytest parser doesn't extract warnings yet
+        "error_count": len(errors),
+        "warning_count": len(warnings),
+        "test_summary": (
+            {
+                "total_tests": pytest_result.statistics.total_tests,
+                "passed": pytest_result.statistics.passed,
+                "failed": pytest_result.statistics.failed,
+                "skipped": pytest_result.statistics.skipped,
+                "duration": pytest_result.statistics.duration_formatted,
+            }
+            if pytest_result.statistics.total_tests
+            else None
+        ),
+    }
+
 
 def parse_generic_logs(trace_content: str) -> dict[str, Any]:
     """
@@ -377,8 +500,13 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
     Returns:
         Parsed log data with errors and warnings
     """
+    debug_print("🔧 GENERIC PARSER: Starting generic log parsing")
+    verbose_debug_print(f"📊 Input trace length: {len(trace_content)} characters")
+
     parser = LogParser()
     log_entries = parser.extract_log_entries(trace_content)
+
+    debug_print(f"📊 GENERIC PARSER: Extracted {len(log_entries)} total log entries")
 
     errors = [
         {
@@ -391,6 +519,8 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
         if entry.level == "error"
     ]
 
+    debug_print(f"📊 GENERIC PARSER: Found {len(errors)} error entries")
+
     warnings = [
         {
             "message": entry.message,
@@ -402,7 +532,9 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
         if entry.level == "warning"
     ]
 
-    return {
+    debug_print(f"📊 GENERIC PARSER: Found {len(warnings)} warning entries")
+
+    result = {
         "parser_type": "generic",
         "errors": errors,
         "warnings": warnings,
@@ -410,6 +542,11 @@ def parse_generic_logs(trace_content: str) -> dict[str, Any]:
         "warning_count": len(warnings),
         "total_entries": len(log_entries),
     }
+
+    debug_print(
+        f"✅ GENERIC PARSER COMPLETE: Returning {len(errors)} errors, {len(warnings)} warnings"
+    )
+    return result
 
 
 def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
@@ -423,10 +560,16 @@ def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
         Filtered data with meaningful errors only
     """
     if not parsed_data or "errors" not in parsed_data:
+        debug_print("⚠️ FILTER: No parsed data or errors to filter")
         return parsed_data
 
+    original_count = len(parsed_data.get("errors", []))
+    debug_print(f"🔍 FILTER: Starting with {original_count} errors")
+
     filtered_errors = []
-    for error in parsed_data.get("errors", []):
+    filtered_out = 0
+
+    for i, error in enumerate(parsed_data.get("errors", [])):
         # Only skip truly meaningless errors, NOT errors with "unknown" file paths
         # SyntaxErrors and other real errors should be kept even if file path extraction failed
         if (
@@ -437,12 +580,23 @@ def filter_unknown_errors(parsed_data: dict[str, Any]) -> dict[str, Any]:
             )  # Keep this for unknown message prefixes
             or not error.get("message", "").strip()  # Keep this for empty messages
         ):
+            verbose_debug_print(
+                f"  ❌ Filtered out error {i+1}: {error.get('message', 'No message')[:50]}..."
+            )
+            filtered_out += 1
             continue
 
         # REMOVED: error.get("test_file") == "unknown" - this was filtering out real SyntaxErrors
         # Real errors with failed file path extraction should still be stored
 
+        verbose_debug_print(
+            f"  ✅ Keeping error {i+1}: {error.get('message', 'No message')[:50]}..."
+        )
         filtered_errors.append(error)
+
+    debug_print(
+        f"🔍 FILTER COMPLETE: Kept {len(filtered_errors)} errors, filtered out {filtered_out} errors"
+    )
 
     # Return updated result
     result = parsed_data.copy()

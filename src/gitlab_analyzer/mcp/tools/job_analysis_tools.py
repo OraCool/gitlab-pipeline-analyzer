@@ -28,6 +28,7 @@ async def analyze_job_trace(
     exclude_file_patterns: list[str] | None = None,
     disable_file_filtering: bool = False,
     store_in_db: bool = True,
+    pipeline_id: int = 0,
 ) -> dict[str, Any]:
     """Analyze job trace and extract errors using enhanced parsing logic"""
     try:
@@ -88,7 +89,7 @@ async def analyze_job_trace(
             await store_job_analysis_step(
                 cache_manager=cache_manager,
                 project_id=project_id,
-                pipeline_id=0,  # Will be updated if pipeline context is known
+                pipeline_id=pipeline_id,  # Use the correct pipeline_id
                 job_id=job_id,
                 job={"id": job_id},  # Minimal job object
                 trace_content=trace_content,
@@ -211,6 +212,10 @@ def register_job_analysis_tools(mcp: FastMCP) -> None:
 
             # Analyze job trace for errors
             debug_print("🔍 Analyzing job trace for errors...")
+            # Extract pipeline_id from job info for proper database storage
+            pipeline_id = job_info.get("pipeline", {}).get("id", 0)
+            debug_print(f"📋 Using pipeline_id: {pipeline_id}")
+
             analysis_result = await analyze_job_trace(
                 project_id=project_id,
                 job_id=job_id,
@@ -220,6 +225,7 @@ def register_job_analysis_tools(mcp: FastMCP) -> None:
                 exclude_file_patterns=exclude_file_patterns or [],
                 disable_file_filtering=disable_file_filtering,
                 store_in_db=store_in_db,
+                pipeline_id=pipeline_id,  # Pass the correct pipeline_id
             )
 
             verbose_debug_print(

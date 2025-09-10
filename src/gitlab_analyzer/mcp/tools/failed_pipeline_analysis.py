@@ -32,11 +32,8 @@ from fastmcp import FastMCP
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import ErrorRecord
 from gitlab_analyzer.core.pipeline_info import get_comprehensive_pipeline_info
-from gitlab_analyzer.parsers.log_parser import LogParser
-from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 from gitlab_analyzer.utils.utils import (
-    _should_use_pytest_parser,
     categorize_files_by_type,
     combine_exclude_file_patterns,
     extract_file_path_from_message,
@@ -284,119 +281,45 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 trace_length = len(trace) if trace else 0
                 verbose_debug_print(f"📊 Trace retrieved: {trace_length} characters")
 
-                parser_type = (
-                    "pytest"
-                    if _should_use_pytest_parser(trace, job.name, job.stage)
-                    else "generic"
+                # Use enhanced parsing logic from analysis.py with auto-detection
+                # This ensures consistency with job analysis tools
+                from gitlab_analyzer.core.analysis import parse_job_logs
+
+                debug_print(f"🔧 Using enhanced parsing with auto-detection for job {job.name} (stage: {job.stage})")
+                parsed_result = parse_job_logs(
+                    trace_content=trace,
+                    parser_type="auto",
+                    job_name=job.name,  # Pass actual job name for proper pytest detection
+                    job_stage=job.stage,  # Pass actual job stage for proper pytest detection
+                    include_traceback=True,
+                    exclude_paths=exclude_patterns,
                 )
-                debug_print(
-                    f"🔧 PARSER SELECTION: {parser_type} (job.name='{job.name}', job.stage='{job.stage}')"
-                )
-                debug_print(f"🔧 Selected parser type: {parser_type}")
 
-                if parser_type == "pytest":
-                    debug_print(f"🧪 USING PYTEST PARSER for job {job.name}")
-                    verbose_debug_print(
-                        "🧪 Using pytest parser for detailed test failure analysis..."
-                    )
-                    pytest_parser = PytestLogParser()
-                    parsed = pytest_parser.parse_pytest_log(trace)
-                    debug_print(
-                        f"📊 PYTEST PARSER RESULTS: {len(parsed.detailed_failures)} detailed failures"
-                    )
-                    debug_print(
-                        f"📊 Pytest parsing found {len(parsed.detailed_failures)} detailed failures"
-                    )
-
-                    # Convert PytestFailureDetail objects to error dict format
-                    errors: list[dict[str, Any]] = []
-                    for failure_index, failure in enumerate(parsed.detailed_failures):
-                        verbose_debug_print(
-                            f"🔍 Processing failure {failure_index + 1}: {failure.test_name}"
-                        )
-
-                        # Classify the error type using the shared BaseParser method
-                        error_message = (
-                            f"{failure.exception_type}: {failure.exception_message}"
-                        )
-                        error_type = PytestLogParser.classify_error_type(error_message)
-
-                        error_dict: dict[str, Any] = {
-                            "exception_type": failure.exception_type,
-                            "exception_message": failure.exception_message,
-                            "file_path": failure.test_file,
-                            "line_number": None,  # Get from traceback if available
-                            "test_function": failure.test_function,
-                            "test_name": failure.test_name,
-                            "message": failure.exception_message,
-                            "error_type": error_type,  # Add error type classification
-                        }
-                        # Try to get line number from traceback
-                        if failure.traceback:
-                            for tb in failure.traceback:
-                                if tb.line_number:
-                                    error_dict["line_number"] = str(tb.line_number)
-                                    break
-                        errors.append(error_dict)
-
-                    # CRITICAL FIX: Use generic LogParser as fallback for pytest jobs
-                    # to catch import-time errors (SyntaxError, etc.) that occur before pytest runs
-                    verbose_debug_print(
-                        "🔍 Running generic parser as fallback to catch import-time errors..."
-                    )
-                    log_parser = LogParser()
-                    log_entries = log_parser.extract_log_entries(trace)
-                    generic_errors = [
-                        {
-                            "message": entry.message,
-                            "level": entry.level,
-                            "line_number": (
-                                str(entry.line_number)
-                                if entry.line_number is not None
-                                else None
-                            ),
-                            "context": entry.context,
-                            "error_type": entry.error_type,  # Add missing error_type field
-                        }
-                        for entry in log_entries
-                        if entry.level == "error"
-                    ]
-                    verbose_debug_print(
-                        f"📊 Generic parser found {len(generic_errors)} additional errors"
-                    )
-                    # Combine pytest errors with generic errors to catch all failure types
-                    errors.extend(generic_errors)
-                    debug_print(f"📊 Total errors after combining: {len(errors)}")
-
-                    # Filter duplicates between pytest and generic parser results
-                    original_count = len(errors)
-                    errors = _filter_duplicate_combined_errors(errors)
-                    filtered_count = len(errors)
-                    if original_count != filtered_count:
-                        debug_print(
-                            f"🔧 Filtered out {original_count - filtered_count} duplicate errors between parsers"
-                        )
-                else:
-                    verbose_debug_print("🔧 Using generic log parser...")
-                    log_parser = LogParser()
-                    log_entries = log_parser.extract_log_entries(trace)
-                    errors = [
-                        {
-                            "message": entry.message,
-                            "level": entry.level,
-                            "line_number": (
-                                str(entry.line_number)
-                                if entry.line_number is not None
-                                else None
-                            ),
-                            "context": entry.context,
-                            "error_type": entry.error_type,  # Add missing error_type field
-                        }
-                        for entry in log_entries
-                        if entry.level == "error"
-                    ]
-
-                    debug_print(f"📊 Generic parser found {len(errors)} errors")
+                debug_print(f"� Enhanced parsing result: {parsed_result.get('parser_type', 'unknown')} parser")
+                
+                # Convert to expected format for consistency with existing pipeline analysis logic
+                errors = parsed_result.get("errors", [])
+                
+                # Ensure all errors have required fields for storage
+                standardized_errors = []
+                for error in errors:
+                    standardized_error = {
+                        "exception_type": error.get("exception_type", "unknown"),
+                        "exception_message": error.get("message", ""),
+                        "file_path": error.get("test_file") or error.get("file_path", ""),
+                        "line_number": error.get("line_number"),
+                        "test_function": error.get("test_function", ""),
+                        "test_name": error.get("test_name", ""),
+                        "message": error.get("message", ""),
+                        "error_type": error.get("error_type", "unknown"),
+                        "level": error.get("level", "error"),
+                        "context": error.get("context", ""),
+                        "traceback": error.get("traceback", []),
+                    }
+                    standardized_errors.append(standardized_error)
+                
+                errors = standardized_errors
+                debug_print(f"📊 Enhanced parsing found {len(errors)} errors")
 
                 # Optimize error processing: group by file path first to reduce processing
                 debug_print(
@@ -542,7 +465,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         trace_text=trace,
                         trace_hash=trace_hash,
                         errors=error_records,  # Use ErrorRecord objects
-                        parser_type=parser_type,
+                        parser_type=parsed_result.get("parser_type", "unknown"),
                     )
 
                     # Store just the errors using the standard storage method
@@ -551,7 +474,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     analysis_data = {
                         "errors": filtered_errors,
-                        "parser_type": parser_type,
+                        "parser_type": parsed_result.get("parser_type", "unknown"),
                         "trace_hash": trace_hash,
                     }
                     # Store only errors and trace segments without overwriting job metadata
@@ -574,7 +497,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     {
                         "job_id": job.id,
                         "job_name": job.name,
-                        "parser_type": parser_type,
+                        "parser_type": parsed_result.get("parser_type", "unknown"),
                         "file_groups": list(file_groups.values()),
                         "categorized_files": categorized,
                         "errors": filtered_errors,  # Use filtered errors
