@@ -2,7 +2,6 @@
 Additional tests to boost utils coverage.
 """
 
-import pytest
 from gitlab_analyzer.utils.utils import (
     categorize_files_by_type,
     combine_exclude_file_patterns,

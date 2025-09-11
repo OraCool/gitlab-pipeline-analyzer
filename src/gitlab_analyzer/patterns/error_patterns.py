@@ -273,7 +273,7 @@ class DynamicErrorPatternMatcher:
 
         return patterns
 
-    def _normalize_message(self, message: str) -> str:
+    def _normalize_message(self, message: str | None) -> str:
         """Normalize error message for better pattern matching."""
         if message is None:
             return ""

@@ -3,8 +3,9 @@ Tests for root cause analyzer functionality.
 Tests the new root cause analysis feature.
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch
 
 from gitlab_analyzer.analysis.error_model import Error
 from gitlab_analyzer.analysis.root_cause_analyzer import (

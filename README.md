@@ -7,6 +7,8 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 ### 🔍 **Comprehensive Analysis**
 
 - Deep pipeline failure analysis with error extraction and merge request context
+- **🧠 NEW in v0.11.0**: AI-powered root cause analysis with intelligent error pattern detection
+- **📊 NEW in v0.11.0**: Dynamic error grouping and classification with confidence scoring
 - Intelligent error categorization and pattern detection
 - Support for pytest, build, and general CI/CD failures
 - **✨ NEW in v0.8.0**: Complete merge request information integration with Jira ticket extraction
@@ -29,6 +31,7 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 - **Job Resources**: Individual job analysis with error extraction
 - **File Resources**: File-specific error details with trace context
 - **Error Resources**: Detailed error analysis with fix guidance
+- **🧠 NEW in v0.11.0**: Root Cause Analysis Resources - AI-powered insights with filtering (`gl://root-cause/{project_id}/{pipeline_id}`)
 
 ### 🎯 **Intelligent Prompts & Workflows**
 

@@ -2,7 +2,6 @@
 Additional tests to boost root cause analyzer coverage.
 """
 
-import pytest
 from gitlab_analyzer.analysis.error_model import Error
 from gitlab_analyzer.analysis.root_cause_analyzer import (
     ErrorGroup,

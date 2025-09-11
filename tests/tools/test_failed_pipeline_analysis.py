@@ -994,15 +994,15 @@ class TestFailedPipelineAnalysisTools:
         assert len(pipeline_resources) == 1, "Should have pipeline details resource"
 
         # Verify optional resources are NOT present (default behavior)
-        assert (
-            len(jobs_resources) == 0
-        ), "Should NOT have jobs resource with default params"
-        assert (
-            len(files_resources) == 0
-        ), "Should NOT have files resource with default params"
-        assert (
-            len(errors_resources) == 0
-        ), "Should NOT have errors resource with default params"
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource with default params"
+        )
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource with default params"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource with default params"
+        )
 
     @patch(
         "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
@@ -1071,18 +1071,18 @@ class TestFailedPipelineAnalysisTools:
         ]
 
         # Verify jobs resource is included
-        assert (
-            len(jobs_resources) == 1
-        ), "Should have jobs resource when include_jobs_resource=True"
+        assert len(jobs_resources) == 1, (
+            "Should have jobs resource when include_jobs_resource=True"
+        )
         assert "Failed jobs overview" in jobs_resources[0]["text"]
 
         # Verify other optional resources are still NOT present
-        assert (
-            len(files_resources) == 0
-        ), "Should NOT have files resource unless explicitly enabled"
-        assert (
-            len(errors_resources) == 0
-        ), "Should NOT have errors resource unless explicitly enabled"
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource unless explicitly enabled"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource unless explicitly enabled"
+        )
 
     @patch(
         "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
@@ -1179,18 +1179,18 @@ class TestFailedPipelineAnalysisTools:
         ]
 
         # Verify files resource is included when files exist
-        assert (
-            len(files_resources) == 1
-        ), "Should have files resource when include_files_resource=True and files exist"
+        assert len(files_resources) == 1, (
+            "Should have files resource when include_files_resource=True and files exist"
+        )
         assert "Files with errors" in files_resources[0]["text"]
 
         # Verify other optional resources are still NOT present
-        assert (
-            len(jobs_resources) == 0
-        ), "Should NOT have jobs resource unless explicitly enabled"
-        assert (
-            len(errors_resources) == 0
-        ), "Should NOT have errors resource unless explicitly enabled"
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource unless explicitly enabled"
+        )
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource unless explicitly enabled"
+        )
 
     @patch(
         "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
@@ -1282,18 +1282,18 @@ class TestFailedPipelineAnalysisTools:
         ]
 
         # Verify errors resource is included when errors exist
-        assert (
-            len(errors_resources) == 1
-        ), "Should have errors resource when include_errors_resource=True and errors exist"
+        assert len(errors_resources) == 1, (
+            "Should have errors resource when include_errors_resource=True and errors exist"
+        )
         assert "Error details" in errors_resources[0]["text"]
 
         # Verify other optional resources are still NOT present
-        assert (
-            len(jobs_resources) == 0
-        ), "Should NOT have jobs resource unless explicitly enabled"
-        assert (
-            len(files_resources) == 0
-        ), "Should NOT have files resource unless explicitly enabled"
+        assert len(jobs_resources) == 0, (
+            "Should NOT have jobs resource unless explicitly enabled"
+        )
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource unless explicitly enabled"
+        )
 
     @patch(
         "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
@@ -1399,15 +1399,15 @@ class TestFailedPipelineAnalysisTools:
 
         # Verify all expected resources are present
         assert len(pipeline_resources) == 1, "Should have pipeline details resource"
-        assert (
-            len(jobs_resources) == 1
-        ), "Should have jobs resource when include_jobs_resource=True"
-        assert (
-            len(files_resources) == 1
-        ), "Should have files resource when include_files_resource=True"
-        assert (
-            len(errors_resources) == 1
-        ), "Should have errors resource when include_errors_resource=True"
+        assert len(jobs_resources) == 1, (
+            "Should have jobs resource when include_jobs_resource=True"
+        )
+        assert len(files_resources) == 1, (
+            "Should have files resource when include_files_resource=True"
+        )
+        assert len(errors_resources) == 1, (
+            "Should have errors resource when include_errors_resource=True"
+        )
 
         # Verify content of resource links
         assert "Failed jobs overview" in jobs_resources[0]["text"]
@@ -1505,9 +1505,9 @@ class TestFailedPipelineAnalysisTools:
         ]
 
         # Verify NO files resource is included when no files have errors (total_files == 0)
-        assert (
-            len(files_resources) == 0
-        ), "Should NOT have files resource when no files have errors, even with include_files_resource=True"
+        assert len(files_resources) == 0, (
+            "Should NOT have files resource when no files have errors, even with include_files_resource=True"
+        )
 
     @patch(
         "gitlab_analyzer.mcp.tools.failed_pipeline_analysis.get_comprehensive_pipeline_info"
@@ -1577,6 +1577,6 @@ class TestFailedPipelineAnalysisTools:
         ]
 
         # Verify NO errors resource is included when no errors exist (total_errors == 0)
-        assert (
-            len(errors_resources) == 0
-        ), "Should NOT have errors resource when no errors exist, even with include_errors_resource=True"
+        assert len(errors_resources) == 0, (
+            "Should NOT have errors resource when no errors exist, even with include_errors_resource=True"
+        )

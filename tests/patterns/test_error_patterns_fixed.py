@@ -3,9 +3,6 @@ Tests for error patterns functionality.
 Tests the dynamic error pattern detection.
 """
 
-import pytest
-from unittest.mock import Mock, patch
-
 from gitlab_analyzer.analysis.error_model import Error
 from gitlab_analyzer.patterns.error_patterns import (
     DynamicErrorPattern,

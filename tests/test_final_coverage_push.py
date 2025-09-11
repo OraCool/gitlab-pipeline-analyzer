@@ -3,14 +3,15 @@ Final test file to push coverage over 65%.
 Targeting specific uncovered lines in high-impact modules.
 """
 
-import pytest
 from unittest.mock import patch
 
-from gitlab_analyzer.utils.utils import get_gitlab_analyzer
-from gitlab_analyzer.utils.debug import debug_print, get_debug_level, is_debug_enabled
-from gitlab_analyzer.parsers.log_parser import LogParser
+import pytest
+
 from gitlab_analyzer.analysis.error_model import Error
 from gitlab_analyzer.api.client import GitLabAnalyzer
+from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.utils.debug import debug_print, get_debug_level, is_debug_enabled
+from gitlab_analyzer.utils.utils import get_gitlab_analyzer
 
 
 class TestFinalCoveragePush:
@@ -40,11 +41,13 @@ class TestFinalCoveragePush:
 
         utils_module._GITLAB_ANALYZER = None
 
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            pytest.raises(
                 ValueError, match="GITLAB_TOKEN environment variable is required"
-            ):
-                get_gitlab_analyzer()
+            ),
+        ):
+            get_gitlab_analyzer()
 
     def test_debug_utilities(self):
         """Test debug utility functions."""
@@ -70,10 +73,10 @@ class TestFinalCoveragePush:
         assert len(result) == 0
 
         # Test with None input - this should raise an exception
-        try:
+        import contextlib
+
+        with contextlib.suppress(TypeError, AttributeError):
             parser.extract_log_entries(None)
-        except (TypeError, AttributeError):
-            pass  # Expected
 
     def test_error_model_creation(self):
         """Test Error model creation."""
@@ -112,10 +115,10 @@ class TestFinalCoveragePush:
     def test_utils_internal_functions(self):
         """Test internal utility functions for coverage."""
         from gitlab_analyzer.utils.utils import (
-            _extract_error_location,
             _categorize_error_for_fixing,
-            _create_minimal_error,
             _create_balanced_error,
+            _create_minimal_error,
+            _extract_error_location,
         )
 
         error = {
@@ -145,8 +148,8 @@ class TestFinalCoveragePush:
     def test_additional_util_patterns(self):
         """Test additional utility patterns for coverage."""
         from gitlab_analyzer.utils.utils import (
-            _extract_key_traceback,
             _extract_fixing_traceback,
+            _extract_key_traceback,
         )
 
         traceback = [
@@ -197,9 +200,9 @@ class TestFinalCoveragePush:
     def test_pattern_helper_functions(self):
         """Test pattern helper functions."""
         from gitlab_analyzer.utils.utils import (
-            _extract_parameter_name,
             _extract_function_name,
             _extract_missing_parameter,
+            _extract_parameter_name,
         )
 
         message1 = "func() unexpected keyword argument 'bad_param'"
@@ -217,8 +220,8 @@ class TestFinalCoveragePush:
     def test_error_analysis_edge_cases(self):
         """Test error analysis edge cases."""
         from gitlab_analyzer.utils.utils import (
-            _extract_files_to_check,
             _calculate_fix_priority,
+            _extract_files_to_check,
         )
 
         error = {
@@ -249,8 +252,8 @@ class TestFinalCoveragePush:
         """Test attribute error helper functions."""
         from gitlab_analyzer.utils.utils import (
             _extract_attribute_error_details,
-            _extract_object_name_from_callable_error,
             _extract_module_name_from_import_error,
+            _extract_object_name_from_callable_error,
         )
 
         # Test attribute error parsing

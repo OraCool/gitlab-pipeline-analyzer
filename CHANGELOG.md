@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-09-11
+
+### 🚀 **New Features**
+
+- **AI-Powered Root Cause Analysis**: Implemented intelligent error analysis and pattern detection
+
+  - New `RootCauseAnalyzer` with dynamic error pattern matching for identifying common failure causes
+  - Advanced error grouping and classification system to reduce noise and focus on primary issues
+  - Confidence scoring for analysis results to help prioritize fixes
+  - Root cause analysis results now available through MCP resources with filtering capabilities
+
+- **Enhanced Error Pattern Detection**: Dynamic pattern learning system for better error categorization
+
+  - `DynamicErrorPatternMatcher` that learns from error patterns across pipeline failures
+  - Automatic error severity classification (critical, high, medium, low)
+  - Impact scoring to prioritize most important issues first
+  - Pattern-based error deduplication to reduce repetitive information
+
+- **Extended Resource Access**: New root cause analysis resource patterns
+  - `gl://root-cause/{project_id}/{pipeline_id}` - AI-optimized pipeline root cause analysis
+  - `gl://root-cause/{project_id}/job/{job_id}` - Job-specific root cause analysis
+  - Advanced filtering: `?limit={N}&severity={level}&confidence={min}&category={type}`
+  - Supports all existing resource capabilities with AI-enhanced insights
+
+### ✨ **Enhanced Features**
+
+- **Improved Error Analysis Service**: Enhanced error processing with root cause integration
+
+  - Better error categorization and severity assessment
+  - Reduced false positives through intelligent pattern matching
+  - Enhanced error context extraction for more actionable insights
+
+- **Advanced Pipeline Analysis**: Root cause analysis integrated into pipeline tools
+  - Enhanced `failed_pipeline_analysis` tool with root cause detection
+  - Improved error summarization with cause-and-effect relationships
+  - Better fix suggestions based on detected error patterns
+
+### 🔧 **Technical Improvements**
+
+- **New Analysis Models**: Comprehensive error modeling system
+
+  - Enhanced `Error` model with root cause analysis metadata
+  - `ErrorGroup` model for related error clustering
+  - `RootCauseAnalysis` model with comprehensive result structure
+
+- **Pattern Analysis Framework**: Extensible pattern detection system
+  - Configurable pattern matching rules and thresholds
+  - Support for custom pattern definitions and learning
+  - Performance optimizations for large-scale error analysis
+
+### 🧪 **Testing & Quality**
+
+- **Comprehensive Test Coverage**: Now includes 14 MCP tools with 65.28% test coverage
+  - Added comprehensive tests for root cause analysis functionality
+  - Enhanced error pattern detection test coverage
+  - Improved test reliability and performance
+
 ## [0.10.0] - 2025-09-08
 
 ### 🚀 **New Features**
