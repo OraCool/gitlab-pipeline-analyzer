@@ -113,6 +113,7 @@ class PytestLogParser(BaseParser):
         """Create a unique fingerprint for a detailed test failure"""
         # Use test function name, exception type, and core error message
         test_func = failure.test_function or "unknown"
+        test_file = failure.test_file or "unknown"
         exception_type = failure.exception_type or "unknown"
 
         # Extract core error message without file paths and line numbers
@@ -122,13 +123,16 @@ class PytestLogParser(BaseParser):
         core_message = re.sub(r"line \d+", "line N", core_message)
         core_message = re.sub(r":\d+:", ":N:", core_message)
 
-        return f"{test_func}|{exception_type}|{core_message[:100]}"
+        # Include both test file and function to ensure unique fingerprints for different tests
+        # This prevents deduplication of different test functions with similar errors
+        return f"{test_file}::{test_func}|{exception_type}|{core_message[:100]}"
 
     @classmethod
     def _create_summary_failure_fingerprint(cls, summary: PytestShortSummary) -> str:
         """Create a unique fingerprint for a short summary failure"""
         # Use test function name, exception type, and core error message
         test_func = summary.test_function or "unknown"
+        test_file = summary.test_file or "unknown"
         exception_type = summary.error_type or "unknown"
 
         # Extract core error message without file paths and line numbers
@@ -138,7 +142,8 @@ class PytestLogParser(BaseParser):
         core_message = re.sub(r"line \d+", "line N", core_message)
         core_message = re.sub(r":\d+:", ":N:", core_message)
 
-        return f"{test_func}|{exception_type}|{core_message[:100]}"
+        # Include both test file and function to ensure unique fingerprints for different tests
+        return f"{test_file}::{test_func}|{exception_type}|{core_message[:100]}"
 
     @classmethod
     def _extract_detailed_failures(cls, log_text: str) -> list[PytestFailureDetail]:
@@ -245,29 +250,72 @@ class PytestLogParser(BaseParser):
         test_file = None
         test_function = None
 
-        # First priority: Look for explicit test files in traceback
-        if test_file_matches:
-            for match in test_file_matches:
-                file_path = match[0]
-                if "test" in file_path.lower():
-                    test_file = file_path
-                    # Try to extract function name from the test_name header
-                    if "::" in test_name:
-                        test_function = test_name.split("::")[-1]
-                    break
+        # PRIORITY 1: Look for project test files (domains/, src/, tests/, etc.) - exclude system paths
+        all_file_matches = file_line_matches + [
+            (match[0], match[1], None) for match in test_file_matches
+        ]
 
-        # Second priority: Look for files with "test" in path from regular matches
-        if not test_file and file_line_matches:
-            for match in file_line_matches:
-                file_path = match[0]
-                func_name = match[2] if match[2] else None
-                if "test" in file_path.lower():
-                    test_file = file_path
-                    if func_name and not func_name.endswith(("Error", "Exception")):
-                        test_function = func_name
-                    break
+        for match in all_file_matches:
+            file_path = match[0] if isinstance(match, tuple) else match
+            func_name = (
+                match[2] if len(match) > 2 and isinstance(match, tuple) else None
+            )
 
-        # Third priority: Use any file match, but this is likely a source file
+            # Skip system files (anything with site-packages, python install paths, etc.)
+            if any(
+                sys_path in file_path
+                for sys_path in [
+                    "site-packages",
+                    ".venv",
+                    "/usr/",
+                    "/root/.local",
+                    "python3.",
+                    "/opt/",
+                    "cpython-",
+                ]
+            ):
+                continue
+
+            # Prioritize actual test files
+            if "test" in file_path.lower() and file_path.endswith(".py"):
+                test_file = file_path
+                # Extract function name from header if not found in traceback
+                if "::" in test_name:
+                    test_function = test_name.split("::")[-1]
+                elif func_name and not func_name.endswith(("Error", "Exception")):
+                    test_function = func_name
+                break
+
+        # PRIORITY 2: If no test file found, look for any project file (non-system)
+        if not test_file:
+            for match in all_file_matches:
+                file_path = match[0] if isinstance(match, tuple) else match
+                func_name = (
+                    match[2] if len(match) > 2 and isinstance(match, tuple) else None
+                )
+
+                # Skip system files
+                if any(
+                    sys_path in file_path
+                    for sys_path in [
+                        "site-packages",
+                        ".venv",
+                        "/usr/",
+                        "/root/.local",
+                        "python3.",
+                        "/opt/",
+                        "cpython-",
+                    ]
+                ):
+                    continue
+
+                # Use any project file
+                test_file = file_path
+                if func_name and not func_name.endswith(("Error", "Exception")):
+                    test_function = func_name
+                break
+
+        # PRIORITY 3: Fallback to system files only if no project files found
         if not test_file and file_line_matches:
             first_match = file_line_matches[0]
             test_file = first_match[0]
@@ -280,9 +328,11 @@ class PytestLogParser(BaseParser):
             if "::" in test_name:
                 test_function = test_name.split("::")[-1]
             else:
-                # Look for function definition in content
-                def_match = re.search(r"def\s+(\w+)\s*\(", content)
-                test_function = def_match.group(1) if def_match else test_name
+                # The header IS the test function for class-based tests like TestHandlers.test_name
+                if "." in test_name:
+                    test_function = test_name.split(".")[-1]
+                else:
+                    test_function = test_name
 
         # Final fallback handling
         if not test_file:
@@ -294,10 +344,11 @@ class PytestLogParser(BaseParser):
             else:
                 # Last resort - use unknowns
                 test_file = "unknown"
-                test_function = test_name
+                if not test_function:
+                    test_function = test_name
 
         # Reconstruct full test name with file path if it's not already included
-        if "::" not in test_name:
+        if "::" not in test_name and test_file != "unknown":
             test_name = f"{test_file}::{test_function}"
 
         # Extract platform info
@@ -705,10 +756,11 @@ class PytestLogParser(BaseParser):
 
         # Look for lines containing "failed" and "passed" and time information
         for line in log_text.split("\n"):
+            # More flexible matching - don't require '=' character
             if (
                 ("failed" in line.lower() or "passed" in line.lower())
                 and ("in " in line and "s" in line)
-                and "=" in line
+                # Remove the '=' requirement to catch clean summary lines
             ):
                 summary_lines.append(line)
 

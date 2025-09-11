@@ -226,7 +226,7 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
                 # Process short summary if available
                 summary_errors = []
                 if pytest_analysis.short_summary:
-                    for item in pytest_analysis.short_summary.failed_tests:
+                    for item in pytest_analysis.short_summary:
                         if not any(
                             e.get("test_function") == item.test_name
                             for e in pytest_errors
@@ -238,7 +238,7 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
                                     "error_type": "test_failure",
                                     "test_file": item.test_file,
                                     "test_function": item.test_name,
-                                    "failure_reason": item.reason,
+                                    "failure_reason": item.error_message,
                                     "source": "short_summary",
                                 }
                             )

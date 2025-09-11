@@ -1,7 +1,7 @@
 MCP Tools & Resources Reference
 ===============================
 
-This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server **version 0.9.0** with enhanced job analysis tools and improved error handling.
+This comprehensive reference documents all available tools and resources in the GitLab Pipeline Analyzer MCP Server **version 0.11.0** with AI-powered root cause analysis and intelligent error pattern detection.
 
 .. contents::
    :local:
@@ -12,7 +12,7 @@ Overview
 
 The GitLab Pipeline Analyzer MCP Server provides **14 essential tools** and **comprehensive MCP resources** following DRY and KISS principles. Each tool serves a specific purpose in the pipeline analysis workflow, while resources provide efficient access to cached data.
 
-**NEW in v0.9.0**: Enhanced job analysis tools and pipeline validation checks for improved error handling.
+**NEW in v0.11.0**: AI-powered root cause analysis with intelligent error pattern detection and dynamic error grouping capabilities.
 
 🔧 MCP Tools (14 Essential Tools)
 ---------------------------------
@@ -400,10 +400,12 @@ The GitLab Pipeline Analyzer MCP Server provides **14 essential tools** and **co
         "job_id": "76474172"
     })
 
-📦 MCP Resources (5 Resource Categories)
+📦 MCP Resources (6 Resource Categories)
 ----------------------------------------
 
 MCP resources provide efficient access to cached analysis data without re-running expensive operations. All resources follow the ``gl://`` URI scheme.
+
+**NEW in v0.11.0**: Root Cause Analysis Resources with AI-powered insights and advanced filtering capabilities.
 
 1. Pipeline Resources
 ~~~~~~~~~~~~~~~~~~~~~
@@ -684,6 +686,51 @@ MCP resources provide efficient access to cached analysis data without re-runnin
 .. code-block:: python
 
     resource_uri = "gl://analysis/83/job/76474172?mode=detailed"
+
+6. Root Cause Analysis Resources (NEW in v0.11.0)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**gl://root-cause/{project_id}/{pipeline_id}[?filters]**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Purpose**: AI-powered pipeline root cause analysis with intelligent error pattern detection
+
+**Contains**:
+- Primary and secondary root causes with confidence scoring
+- Error group clustering with pattern detection
+- Impact analysis and prioritization recommendations
+- Fix suggestions based on detected patterns
+
+**Filtering Options**:
+- ``?limit={N}`` - Limit number of results (e.g., top 3 causes)
+- ``?severity={level}`` - Filter by severity (critical, high, medium, low)
+- ``?category={type}`` - Filter by error category (syntax, test, build, config, etc.)
+- ``?confidence={min}`` - Filter by minimum confidence score (0.0-1.0)
+
+**Example**:
+
+.. code-block:: python
+
+    # Get top 3 high-severity root causes with high confidence
+    resource_uri = "gl://root-cause/83/1594344?limit=3&severity=high&confidence=0.8"
+
+**gl://root-cause/{project_id}/job/{job_id}[?filters]**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Purpose**: Job-specific root cause analysis with detailed error grouping
+
+**Contains**:
+- Job-level error pattern analysis
+- Root cause detection for individual job failures
+- Detailed error group information with context
+- Targeted fix recommendations
+
+**Example**:
+
+.. code-block:: python
+
+    # Get detailed root cause analysis for specific job
+    resource_uri = "gl://root-cause/83/job/76474172?mode=detailed"
 
 Tool Integration Patterns
 -------------------------
