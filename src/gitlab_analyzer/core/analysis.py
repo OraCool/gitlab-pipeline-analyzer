@@ -176,45 +176,7 @@ def is_pytest_job(
                 )
                 return False
 
-    # SECOND: Check for explicit non-pytest jobs by name (but be more specific)
-    # Only exclude if it's clearly NOT a test job
-    non_pytest_name_patterns = [
-        r"^lint-",  # Jobs starting with "lint-"
-        r"^format-",  # Jobs starting with "format-"
-        r"^build-",  # Jobs starting with "build-"
-        r"^deploy-",  # Jobs starting with "deploy-"
-        r"^package-",  # Jobs starting with "package-"
-        r"^publish-",  # Jobs starting with "publish-"
-        r"^security-",  # Jobs starting with "security-"
-        r"^audit-",  # Jobs starting with "audit-"
-        r"^compliance-",  # Jobs starting with "compliance-"
-    ]
-
-    # If job name explicitly indicates non-pytest work, return False
-    for pattern in non_pytest_name_patterns:
-        if re.search(pattern, job_name.lower()):
-            debug_print(
-                f"❌ PYTEST DETECTION: Job name '{job_name}' matches non-pytest pattern '{pattern}'"
-            )
-            return False
-
-    # THIRD: Check stage patterns, but only exclude obvious non-test stages
-    # Be careful not to exclude "quality" stage if it contains test jobs
-    non_pytest_stage_patterns = [
-        r"^build$",  # Only exact "build" stage
-        r"^deploy$",  # Only exact "deploy" stage
-        r"^package$",  # Only exact "package" stage
-        r"^publish$",  # Only exact "publish" stage
-    ]
-
-    for pattern in non_pytest_stage_patterns:
-        if re.search(pattern, job_stage.lower()):
-            debug_print(
-                f"❌ PYTEST DETECTION: Job stage '{job_stage}' matches non-pytest pattern '{pattern}'"
-            )
-            return False
-
-    # Check job name patterns for pytest
+    # SECOND: Check job name patterns for pytest FIRST (positive indicators have priority)
     pytest_name_patterns = [
         r"test",
         r"pytest",
@@ -230,17 +192,7 @@ def is_pytest_job(
             )
             return True
 
-    # Check job stage patterns for pytest
-    pytest_stage_patterns = [r"test", r"testing", r"unit", r"integration"]
-
-    for pattern in pytest_stage_patterns:
-        if re.search(pattern, job_stage.lower()):
-            debug_print(
-                f"✅ PYTEST DETECTION: Job stage '{job_stage}' matches pattern '{pattern}'"
-            )
-            return True
-
-    # Check trace content for pytest indicators (more specific patterns)
+    # THIRD: Check trace content for pytest indicators (high-confidence indicators)
     if trace_content:
         verbose_debug_print(
             f"🔍 PYTEST DETECTION: Checking trace content ({len(trace_content)} chars)"
@@ -279,14 +231,55 @@ def is_pytest_job(
                 )
                 return True
 
-        # Low-confidence: only if job name/stage don't explicitly exclude pytest
-        # Remove the generic "pytest" pattern that was causing false positives
-        verbose_debug_print(
-            "🔍 PYTEST DETECTION: No high or medium confidence pytest indicators found"
-        )
-    else:
-        verbose_debug_print("🔍 PYTEST DETECTION: No trace content provided")
+    # FOURTH: Check for explicit non-pytest jobs by name (but be more specific)
+    # Only exclude if it's clearly NOT a test job
+    non_pytest_name_patterns = [
+        r"^lint-",  # Jobs starting with "lint-"
+        r"^format-",  # Jobs starting with "format-"
+        r"^build-",  # Jobs starting with "build-"
+        r"^deploy-",  # Jobs starting with "deploy-"
+        r"^package-",  # Jobs starting with "package-"
+        r"^publish-",  # Jobs starting with "publish-"
+        r"^security-",  # Jobs starting with "security-"
+        r"^audit-",  # Jobs starting with "audit-"
+        r"^compliance-",  # Jobs starting with "compliance-"
+    ]
 
+    # If job name explicitly indicates non-pytest work, return False
+    for pattern in non_pytest_name_patterns:
+        if re.search(pattern, job_name.lower()):
+            debug_print(
+                f"❌ PYTEST DETECTION: Job name '{job_name}' matches non-pytest pattern '{pattern}'"
+            )
+            return False
+
+    # FIFTH: Check stage patterns, but only exclude obvious non-test stages
+    # Be careful not to exclude "quality" stage if it contains test jobs
+    non_pytest_stage_patterns = [
+        r"^build$",  # Only exact "build" stage
+        r"^deploy$",  # Only exact "deploy" stage
+        r"^package$",  # Only exact "package" stage
+        r"^publish$",  # Only exact "publish" stage
+    ]
+
+    for pattern in non_pytest_stage_patterns:
+        if re.search(pattern, job_stage.lower()):
+            debug_print(
+                f"❌ PYTEST DETECTION: Job stage '{job_stage}' matches non-pytest pattern '{pattern}'"
+            )
+            return False
+
+    # SIXTH: Check job stage patterns for pytest
+    pytest_stage_patterns = [r"test", r"testing", r"unit", r"integration"]
+
+    for pattern in pytest_stage_patterns:
+        if re.search(pattern, job_stage.lower()):
+            debug_print(
+                f"✅ PYTEST DETECTION: Job stage '{job_stage}' matches pattern '{pattern}'"
+            )
+            return True
+
+    # If we get here, no pytest indicators were found
     debug_print(
         f"❌ PYTEST DETECTION: Job '{job_name}' (stage: '{job_stage}') does not appear to be pytest"
     )

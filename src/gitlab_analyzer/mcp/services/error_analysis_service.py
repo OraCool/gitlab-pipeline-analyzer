@@ -33,8 +33,8 @@ class ErrorAnalysisService:
         Returns:
             Enhanced error with fix guidance
         """
-        if mode not in ["fixing", "detailed"]:
-            return error
+        if not error or mode not in ["fixing", "detailed"]:
+            return error or {}
 
         try:
             from gitlab_analyzer.utils.utils import _generate_fix_guidance
@@ -64,12 +64,13 @@ class ErrorAnalysisService:
 
         except Exception as fix_error:
             logger.warning("Failed to generate fix guidance: %s", fix_error)
-            enhanced_error = error.copy()
-            enhanced_error["fix_guidance"] = {
-                "error": "Fix guidance generation failed",
-                "message": str(fix_error),
-            }
-            return enhanced_error
+            if error:
+                enhanced_error = error.copy()
+                enhanced_error["fix_guidance"] = {
+                    "error": f"Failed to generate fix guidance: {fix_error}"
+                }
+                return enhanced_error
+            return {}
 
     def enhance_errors_batch(
         self, errors: list[dict[str, Any]], mode: str = "balanced"

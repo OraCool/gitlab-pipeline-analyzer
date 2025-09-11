@@ -391,8 +391,8 @@ class TestAnalysisResources:
 
         # Verify resource decorators were called
         assert (
-            mock_mcp.resource.call_count == 6
-        )  # 6 resources: project, project+mode, pipeline, pipeline+mode, job, job+mode
+            mock_mcp.resource.call_count == 20
+        )  # 20 resources: project, pipeline, job analysis + root-cause variants with different filters
 
         # Check the resource URI patterns
         call_args = [call[0][0] for call in mock_mcp.resource.call_args_list]

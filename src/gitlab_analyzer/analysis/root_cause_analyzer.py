@@ -344,6 +344,8 @@ class RootCauseAnalyzer:
 
     def _customize_fix_suggestion(self, group: ErrorGroup) -> str | None:
         """Customize fix suggestion based on actual error details."""
+        import re
+
         if not group.errors:
             return None
 
@@ -373,8 +375,6 @@ class RootCauseAnalyzer:
             or "attributeerror" in error_message
         ):
             # Try to extract class name from error messages like "'ClassName' object has no attribute"
-            import re
-
             class_match = re.search(r"'([^']+)'\s+object", error_message)
             class_name = class_match.group(1) if class_match else None
             template = safe_replace(template, "{class}", class_name, "Object")

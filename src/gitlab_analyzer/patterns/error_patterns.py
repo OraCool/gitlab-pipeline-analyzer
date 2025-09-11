@@ -275,6 +275,9 @@ class DynamicErrorPatternMatcher:
 
     def _normalize_message(self, message: str) -> str:
         """Normalize error message for better pattern matching."""
+        if message is None:
+            return ""
+
         # Remove timestamps, line numbers, and specific values
         normalized = re.sub(r"\d{4}-\d{2}-\d{2}", "[DATE]", message)
         normalized = re.sub(r"\d{2}:\d{2}:\d{2}", "[TIME]", message)
@@ -398,7 +401,9 @@ class DynamicErrorPatternMatcher:
     ) -> DynamicErrorPattern:
         """Create a pattern from a group of similar errors."""
         # Choose representative message (shortest or most common)
-        messages = [item["message"] for item in group]
+        messages = [item["message"] for item in group if item["message"]]
+        if not messages:
+            messages = ["Unknown error"]
         representative = min(
             messages, key=len
         )  # Use shortest message as representative
