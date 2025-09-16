@@ -363,8 +363,13 @@ class PytestLogParser(BaseParser):
         # 1. Direct format: ExceptionType: message
         # 2. Pytest format with E prefix: E   ExceptionType: message
         # 3. Exception without "Error" suffix: Exception: message
+        # 4. Django specific exceptions with full module paths
         exception_patterns = [
+            r"(?:E\s+)?(django\.core\.exceptions\.\w+): (.+?)(?:\n|$)",  # Django exceptions with full path
+            r"(?:E\s+)?(django\.db\.utils\.\w+): (.+?)(?:\n|$)",  # Django database exceptions
             r"(?:E\s+)?(\w+(?:\.\w+)*(?:Exception|Error)): (.+?)(?:\n|$)",  # Standard Error/Exception types
+            r"(?:E\s+)?(ValidationError): (.+?)(?:\n|$)",  # Django ValidationError (short form)
+            r"(?:E\s+)?(IntegrityError): (.+?)(?:\n|$)",  # Database IntegrityError (short form)
             r"(?:E\s+)?(Exception): (.+?)(?:\n|$)",  # Plain "Exception" type
             r"(?:E\s+)?(\w+Error): (.+?)(?:\n|$)",  # Any *Error type
             r"(?:E\s+)?(\w+Exception): (.+?)(?:\n|$)",  # Any *Exception type
@@ -428,6 +433,10 @@ class PytestLogParser(BaseParser):
 
         # Extract exception type and message
         exception_patterns = [
+            r"(django\.core\.exceptions\.\w+): (.+?)(?:\n|$)",  # Django exceptions with full path
+            r"(django\.db\.utils\.\w+): (.+?)(?:\n|$)",  # Django database exceptions
+            r"(ValidationError): (.+?)(?:\n|$)",  # Django ValidationError (short form)
+            r"(IntegrityError): (.+?)(?:\n|$)",  # Database IntegrityError (short form)
             r"(\w+Error): (.+?)(?:\n|$)",
             r"(\w+Exception): (.+?)(?:\n|$)",
         ]

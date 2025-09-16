@@ -12,6 +12,7 @@ from typing import Any
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.cache.models import generate_standard_error_id
+from gitlab_analyzer.parsers.django_pytest_parser import DjangoAwarePytestParser
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
@@ -286,6 +287,34 @@ def is_pytest_job(
     return False
 
 
+def is_django_project(trace_content: str = "") -> bool:
+    """
+    Detect if this is a Django project based on trace content.
+
+    Args:
+        trace_content: Raw log content from the job
+
+    Returns:
+        True if Django-related patterns are detected
+    """
+    if not trace_content:
+        return False
+
+    django_indicators = [
+        "django",
+        "ValidationError",
+        "IntegrityError",
+        "django.core.exceptions",
+        "django.db.utils",
+        "UNIQUE constraint failed",
+        "manage.py",
+        "django.conf",
+    ]
+
+    trace_lower = trace_content.lower()
+    return any(indicator.lower() in trace_lower for indicator in django_indicators)
+
+
 def get_optimal_parser(
     job_name: str = "", job_stage: str = "", trace_content: str = ""
 ) -> str:
@@ -437,6 +466,7 @@ def parse_pytest_logs(
 ) -> dict[str, Any]:
     """
     Parse pytest logs using specialized pytest parser.
+    Uses Django-aware parser if Django patterns are detected.
 
     Args:
         trace_content: Raw pytest log content
@@ -449,69 +479,65 @@ def parse_pytest_logs(
     debug_print("🧪 PYTEST PARSER: Starting pytest log parsing")
     verbose_debug_print(f"📊 Input trace length: {len(trace_content)} characters")
 
-    pytest_result = PytestLogParser.parse_pytest_log(trace_content)
+    # Check if this is a Django project and use appropriate parser
+    if is_django_project(trace_content):
+        debug_print("🐍 DJANGO DETECTED: Using Django-aware log parser")
+        django_parser = DjangoAwarePytestParser()
+        log_entries = django_parser.extract_log_entries(trace_content)
+        # Convert LogParser entries to pytest format
+        pytest_result = {
+            "status": "completed",
+            "raw_content": trace_content,
+            "failures": [
+                {
+                    "test_name": f"Django Setup Error (Line {entry.line_number or 'Unknown'})",
+                    "failure_message": entry.context
+                    or entry.message
+                    or "Unknown error",
+                    "location": "Unknown location",
+                    "traceback": "",
+                }
+                for entry in log_entries
+            ],
+            "total_tests": len(log_entries),
+            "failed_count": len(log_entries),
+            "passed_count": 0,
+            "error_count": 0,
+            "skipped_count": 0,
+            "warnings": [],
+        }
+    else:
+        debug_print("🧪 STANDARD: Using standard pytest parser")
+        pytest_result = PytestLogParser.parse_pytest_log(trace_content)
 
     debug_print(
-        f"📊 PYTEST PARSER: Raw parser found {len(pytest_result.detailed_failures)} detailed failures"
+        f"📊 PYTEST PARSER: Raw parser found {pytest_result.get('failed_count', 0)} failed tests"
     )
-    if pytest_result.statistics.total_tests:
+    if pytest_result.get("total_tests", 0):
         debug_print(
-            f"📊 PYTEST STATS: {pytest_result.statistics.total_tests} total tests, {pytest_result.statistics.failed} failed, {pytest_result.statistics.passed} passed"
+            f"📊 PYTEST STATS: {pytest_result.get('total_tests', 0)} total tests, {pytest_result.get('failed_count', 0)} failed, {pytest_result.get('passed_count', 0)} passed"
         )
 
     # Convert to standardized format
     errors = []
     warnings: list[dict[str, Any]] = []
 
-    if pytest_result.detailed_failures:
+    if pytest_result.get("failures"):
         debug_print(
-            f"🔧 PYTEST PARSER: Converting {len(pytest_result.detailed_failures)} detailed failures to standardized format"
+            f"🔧 PYTEST PARSER: Converting {len(pytest_result['failures'])} failures to standardized format"
         )
-        for i, failure in enumerate(pytest_result.detailed_failures):
+        for i, failure in enumerate(pytest_result["failures"]):
             verbose_debug_print(
-                f"  ➤ Failure {i + 1}: {failure.test_name} - {failure.exception_type}"
+                f"  ➤ Failure {i + 1}: {failure.get('test_name', 'Unknown')}"
             )
             error_data = {
-                "test_file": failure.test_file or "unknown",
-                "test_function": failure.test_function or "unknown",
-                "exception_type": failure.exception_type or "Unknown",
-                "message": failure.exception_message or "No message",
-                "line_number": (
-                    failure.traceback[0].line_number
-                    if failure.traceback and failure.traceback[0].line_number
-                    else None
-                ),
-                "has_traceback": bool(failure.traceback and include_traceback),
+                "test_file": failure.get("location", "unknown"),
+                "test_function": failure.get("test_name", "unknown"),
+                "exception_type": "Django ValidationError",
+                "message": failure.get("failure_message", "No message"),
+                "line_number": None,  # Will be extracted from message if available
+                "has_traceback": False,  # Django setup errors don't have useful tracebacks
             }
-
-            if include_traceback and failure.traceback:
-                # Filter traceback if paths are specified
-                filtered_traceback = []
-                for tb in failure.traceback:
-                    if exclude_paths:
-                        skip = any(
-                            exclude_path in str(tb.file_path)
-                            for exclude_path in exclude_paths
-                        )
-                        if not skip:
-                            filtered_traceback.append(
-                                {
-                                    "file_path": tb.file_path,
-                                    "line_number": tb.line_number,
-                                    "function_name": tb.function_name,
-                                    "code_context": tb.code_line,
-                                }
-                            )
-                    else:
-                        filtered_traceback.append(
-                            {
-                                "file_path": tb.file_path,
-                                "line_number": tb.line_number,
-                                "function_name": tb.function_name,
-                                "code_context": tb.code_line,
-                            }
-                        )
-                error_data["traceback"] = filtered_traceback
 
             errors.append(error_data)
 
@@ -521,19 +547,21 @@ def parse_pytest_logs(
 
     return {
         "parser_type": "pytest",
+        "status": "completed",
+        "raw_content": trace_content,
         "errors": errors,
-        "warnings": warnings,  # Pytest parser doesn't extract warnings yet
         "error_count": len(errors),
+        "warnings": warnings,
         "warning_count": len(warnings),
         "test_summary": (
             {
-                "total_tests": pytest_result.statistics.total_tests,
-                "passed": pytest_result.statistics.passed,
-                "failed": pytest_result.statistics.failed,
-                "skipped": pytest_result.statistics.skipped,
-                "duration": pytest_result.statistics.duration_formatted,
+                "total_tests": pytest_result.get("total_tests", 0),
+                "passed": pytest_result.get("passed_count", 0),
+                "failed": pytest_result.get("failed_count", 0),
+                "skipped": pytest_result.get("skipped_count", 0),
+                "duration": "N/A",
             }
-            if pytest_result.statistics.total_tests
+            if pytest_result.get("total_tests", 0) > 0
             else None
         ),
     }
