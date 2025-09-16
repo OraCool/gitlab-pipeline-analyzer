@@ -1,14 +1,96 @@
 """
-Parser for extracting errors and warnings from CI/CD logs
+Generic log parser implementing SOLID principles.
+
+This parser provides utilities for extracting errors and warnings from CI/CD logs
+and serves as a fallback when no specific framework parser is available.
+
+Following SOLID principles:
+- Single Responsibility: Log parsing utilities and generic error extraction
+- Open/Closed: Extensible through framework-specific parsers
+- Liskov Substitution: Can be used as BaseFrameworkParser fallback
+- Interface Segregation: Focused on log parsing concerns
+- Dependency Inversion: Uses abstract BaseParser utilities
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
 import re
+from typing import Any
 
 from ..models import LogEntry
-from .base_parser import BaseParser
+from .base_parser import (
+    BaseFrameworkDetector,
+    BaseFrameworkParser,
+    BaseParser,
+    TestFramework,
+)
+
+
+class GenericLogDetector(BaseFrameworkDetector):
+    """Fallback detector for generic logs when no specific framework detected"""
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.GENERIC
+
+    @property
+    def priority(self) -> int:
+        return 1  # Lowest priority - only as fallback
+
+    def detect(self, job_name: str, job_stage: str, trace_content: str) -> bool:
+        """Always returns True as fallback - but will be last due to low priority"""
+        return True
+
+
+class GenericLogParser(BaseFrameworkParser):
+    """Generic log parser implementing BaseFrameworkParser interface"""
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.GENERIC
+
+    def parse(self, trace_content: str, **kwargs) -> dict[str, Any]:
+        """Parse logs using generic LogParser and convert to standard format"""
+        entries = LogParser.extract_log_entries(trace_content)
+
+        # Convert LogEntry objects to standardized format
+        errors = []
+        warnings = []
+
+        for entry in entries:
+            error_data = {
+                "message": entry.message,
+                "line_number": entry.line_number,
+                "exception_type": (
+                    "Generic Error" if entry.level == "error" else "Generic Warning"
+                ),
+                "test_file": "unknown",
+                "test_function": "unknown",
+                "has_traceback": False,
+            }
+
+            if entry.level == "error":
+                errors.append(error_data)
+            else:
+                warnings.append(error_data)
+
+        return self.validate_output(
+            {
+                "parser_type": "generic",
+                "framework": self.framework.value,
+                "errors": errors,
+                "error_count": len(errors),
+                "warnings": warnings,
+                "warning_count": len(warnings),
+                "summary": {
+                    "total_tests": len(errors),
+                    "failed": len(errors),
+                    "passed": 0,
+                    "skipped": 0,
+                },
+            }
+        )
 
 
 class LogParser(BaseParser):

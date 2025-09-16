@@ -1,12 +1,22 @@
 """
-Enhanced pytest log parser for extracting detailed test failures, short summaries, and statistics
+Unified pytest parser implementing SOLID principles.
+
+This parser handles all pytest scenarios including:
+- Standard pytest test output
+- Django-specific pytest errors
+- Test failures, collection errors, and setup/teardown issues
+- Detailed failure analysis with tracebacks
+
+Implements BaseFrameworkParser interface for consistent architecture.
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
 import re
+from typing import Any
 
+from ..models import LogEntry
 from ..models.pytest_models import (
     PytestFailureDetail,
     PytestLogAnalysis,
@@ -14,9 +24,342 @@ from ..models.pytest_models import (
     PytestStatistics,
     PytestTraceback,
 )
-from .base_parser import BaseParser
+from .base_parser import (
+    BaseFrameworkDetector,
+    BaseFrameworkParser,
+    BaseParser,
+    TestFramework,
+)
 
 
+class PytestDetector(BaseFrameworkDetector):
+    """Detects pytest-based jobs"""
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.PYTEST
+
+    @property
+    def priority(self) -> int:
+        return 90  # High priority for Python projects
+
+    def detect(self, job_name: str, job_stage: str, trace_content: str) -> bool:
+        """Detect pytest jobs using comprehensive logic"""
+        # Exclude linting jobs first
+        linting_indicators = [
+            r"make:.*\[.*lint.*\].*Error",
+            r"lint.*failed",
+            r"ruff.*check.*failed",
+            r"black.*check.*failed",
+        ]
+
+        if self._exclude_by_patterns(trace_content, linting_indicators):
+            return False
+
+        # Check job name patterns
+        pytest_patterns = [
+            r"test",
+            r"pytest",
+            r"unit.*test",
+            r"integration.*test",
+            r"e2e.*test",
+        ]
+
+        if self._check_job_name_patterns(job_name, pytest_patterns):
+            return True
+
+        # Check trace content for pytest indicators
+        return "pytest" in trace_content.lower()
+
+
+class PytestParser(BaseFrameworkParser):
+    """Unified pytest parser with Django awareness"""
+
+    # Django-specific error patterns for pytest context
+    DJANGO_ERROR_PATTERNS = [
+        (r"django\.core\.exceptions\.ValidationError: (.+)", "error"),
+        (r"ValidationError: (.+)", "error"),
+        (r"E\s+django\.core\.exceptions\.ValidationError: (.+)", "error"),
+        (r"E\s+ValidationError: (.+)", "error"),
+        (r"django\.db\.utils\.IntegrityError: (.+)", "error"),
+        (r"IntegrityError: (.+)", "error"),
+        (r"E\s+django\.db\.utils\.IntegrityError: (.+)", "error"),
+        (r"E\s+IntegrityError: (.+)", "error"),
+        (r"UNIQUE constraint failed: (.+)", "error"),
+        (r"duplicate key value violates unique constraint \"(.+)\"", "error"),
+        (r"E\s+UNIQUE constraint failed: (.+)", "error"),
+        (r"E\s+duplicate key value violates unique constraint \"(.+)\"", "error"),
+        (r"django\.[a-zA-Z_.]+\.([A-Za-z]+(?:Error|Exception)): (.+)", "error"),
+        (r"E\s+django\.[a-zA-Z_.]+\.([A-Za-z]+(?:Error|Exception)): (.+)", "error"),
+    ]
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.PYTEST
+
+    def parse(self, trace_content: str, **kwargs) -> dict[str, Any]:
+        """Parse pytest logs with comprehensive Django and standard pytest support"""
+        # Check if Django patterns are present
+        django_indicators = [
+            "django.core.exceptions.ValidationError",
+            "UNIQUE constraint failed",
+            "django.db.utils.IntegrityError",
+            "manage.py",
+            "django.conf",
+        ]
+
+        is_django = any(
+            indicator.lower() in trace_content.lower()
+            for indicator in django_indicators
+        )
+
+        if is_django:
+            return self._parse_django_pytest(trace_content)
+        else:
+            return self._parse_standard_pytest(trace_content)
+
+    def _parse_django_pytest(self, trace_content: str) -> dict[str, Any]:
+        """Parse Django-aware pytest logs"""
+        # Use the comprehensive pytest analysis first
+        pytest_analysis = PytestLogParser.parse_pytest_log(trace_content)
+
+        # Extract Django-specific errors using dedicated patterns
+        django_errors = self._extract_django_errors(trace_content)
+
+        # Convert all to standardized format
+        errors = []
+
+        # Process detailed failures from pytest analysis
+        if pytest_analysis.detailed_failures:
+            for failure in pytest_analysis.detailed_failures:
+                errors.append(
+                    {
+                        "test_file": failure.test_file or "unknown",
+                        "test_function": failure.test_function or "unknown",
+                        "exception_type": failure.exception_type or "Pytest Failure",
+                        "message": failure.exception_message or "No message",
+                        "line_number": getattr(failure, "line_number", None),
+                        "has_traceback": bool(failure.traceback),
+                    }
+                )
+
+        # Add Django-specific errors from LogEntry format
+        for entry in django_errors:
+            errors.append(
+                {
+                    "test_file": "Django Setup",
+                    "test_function": f"Django Error (Line {entry.line_number or 'Unknown'})",
+                    "exception_type": "Django ValidationError",
+                    "message": entry.message,
+                    "line_number": entry.line_number or 0,
+                    "has_traceback": False,
+                }
+            )
+
+        # Get statistics from pytest analysis
+        stats = pytest_analysis.statistics or PytestStatistics()
+
+        return self.validate_output(
+            {
+                "parser_type": "pytest",
+                "framework": self.framework.value,
+                "errors": errors,
+                "error_count": len(errors),
+                "warnings": [],
+                "warning_count": 0,
+                "summary": {
+                    "total_tests": stats.total_tests or len(errors),
+                    "failed": stats.failed or len(errors),
+                    "passed": stats.passed or 0,
+                    "skipped": stats.skipped or 0,
+                },
+            }
+        )
+
+    def _parse_standard_pytest(self, trace_content: str) -> dict[str, Any]:
+        """Parse standard pytest logs using detailed analysis"""
+        pytest_analysis = PytestLogParser.parse_pytest_log(trace_content)
+
+        # Convert to standardized format
+        errors = []
+
+        # Process detailed failures
+        if pytest_analysis.detailed_failures:
+            for failure in pytest_analysis.detailed_failures:
+                errors.append(
+                    {
+                        "test_file": failure.test_file or "unknown",
+                        "test_function": failure.test_function or "unknown",
+                        "exception_type": failure.exception_type or "Pytest Failure",
+                        "message": failure.exception_message or "No message",
+                        "line_number": getattr(failure, "line_number", None),
+                        "has_traceback": bool(failure.traceback),
+                    }
+                )
+
+        # Process short summary if no detailed failures
+        if not errors and pytest_analysis.short_summary:
+            for summary in pytest_analysis.short_summary:
+                errors.append(
+                    {
+                        "test_file": summary.test_file or "unknown",
+                        "test_function": summary.test_function or "unknown",
+                        "exception_type": summary.error_type or "Pytest Error",
+                        "message": summary.error_message or "No message",
+                        "line_number": summary.line_number,
+                        "has_traceback": False,
+                    }
+                )
+
+        # Get statistics
+        stats = pytest_analysis.statistics or PytestStatistics()
+
+        return self.validate_output(
+            {
+                "parser_type": "pytest",
+                "framework": self.framework.value,
+                "errors": errors,
+                "error_count": len(errors),
+                "warnings": [],
+                "warning_count": 0,
+                "summary": {
+                    "total_tests": stats.total_tests or len(errors),
+                    "failed": stats.failed or len(errors),
+                    "passed": stats.passed or 0,
+                    "skipped": stats.skipped or 0,
+                },
+            }
+        )
+
+    def _extract_django_errors(self, log_text: str) -> list[LogEntry]:
+        """Extract Django-specific errors that might be missed by standard pytest parsing"""
+        cleaned_log_text = BaseParser.clean_ansi_sequences(log_text)
+        entries: list[LogEntry] = []
+        lines = cleaned_log_text.split("\n")
+
+        # Standard exclude patterns from LogParser
+        EXCLUDE_PATTERNS = [
+            r"Running with gitlab-runner",
+            r"Preparing the.*executor",
+            r"Using.*kubernetes.*executor",
+            r"section_start:",
+            r"section_end:",
+        ]
+
+        for line_num, log_line in enumerate(lines, 1):
+            log_line = log_line.strip()
+            if not log_line:
+                continue
+
+            # Skip GitLab CI infrastructure messages
+            if any(
+                re.search(pattern, log_line, re.IGNORECASE)
+                for pattern in EXCLUDE_PATTERNS
+            ):
+                continue
+
+            # Check for Django-specific errors
+            for pattern, level in self.DJANGO_ERROR_PATTERNS:
+                match = re.search(pattern, log_line, re.IGNORECASE)
+                if match:
+                    # Extract actual Python file line number if available
+                    actual_line_number = self._extract_source_line_number(
+                        lines, line_num, log_line
+                    )
+
+                    entry = LogEntry(
+                        level=level,
+                        message=log_line,
+                        line_number=actual_line_number,
+                        context=self._get_context(lines, line_num),
+                        error_type=self._classify_django_error_type(log_line),
+                    )
+                    entries.append(entry)
+                    break
+
+        return entries
+
+    def _extract_source_line_number(
+        self, lines: list[str], current_line: int, log_line: str
+    ) -> int:
+        """Extract the actual source code line number from Django traceback"""
+        file_line_patterns = [
+            r'^\s*File\s+"([^"]+)",\s+line\s+(\d+)',
+            r"^\s*([^:\s]+):(\d+):\s*in\s+",
+            r"^\s*([^:\s]+):(\d+):\s*",
+        ]
+
+        # Check current line first
+        for pattern in file_line_patterns:
+            file_match = re.search(pattern, log_line)
+            if file_match and len(file_match.groups()) >= 2:
+                file_path = file_match.group(1)
+                if not any(
+                    sys_path in file_path
+                    for sys_path in [
+                        "/root/.local/share/uv/python/",
+                        "site-packages",
+                        "/usr/lib",
+                    ]
+                ):
+                    try:
+                        return int(file_match.group(2))
+                    except (ValueError, IndexError):
+                        pass
+
+        return current_line
+
+    def _get_context(
+        self, lines: list[str], current_line: int, context_size: int = 5
+    ) -> str:
+        """Get surrounding context for error with infrastructure noise filtering"""
+        start = max(0, current_line - context_size - 1)
+        end = min(len(lines), current_line + context_size)
+        context_lines = lines[start:end]
+
+        filtered_lines = []
+        for line in context_lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Keep relevant context, exclude only obvious infrastructure noise
+            infrastructure_patterns = [
+                r"Running with gitlab-runner",
+                r"Preparing the.*executor",
+                r"Using Kubernetes",
+                r"section_start:",
+                r"section_end:",
+            ]
+
+            should_keep = True
+            for pattern in infrastructure_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    should_keep = False
+                    break
+
+            if should_keep:
+                filtered_lines.append(line)
+
+        return "\n".join(filtered_lines)
+
+    def _classify_django_error_type(self, message: str) -> str:
+        """Classify Django error types for better categorization"""
+        message_lower = message.lower()
+
+        if "validationerror" in message_lower:
+            return "django_validation"
+        elif "integrityerror" in message_lower:
+            return "django_integrity"
+        elif "constraint" in message_lower:
+            return "database_constraint"
+        elif "django" in message_lower:
+            return "django_framework"
+        else:
+            return "unknown"
+
+
+# Preserve the existing detailed parsing logic as a utility class
 class PytestLogParser(BaseParser):
     """Enhanced parser for pytest logs with detailed failure extraction"""
 
@@ -186,17 +529,23 @@ class PytestLogParser(BaseParser):
         for errors_match in errors_matches:
             errors_section = errors_match.group(1)
 
-            # Collection errors have format: _ ERROR collecting path/to/test_file.py _
-            error_pattern = r"_\s*ERROR\s+collecting\s+(.+?)\s+_"
-            error_matches = re.finditer(error_pattern, errors_section)
+            # Handle different ERROR formats:
+            # 1. Collection errors: _ ERROR collecting path/to/test_file.py _
+            # 2. Setup errors: _ ERROR at setup of TestClass.test_method _
+            # 3. Teardown errors: _ ERROR at teardown of TestClass.test_method _
 
-            for error_match in error_matches:
+            # Collection errors pattern
+            collection_error_pattern = r"_\s*ERROR\s+collecting\s+(.+?)\s+_"
+            collection_matches = re.finditer(collection_error_pattern, errors_section)
+
+            for error_match in collection_matches:
                 test_file_path = error_match.group(1).strip()
 
                 # Extract the content after this error header until the next error or end
                 start_pos = error_match.end()
                 next_error_match = re.search(
-                    r"_\s*ERROR\s+collecting", errors_section[start_pos:]
+                    r"_\s*ERROR\s+(?:collecting|at\s+(?:setup|teardown))",
+                    errors_section[start_pos:],
                 )
 
                 if next_error_match:
@@ -211,6 +560,34 @@ class PytestLogParser(BaseParser):
                 )
                 if collection_failure:
                     failures.append(collection_failure)
+
+            # Setup/Teardown errors pattern
+            setup_error_pattern = r"_\s*ERROR\s+at\s+(setup|teardown)\s+of\s+(.+?)\s+_"
+            setup_matches = re.finditer(setup_error_pattern, errors_section)
+
+            for error_match in setup_matches:
+                error_phase = error_match.group(1).strip()  # "setup" or "teardown"
+                test_name = error_match.group(2).strip()
+
+                # Extract the content after this error header until the next error or end
+                start_pos = error_match.end()
+                next_error_match = re.search(
+                    r"_\s*ERROR\s+(?:collecting|at\s+(?:setup|teardown))",
+                    errors_section[start_pos:],
+                )
+
+                if next_error_match:
+                    end_pos = start_pos + next_error_match.start()
+                    error_content = errors_section[start_pos:end_pos]
+                else:
+                    error_content = errors_section[start_pos:]
+
+                # Parse setup/teardown error as a failure
+                setup_failure = cls._parse_setup_teardown_error(
+                    test_name, error_content, error_phase
+                )
+                if setup_failure:
+                    failures.append(setup_failure)
 
         return failures
 
@@ -488,6 +865,115 @@ class PytestLogParser(BaseParser):
             test_name=f"Collection error in {test_file_path.split('/')[-1]}",
             test_file=actual_error_file or test_file_path,
             test_function="<module>",  # Collection errors happen at module level
+            test_parameters=None,
+            platform_info=None,
+            python_version=None,
+            exception_type=exception_type,
+            exception_message=exception_message,
+            traceback=traceback,
+            full_error_text=content,
+        )
+
+    @classmethod
+    def _parse_setup_teardown_error(
+        cls, test_name: str, content: str, error_phase: str
+    ) -> PytestFailureDetail | None:
+        """Parse setup or teardown errors from the ERRORS section"""
+        if not content.strip():
+            return None
+
+        # Extract exception information
+        exception_match = re.search(
+            r"([A-Za-z][A-Za-z0-9_]*(?:Error|Exception)):\s*(.+?)(?=\n|$)",
+            content,
+        )
+
+        if exception_match:
+            exception_type = exception_match.group(1).strip()
+            exception_message = exception_match.group(2).strip()
+        else:
+            exception_type = f"{error_phase.title()} Error"
+            # Try to extract a meaningful error from Django ValidationError format
+            django_error_match = re.search(
+                r"ValidationError:\s*\{'__all__':\s*\['(.+?)'\]\}",
+                content,
+                re.DOTALL,
+            )
+            if django_error_match:
+                exception_message = django_error_match.group(1).strip()
+                exception_type = "Django ValidationError"
+            else:
+                exception_message = "Error during test setup/teardown"
+
+        # Extract the actual error file and line from traceback
+        actual_error_file = None
+        actual_error_line = None
+
+        # Look for file references in the content that are NOT in system paths
+        file_matches = re.findall(r'File\s+"([^"]+)",\s+line\s+(\d+)', content)
+
+        for file_path, line_num in file_matches:
+            # Skip system files and prefer user code
+            if not any(
+                sys_path in file_path
+                for sys_path in [
+                    "site-packages",
+                    ".venv",
+                    "/usr/",
+                    "/root/.local",
+                    "cpython-",
+                ]
+            ):
+                actual_error_file = file_path
+                try:
+                    actual_error_line = int(line_num)
+                    break  # Use first user code file found
+                except ValueError:
+                    pass
+
+        # Parse test name components
+        test_file = None
+        test_function = test_name
+
+        if "::" in test_name:
+            parts = test_name.split("::")
+            if len(parts) >= 2:
+                test_file = parts[0] if parts[0].endswith(".py") else None
+                test_function = parts[-1]
+        elif "." in test_name and not test_name.startswith("test_"):
+            # Class.method format like "DocumentOrganizerTest.test_method"
+            parts = test_name.split(".")
+            test_function = parts[-1] if len(parts) > 1 else test_name
+
+        # Parse traceback
+        traceback = cls._parse_traceback(content)
+
+        # Override traceback to ensure correct line number for the actual error
+        if actual_error_file and actual_error_line:
+            # Create a new traceback entry for the actual error location
+            actual_error_entry = PytestTraceback(
+                file_path=actual_error_file,
+                line_number=actual_error_line,
+                function_name=error_phase,  # "setup" or "teardown"
+                code_line=None,
+                error_type=exception_type,
+                error_message=exception_message,
+            )
+
+            # Put the actual error location first in the traceback
+            traceback = [actual_error_entry] + [
+                tb
+                for tb in traceback
+                if not (
+                    tb.file_path == actual_error_file
+                    and tb.line_number == actual_error_line
+                )
+            ]
+
+        return PytestFailureDetail(
+            test_name=f"{error_phase.title()} error: {test_name}",
+            test_file=actual_error_file or test_file or "unknown",
+            test_function=test_function,
             test_parameters=None,
             platform_info=None,
             python_version=None,

@@ -1,10 +1,19 @@
 """
-Parser modules for log analysis
+Parser modules for log analysis - following SOLID principles
+
+All parsers now implement consistent BaseFrameworkParser interface.
 """
 
 from .base_parser import BaseParser
-from .django_pytest_parser import DjangoAwarePytestParser
-from .log_parser import LogParser
-from .pytest_parser import PytestLogParser
+from .log_parser import GenericLogDetector, GenericLogParser, LogParser
+from .pytest_parser import PytestDetector, PytestLogParser, PytestParser
 
-__all__ = ["BaseParser", "LogParser", "PytestLogParser", "DjangoAwarePytestParser"]
+__all__ = [
+    "BaseParser",
+    "LogParser",  # Legacy utility class
+    "GenericLogDetector",
+    "GenericLogParser",
+    "PytestDetector",
+    "PytestParser",
+    "PytestLogParser",  # Utility class
+]

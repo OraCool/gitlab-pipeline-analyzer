@@ -52,14 +52,14 @@ class PytestShortSummary:
 class PytestStatistics:
     """Represents pytest run statistics"""
 
-    total_tests: int
-    passed: int
-    failed: int
-    skipped: int
-    errors: int
-    warnings: int
-    duration_seconds: float | None
-    duration_formatted: str | None
+    total_tests: int = 0
+    passed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    errors: int = 0
+    warnings: int = 0
+    duration_seconds: float | None = None
+    duration_formatted: str | None = None
 
 
 @dataclass
