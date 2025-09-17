@@ -24,13 +24,13 @@ from ..models.pytest_models import (
     PytestStatistics,
     PytestTraceback,
 )
+from ..utils.debug import debug_print, verbose_debug_print
 from .base_parser import (
     BaseFrameworkDetector,
     BaseFrameworkParser,
     BaseParser,
     TestFramework,
 )
-from ..utils.debug import debug_print, verbose_debug_print
 
 
 class PytestDetector(BaseFrameworkDetector):
@@ -69,8 +69,38 @@ class PytestDetector(BaseFrameworkDetector):
         if self._check_job_name_patterns(job_name, pytest_patterns):
             return True
 
-        # Check trace content for pytest indicators
-        return "pytest" in trace_content.lower()
+        # Check trace content for pytest indicators (comprehensive)
+        if trace_content:
+            import re
+
+            # High-confidence pytest indicators
+            high_confidence_indicators = [
+                r"=+\s*FAILURES\s*=+",  # pytest FAILURES section
+                r"=+\s*test session starts\s*=+",  # pytest session start
+                r"collected \d+ items?",  # pytest collection message
+                r"::\w+.*FAILED",  # pytest test failure format
+                r"FAILED.*::\w+",  # Alternative FAILED pattern
+                r"conftest\.py",  # pytest configuration file
+                r"short test summary info",  # pytest summary section
+            ]
+
+            for indicator in high_confidence_indicators:
+                if re.search(indicator, trace_content, re.IGNORECASE):
+                    return True
+
+            # Command indicators
+            command_indicators = [
+                r"uv run.*pytest",
+                r"coverage run -m pytest",
+                r"python -m pytest",
+                r"pytest.*\.py",
+            ]
+
+            for indicator in command_indicators:
+                if re.search(indicator, trace_content, re.IGNORECASE):
+                    return True
+
+        return False
 
 
 class PytestParser(BaseFrameworkParser):
@@ -280,7 +310,7 @@ class PytestParser(BaseFrameworkParser):
                     actual_file_path = file_info["file_path"]
 
                     # Look for file:line pattern in preceding lines if not found in current line
-                    if not actual_file_path and line_num > 0:
+                    if not actual_file_path:
                         # Check a few lines before for file:line patterns
                         for check_line in range(max(0, line_num - 3), line_num):
                             check_line_content = lines[check_line].strip()
@@ -316,7 +346,7 @@ class PytestParser(BaseFrameworkParser):
 
     def _extract_file_info_from_traceback(
         self, lines: list[str], current_line: int, log_line: str
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Extract both file path and line number from Django traceback (legacy method)"""
         file_line_patterns = [
             r'^\s*File\s+"([^"]+)",\s+line\s+(\d+)',
@@ -482,9 +512,7 @@ class PytestLogParser(BaseParser):
         seen_failures = set()
         deduplicated_detailed = []
         deduplicated_summary = []
-        detailed_failure_map = (
-            {}
-        )  # Maps fingerprint to detailed failure for line number lookup
+        detailed_failure_map = {}  # Maps fingerprint to detailed failure for line number lookup
 
         # First pass: Process detailed failures (higher priority)
         for detailed in detailed_failures:
@@ -1421,7 +1449,7 @@ class PytestLogParser(BaseParser):
                         )
                         continue
 
-        debug_print(f"[PYTEST] No direct pattern matches found in error message")
+        debug_print("[PYTEST] No direct pattern matches found in error message")
 
         # If not found in error message and we have full log text, search for traceback summary lines
         if full_log_text and error_type:

@@ -212,7 +212,7 @@ class JestParser(BaseFrameworkParser):
 
     def _extract_jest_summary(self, trace_content: str) -> dict[str, Any]:
         """Extract Jest test run summary"""
-        summary = {
+        summary: dict[str, int | str | None] = {
             "total_tests": 0,
             "passed_tests": 0,
             "failed_tests": 0,
@@ -275,7 +275,7 @@ class JestParser(BaseFrameworkParser):
             if match:
                 groups = match.groups()
                 file_path = groups[0]
-                line_number = groups[1] if len(groups) > 1 else None
+                line_number_str = groups[1] if len(groups) > 1 else None
 
                 # Skip node_modules and system paths
                 if not any(
@@ -283,7 +283,7 @@ class JestParser(BaseFrameworkParser):
                 ):
                     try:
                         return file_path.strip(), (
-                            int(line_number) if line_number else None
+                            int(line_number_str) if line_number_str else None
                         )
                     except (ValueError, TypeError):
                         continue
@@ -294,7 +294,7 @@ class JestParser(BaseFrameworkParser):
                 matches = re.findall(pattern, full_log_text)
                 for match in matches:
                     file_path = match[0] if isinstance(match, tuple) else match
-                    line_number = (
+                    line_number_str = (
                         match[1]
                         if isinstance(match, tuple) and len(match) > 1
                         else None
@@ -307,7 +307,7 @@ class JestParser(BaseFrameworkParser):
                     ):
                         try:
                             return file_path.strip(), (
-                                int(line_number) if line_number else None
+                                int(line_number_str) if line_number_str else None
                             )
                         except (ValueError, TypeError):
                             continue
