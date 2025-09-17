@@ -92,6 +92,38 @@ class GenericLogParser(BaseFrameworkParser):
             }
         )
 
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Extract source file path and line number from generic error messages.
+
+        This method handles various generic error message formats including:
+        - Python tracebacks: "File \"/path/to/file.py\", line 42, in function"
+        - Generic file:line patterns: "filename.py:42: error message"
+        - Make errors: "filename.py:42: error description"
+        """
+        import re
+
+        # Pattern 1: Python traceback format
+        traceback_match = re.search(r'File "([^"]+)", line (\d+)', error_message)
+        if traceback_match:
+            return traceback_match.group(1), int(traceback_match.group(2))
+
+        # Pattern 2: Generic file:line format
+        file_line_match = re.search(r"([a-zA-Z0-9_/.-]+\.py):(\d+):", error_message)
+        if file_line_match:
+            return file_line_match.group(1), int(file_line_match.group(2))
+
+        # Pattern 3: Look in full log text for more context
+        if full_log_text:
+            # Search for traceback in full text
+            traceback_match = re.search(r'File "([^"]+)", line (\d+)', full_log_text)
+            if traceback_match:
+                return traceback_match.group(1), int(traceback_match.group(2))
+
+        return None, None
+
 
 class LogParser(BaseParser):
     """Parser for extracting errors and warnings from CI/CD logs"""
