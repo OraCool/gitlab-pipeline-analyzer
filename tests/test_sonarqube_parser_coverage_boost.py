@@ -5,8 +5,8 @@ This test file targets the SonarQube parser functionality that was previously un
 to increase coverage from ~22% to a higher percentage.
 """
 
-from gitlab_analyzer.parsers.sonarqube_parser import SonarQubeDetector, SonarQubeParser
 from gitlab_analyzer.parsers.base_parser import TestFramework
+from gitlab_analyzer.parsers.sonarqube_parser import SonarQubeDetector, SonarQubeParser
 
 
 class TestSonarQubeDetector:

@@ -741,7 +741,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **14 essential tools** for GitLab CI/CD pipeline analysis:
+The MCP server provides **13 essential tools** for GitLab CI/CD pipeline analysis:
 
 #### 🎯 Core Analysis Tool
 
@@ -770,6 +770,9 @@ The MCP server provides **14 essential tools** for GitLab CI/CD pipeline analysi
 #### 🧹 Additional Tools
 
 10. **parse_trace_for_errors(trace_content)** - **NEW in v0.8.0**: Parse CI/CD trace content and extract errors without database storage
+11. **get_clean_job_trace(project_id, job_id)** - **NEW in v0.12.0**: Get cleaned, human-readable job trace without analysis overhead
+12. **analyze_job(project_id, job_id)** - **NEW in v0.12.0**: Analyze a specific GitLab CI/CD job independently with error extraction
+13. **analyze_job_with_pipeline_context(project_id, pipeline_id, job_id)** - **NEW in v0.12.0**: Analyze a job with full pipeline context
 
 ### Resource-Based Architecture
 

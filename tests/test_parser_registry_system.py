@@ -5,19 +5,18 @@ Tests the core parser registry system including detector registration,
 framework detection, parser retrieval, and import error handling.
 """
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.gitlab_analyzer.parsers.base_parser import (
-    TestFramework,
     BaseFrameworkDetector,
     BaseFrameworkParser,
+    TestFramework,
 )
 from src.gitlab_analyzer.parsers.framework_registry import (
     ParserRegistry,
-    parser_registry,
     detect_job_framework,
     parse_with_framework,
+    parser_registry,
 )
 
 
@@ -305,6 +304,6 @@ class TestRegistryEdgeCases:
         registry.register_detector(detector1)
         registry.register_detector(detector2)
 
-        # Should handle exception and continue to next detector
-        with pytest.raises(Exception):
-            registry.detect_framework("test", "test", "content")
+        # Should handle exception and return None when all detectors fail
+        result = registry.detect_framework("test", "test", "content")
+        assert result is None

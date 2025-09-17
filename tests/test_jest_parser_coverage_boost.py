@@ -5,8 +5,8 @@ This test file targets the Jest parser functionality that was previously unteste
 to increase coverage from ~20% to a higher percentage.
 """
 
-from gitlab_analyzer.parsers.jest_parser import JestDetector, JestParser
 from gitlab_analyzer.parsers.base_parser import TestFramework
+from gitlab_analyzer.parsers.jest_parser import JestDetector, JestParser
 
 
 class TestJestDetector:
@@ -168,7 +168,7 @@ class TestJestParser:
         trace_content = """
         FAIL src/components/Form.test.js
         ● Form › should render correctly
-        
+
         TypeError: Cannot read property 'value' of undefined
           at Object.<anonymous> (src/components/Form.test.js:15:23)
         """
@@ -282,12 +282,12 @@ class TestJestParser:
         PASS src/components/Button.test.js
         FAIL src/components/Form.test.js
         ● Form › validation
-        
+
         TypeError: Cannot read property 'length' of null
           at Object.<anonymous> (src/components/Form.test.js:25:10)
-        
+
         WARNING: Using deprecated Jest matcher
-        
+
         Test Suites: 1 failed, 1 passed, 2 total
         Tests: 8 failed, 12 passed, 20 total
         """
@@ -349,7 +349,7 @@ class TestJestParser:
         trace_content = """
         PASS src/utils/math.test.js
         ✓ should add numbers correctly
-        FAIL src/components/Form.test.js  
+        FAIL src/components/Form.test.js
         ✗ should validate input
         Error: Expected true but received false
         """

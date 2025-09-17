@@ -3,18 +3,19 @@ Simple pytest parser tests with basic coverage.
 Tests the pytest-specific parsing functionality using only existing imports.
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import only what we know works
 from gitlab_analyzer.parsers.pytest_parser import (
-    PytestParser,
-    PytestLogParser,
     PytestDetector,
+    PytestLogParser,
+    PytestParser,
 )
 
 

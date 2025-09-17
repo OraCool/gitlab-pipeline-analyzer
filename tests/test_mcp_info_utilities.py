@@ -2,14 +2,11 @@
 Clean coverage push tests to reach 65% threshold.
 """
 
-import pytest
-from unittest.mock import Mock, patch
-
 from src.gitlab_analyzer.utils.utils import (
+    _is_test_job,
+    categorize_files_by_type,
     get_mcp_info,
     should_exclude_file_path,
-    categorize_files_by_type,
-    _is_test_job,
 )
 
 

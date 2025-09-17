@@ -3,10 +3,11 @@ Simple cache tests with basic coverage.
 Tests the caching functionality using only existing imports.
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -75,7 +76,7 @@ class TestMcpCacheBasic:
         # Test get methods don't crash
         try:
             result1 = cache.get_job_errors("123", "456")
-            assert isinstance(result1, (list, type(None)))
+            assert isinstance(result1, list | type(None))
 
             result2 = cache.get_pipeline_info("123", "456")
             assert result2 is None or isinstance(result2, dict)
@@ -156,7 +157,7 @@ class TestCacheErrorHandling:
         mock_sqlite.connect.side_effect = Exception("Database error")
 
         try:
-            cache = McpCache(":memory:")
+            McpCache(":memory:")
             # If cache handles error gracefully, test passes
             assert True
         except Exception:

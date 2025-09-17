@@ -12,9 +12,9 @@ Goal: Achieve exactly 65.00% coverage by targeting ~26 missing lines strategical
 
 from unittest.mock import Mock, patch
 
-from src.gitlab_analyzer.utils.jira_utils import parse_jira_tickets_from_storage
 from src.gitlab_analyzer.analysis.error_model import Error
 from src.gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
+from src.gitlab_analyzer.utils.jira_utils import parse_jira_tickets_from_storage
 
 
 class TestJiraUtilsPrecisionCoverage:
