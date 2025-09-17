@@ -43,19 +43,19 @@ class TestErrorModelPrecisionCoverage:
         # Create a mock LogEntry object
         mock_log_entry = Mock()
         mock_log_entry.message = "Test error message"
-        mock_log_entry.severity = "ERROR"
+        mock_log_entry.level = "ERROR"
         mock_log_entry.line_number = 42
-        mock_log_entry.file_path = "src/test_file.py"
-        mock_log_entry.timestamp = "2024-01-01T12:00:00Z"
         mock_log_entry.context = "Test context"
+        mock_log_entry.error_type = "SyntaxError"
 
         # This should hit line 32: message=log_entry.message,
         error = Error.from_log_entry(mock_log_entry)
 
         assert error.message == "Test error message"
-        assert error.severity == "ERROR"
+        assert error.level == "ERROR"
         assert error.line_number == 42
-        assert error.file_path == "src/test_file.py"
+        assert error.file_path is None  # LogEntry doesn't have file_path
+        assert error.exception_type == "SyntaxError"
 
 
 class TestBaseParserPrecisionCoverage:
@@ -72,7 +72,7 @@ class TestBaseParserPrecisionCoverage:
             @property
             def framework(self):
                 # This should hit line 39: property implementation
-                from src.gitlab_analyzer.models.pytest_models import TestFramework
+                from src.gitlab_analyzer.parsers.base_parser import TestFramework
 
                 return TestFramework.PYTEST
 
@@ -83,7 +83,7 @@ class TestBaseParserPrecisionCoverage:
         assert detector.detect("build-job", "build", "content") is False
 
         # Exercise the framework property (line 39)
-        from src.gitlab_analyzer.models.pytest_models import TestFramework
+        from src.gitlab_analyzer.parsers.base_parser import TestFramework
 
         assert detector.framework == TestFramework.PYTEST
 
@@ -93,7 +93,12 @@ class TestDebugUtilsPrecisionCoverage:
 
     def test_debug_print_various_inputs(self):
         """Test debug_print with various input types."""
-        with patch("builtins.print") as mock_print:
+        with (
+            patch("builtins.print") as mock_print,
+            patch(
+                "src.gitlab_analyzer.utils.debug.is_debug_enabled", return_value=True
+            ),
+        ):
             # Test edge cases to hit lines 26-27
             debug_print("test message")
             debug_print(None)
@@ -105,7 +110,12 @@ class TestDebugUtilsPrecisionCoverage:
 
     def test_verbose_debug_print_coverage(self):
         """Test verbose_debug_print to hit lines 52-53."""
-        with patch("builtins.print") as mock_print:
+        with (
+            patch("builtins.print") as mock_print,
+            patch(
+                "src.gitlab_analyzer.utils.debug.is_debug_enabled", return_value=True
+            ),
+        ):
             # Test verbose debug print to hit lines 52-53
             verbose_debug_print("verbose test message")
             verbose_debug_print(None)
@@ -133,15 +143,14 @@ class TestAdditionalPrecisionTargets:
         # Test with minimal values
         error = Error(
             message="",
-            severity="",
+            level="",
             line_number=0,
             file_path="",
-            timestamp="",
             context="",
         )
 
         assert error.message == ""
-        assert error.severity == ""
+        assert error.level == ""
         assert error.line_number == 0
 
     def test_additional_coverage_boost(self):
@@ -162,7 +171,7 @@ class TestAdditionalPrecisionTargets:
 
             @property
             def framework(self):
-                from src.gitlab_analyzer.models.pytest_models import TestFramework
+                from src.gitlab_analyzer.parsers.base_parser import TestFramework
 
                 return TestFramework.GENERIC
 
@@ -171,6 +180,6 @@ class TestAdditionalPrecisionTargets:
         # Test with empty inputs
         assert detector.detect("", "", "") is False
 
-        from src.gitlab_analyzer.models.pytest_models import TestFramework
+        from src.gitlab_analyzer.parsers.base_parser import TestFramework
 
         assert detector.framework == TestFramework.GENERIC
