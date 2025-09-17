@@ -460,7 +460,14 @@ class DynamicErrorPatternMatcher:
         """Categorize pattern based on message content."""
         message_lower = message.lower()
 
-        if any(term in message_lower for term in ["import", "module", "package"]):
+        # Check for domain boundary violations and import patterns
+        if (
+            any(term in message_lower for term in ["domain", "broken", "contract"])
+            or (
+                " -> " in message and "(l." in message
+            )  # import-linter domain violations
+            or any(term in message_lower for term in ["import", "module", "package"])
+        ):
             return "Import/Module Error"
         elif any(term in message_lower for term in ["attribute", "method", "function"]):
             return "Attribute/Method Error"

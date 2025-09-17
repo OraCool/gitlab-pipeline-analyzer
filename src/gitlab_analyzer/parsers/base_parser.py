@@ -1,11 +1,194 @@
 """
-Base parser utilities for log analysis
+Base parser utilities and abstract interfaces for log analysis.
+
+This module defines the common interface that all framework-specific parsers must implement,
+following SOLID principles for consistent and extensible parser architecture.
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
 import re
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Any, Protocol
+
+
+class TestFramework(Enum):
+    """Supported test frameworks and CI/CD tools"""
+
+    PYTEST = "pytest"
+    JEST = "jest"
+    MOCHA = "mocha"
+    JUNIT = "junit"
+    VITEST = "vitest"
+    SONARQUBE = "sonarqube"
+    GENERIC = "generic"
+
+
+class FrameworkDetector(Protocol):
+    """Protocol for framework detection - Interface Segregation Principle"""
+
+    def detect(self, job_name: str, job_stage: str, trace_content: str) -> bool:
+        """Detect if trace content matches this framework"""
+        ...
+
+    @property
+    def framework(self) -> TestFramework:
+        """Return the framework this detector identifies"""
+        ...
+
+    @property
+    def priority(self) -> int:
+        """Detection priority (higher = checked first)"""
+        ...
+
+
+class BaseFrameworkParser(ABC):
+    """
+    Abstract base class for all framework-specific parsers.
+
+    This class defines the common interface that all parsers must implement,
+    following the Template Method pattern and Interface Segregation Principle.
+    """
+
+    @property
+    @abstractmethod
+    def framework(self) -> TestFramework:
+        """Return the framework this parser handles"""
+        pass
+
+    @abstractmethod
+    def parse(self, trace_content: str, **kwargs) -> dict[str, Any]:
+        """
+        Parse trace content and return standardized results.
+
+        Args:
+            trace_content: Raw log content from CI/CD job
+            **kwargs: Parser-specific options (include_traceback, exclude_paths, etc.)
+
+        Returns:
+            Standardized parsing results with consistent structure:
+            {
+                "parser_type": str,
+                "framework": str,
+                "errors": List[Dict[str, Any]],
+                "error_count": int,
+                "warnings": List[Dict[str, Any]],
+                "warning_count": int,
+                "summary": Dict[str, Any]  # Framework-specific summary
+            }
+        """
+        pass
+
+    @abstractmethod
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Extract source file path and line number from error messages.
+
+        This method should be implemented by each parser to handle framework-specific
+        error message formats and traceback structures.
+
+        Args:
+            error_message: The error message text from the test output
+            full_log_text: Complete log content for searching traceback information
+            error_type: The error type (e.g., "AttributeError", "TypeError") if already extracted
+
+        Returns:
+            Tuple of (source_file_path, line_number) or (None, None) if not found
+
+        Examples:
+            For pytest: Extract from "domains/gwpy-document/services.py:1101: AttributeError"
+            For jest: Extract from "at Object.<anonymous> (/path/to/file.js:42:5)"
+            For generic: Extract line numbers from stack traces or error messages
+        """
+        pass
+
+    def validate_output(self, result: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate and normalize parser output to ensure consistency.
+
+        This method enforces the common output structure across all parsers.
+        """
+        # Ensure required fields exist
+        result.setdefault("parser_type", self.framework.value)
+        result.setdefault("framework", self.framework.value)
+        result.setdefault("errors", [])
+        result.setdefault("error_count", len(result["errors"]))
+        result.setdefault("warnings", [])
+        result.setdefault("warning_count", len(result["warnings"]))
+        result.setdefault("summary", {})
+
+        # Validate error structure
+        for error in result["errors"]:
+            error.setdefault("test_file", "unknown")
+            error.setdefault("test_function", "unknown")
+            error.setdefault("exception_type", "Unknown Error")
+            error.setdefault("message", "No message")
+            error.setdefault("line_number", 0)
+            error.setdefault("has_traceback", False)
+
+        # Validate warning structure
+        for warning in result["warnings"]:
+            warning.setdefault("message", "No message")
+            warning.setdefault("line_number", 0)
+            warning.setdefault("type", "unknown_warning")
+
+        return result
+
+    def parse_with_validation(self, trace_content: str, **kwargs) -> dict[str, Any]:
+        """
+        Parse content and validate output structure.
+
+        This template method ensures all parsers produce consistent output.
+        """
+        result = self.parse(trace_content, **kwargs)
+        return self.validate_output(result)
+
+
+class BaseFrameworkDetector(ABC):
+    """
+    Abstract base class for framework detectors.
+
+    Provides common detection patterns and follows Single Responsibility Principle.
+    """
+
+    @property
+    @abstractmethod
+    def framework(self) -> TestFramework:
+        """Return the framework this detector identifies"""
+        pass
+
+    @property
+    @abstractmethod
+    def priority(self) -> int:
+        """Detection priority (higher = checked first)"""
+        pass
+
+    @abstractmethod
+    def detect(self, job_name: str, job_stage: str, trace_content: str) -> bool:
+        """Detect if trace content matches this framework"""
+        pass
+
+    def _check_job_name_patterns(self, job_name: str, patterns: list[str]) -> bool:
+        """Common utility for job name pattern matching"""
+        return any(re.search(pattern, job_name.lower()) for pattern in patterns)
+
+    def _check_trace_content_patterns(
+        self, trace_content: str, patterns: list[str]
+    ) -> bool:
+        """Common utility for trace content pattern matching"""
+        return any(
+            re.search(pattern, trace_content, re.IGNORECASE) for pattern in patterns
+        )
+
+    def _exclude_by_patterns(self, content: str, exclude_patterns: list[str]) -> bool:
+        """Common utility for exclusion pattern matching"""
+        return any(
+            re.search(pattern, content, re.IGNORECASE) for pattern in exclude_patterns
+        )
 
 
 class BaseParser:

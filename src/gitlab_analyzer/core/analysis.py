@@ -12,8 +12,13 @@ from typing import Any
 
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.cache.models import generate_standard_error_id
+from gitlab_analyzer.parsers.framework_registry import (
+    TestFramework,
+    detect_job_framework,
+    parse_with_framework,
+)
 from gitlab_analyzer.parsers.log_parser import LogParser
-from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.parsers.pytest_parser import PytestLogParser, PytestParser
 from gitlab_analyzer.utils.debug import debug_print, verbose_debug_print
 
 logger = logging.getLogger(__name__)
@@ -286,11 +291,42 @@ def is_pytest_job(
     return False
 
 
+def is_django_project(trace_content: str = "") -> bool:
+    """
+    Detect if this is a Django project based on trace content.
+
+    Args:
+        trace_content: Raw log content from the job
+
+    Returns:
+        True if Django-related patterns are detected
+    """
+    if not trace_content:
+        return False
+
+    django_indicators = [
+        "django",
+        "ValidationError",
+        "IntegrityError",
+        "django.core.exceptions",
+        "django.db.utils",
+        "UNIQUE constraint failed",
+        "manage.py",
+        "django.conf",
+    ]
+
+    trace_lower = trace_content.lower()
+    return any(indicator.lower() in trace_lower for indicator in django_indicators)
+
+
 def get_optimal_parser(
     job_name: str = "", job_stage: str = "", trace_content: str = ""
 ) -> str:
     """
     Select the optimal parser for a job based on its characteristics.
+
+    DEPRECATED: Use detect_job_framework() for new code.
+    This function maintains backward compatibility by returning string types.
 
     Args:
         job_name: Name of the CI/CD job
@@ -298,20 +334,20 @@ def get_optimal_parser(
         trace_content: Raw log content from the job
 
     Returns:
-        Parser type: "pytest" or "generic"
+        Parser type: "pytest", "sonarqube", "jest", or "generic"
     """
     debug_print(
         f"🎯 PARSER SELECTION: Selecting optimal parser for job '{job_name}' (stage: '{job_stage}')"
     )
 
-    if is_pytest_job(job_name, job_stage, trace_content):
-        debug_print(
-            f"✅ PARSER SELECTION: Selected 'pytest' parser for job '{job_name}'"
-        )
-        return "pytest"
+    # Use new framework detection system
+    framework = detect_job_framework(job_name, job_stage, trace_content)
+    parser_type = framework.value
 
-    debug_print(f"✅ PARSER SELECTION: Selected 'generic' parser for job '{job_name}'")
-    return "generic"
+    debug_print(
+        f"✅ PARSER SELECTION: Selected '{parser_type}' parser for job '{job_name}'"
+    )
+    return parser_type
 
 
 def parse_job_logs(
@@ -323,11 +359,11 @@ def parse_job_logs(
     exclude_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """
-    Parse job logs using the appropriate parser with hybrid fallback.
+    Parse job logs using the appropriate parser with framework detection.
 
     Args:
         trace_content: Raw log content
-        parser_type: "auto", "pytest", or "generic"
+        parser_type: "auto", "pytest", "sonarqube", "jest", or "generic"
         job_name: Job name for auto-detection
         job_stage: Job stage for auto-detection
         include_traceback: Whether to include traceback in results
@@ -341,93 +377,49 @@ def parse_job_logs(
     )
     verbose_debug_print(f"📊 Trace content length: {len(trace_content)} characters")
 
+    # Framework detection and parsing
     if parser_type == "auto":
-        parser_type = get_optimal_parser(job_name, job_stage, trace_content)
-        debug_print(
-            f"🎯 PARSE JOB LOGS: Auto-detection selected '{parser_type}' parser"
+        framework = detect_job_framework(job_name, job_stage, trace_content)
+        debug_print(f"🎯 PARSE JOB LOGS: Auto-detected framework: {framework.value}")
+
+        # Use new framework-aware parsing
+        result = parse_with_framework(
+            trace_content,
+            framework,
+            include_traceback=include_traceback,
+            exclude_paths=exclude_paths,
         )
-
-    if parser_type == "pytest":
-        debug_print(f"🧪 PARSE JOB LOGS: Using pytest parser for job '{job_name}'")
-        # Try pytest parser first
-        pytest_result = parse_pytest_logs(
-            trace_content, include_traceback, exclude_paths
-        )
-
-        debug_print(
-            f"📊 PYTEST RESULTS: Found {pytest_result.get('error_count', 0)} errors from pytest parser"
-        )
-        verbose_debug_print(
-            f"📊 PYTEST RESULTS: Parser type: {pytest_result.get('parser_type')}"
-        )
-
-        # Check if pytest parser found meaningful pytest structure
-        # Even if error_count is 0, if it found test summaries or pytest sections,
-        # we should trust it and not fall back to generic parser
-        has_pytest_structure = (
-            pytest_result.get("test_summary") is not None
-            or pytest_result.get("parser_type") == "pytest"
-            or any(
-                key in pytest_result
-                for key in ["detailed_failures", "summary_failures"]
-            )
-        )
-
-        debug_print(f"🔍 PYTEST STRUCTURE: has_pytest_structure={has_pytest_structure}")
-        if pytest_result.get("test_summary"):
-            verbose_debug_print(
-                f"📊 PYTEST SUMMARY: {pytest_result.get('test_summary')}"
-            )
-
-        # Only fall back to generic parser if pytest found no structure at all
-        # This handles cases where pytest jobs fail during setup/import phase
-        if pytest_result.get("error_count", 0) == 0 and not has_pytest_structure:
-            debug_print(
-                f"⚠️ FALLBACK: Pytest parser found no pytest structure for job '{job_name}', trying generic parser"
-            )
-            logger.debug(
-                f"Pytest parser found no pytest structure for job {job_name}, trying generic parser"
-            )
-            generic_result = parse_generic_logs(trace_content)
-
-            # If generic parser finds errors, use it but preserve pytest metadata
-            if generic_result.get("error_count", 0) > 0:
-                debug_print(
-                    f"✅ FALLBACK SUCCESS: Generic parser found {generic_result.get('error_count')} errors for pytest job '{job_name}'"
-                )
-                logger.info(
-                    f"Generic parser found {generic_result.get('error_count')} errors for pytest job {job_name}"
-                )
-                # Merge results - use generic errors but keep pytest structure
-                pytest_result.update(
-                    {
-                        "errors": generic_result.get("errors", []),
-                        "error_count": generic_result.get("error_count", 0),
-                        "warnings": generic_result.get("warnings", []),
-                        "warning_count": generic_result.get("warning_count", 0),
-                        "parser_type": "hybrid_pytest_generic",  # Indicate hybrid parsing
-                        "fallback_reason": "pytest_parser_found_no_errors",
-                    }
-                )
-                debug_print(
-                    "🔄 HYBRID PARSING: Merged pytest structure with generic errors"
-                )
-            else:
-                debug_print(
-                    f"❌ FALLBACK FAILED: Generic parser also found no errors for pytest job '{job_name}'"
-                )
 
         debug_print(
-            f"✅ PYTEST PARSING COMPLETE: Returning {pytest_result.get('error_count', 0)} errors with parser_type='{pytest_result.get('parser_type')}'"
-        )
-        return pytest_result
-    else:
-        debug_print(f"🔧 PARSE JOB LOGS: Using generic parser for job '{job_name}'")
-        result = parse_generic_logs(trace_content)
-        debug_print(
-            f"✅ GENERIC PARSING COMPLETE: Found {result.get('error_count', 0)} errors"
+            f"📊 FRAMEWORK RESULTS: Found {result.get('error_count', 0)} errors using {framework.value} parser"
         )
         return result
+
+    # Legacy compatibility - map old parser types to frameworks
+    framework_map = {
+        "pytest": TestFramework.PYTEST,
+        "sonarqube": TestFramework.SONARQUBE,
+        "jest": TestFramework.JEST,
+        "generic": TestFramework.GENERIC,
+    }
+
+    framework = framework_map.get(parser_type, TestFramework.GENERIC)
+    debug_print(
+        f"🔧 PARSE JOB LOGS: Using explicit '{framework.value}' parser for job '{job_name}'"
+    )
+
+    # Use new framework parsing for ALL frameworks consistently
+    result = parse_with_framework(
+        trace_content,
+        framework,
+        include_traceback=include_traceback,
+        exclude_paths=exclude_paths,
+    )
+
+    debug_print(
+        f"📊 FRAMEWORK RESULTS: Found {result.get('error_count', 0)} errors using {framework.value} parser"
+    )
+    return result
 
 
 def parse_pytest_logs(
@@ -437,6 +429,14 @@ def parse_pytest_logs(
 ) -> dict[str, Any]:
     """
     Parse pytest logs using specialized pytest parser.
+
+    DEPRECATED: This function is kept for backward compatibility only.
+    New code should use the framework registry system:
+
+    framework = detect_job_framework(job_name, job_stage, trace_content)
+    result = parse_with_framework(trace_content, framework, **kwargs)
+
+    Uses Django-aware parser if Django patterns are detected.
 
     Args:
         trace_content: Raw pytest log content
@@ -449,69 +449,66 @@ def parse_pytest_logs(
     debug_print("🧪 PYTEST PARSER: Starting pytest log parsing")
     verbose_debug_print(f"📊 Input trace length: {len(trace_content)} characters")
 
-    pytest_result = PytestLogParser.parse_pytest_log(trace_content)
+    # Check if this is a Django project and use appropriate parser
+    if is_django_project(trace_content):
+        debug_print(
+            "🐍 DJANGO DETECTED: Using unified pytest parser with Django support"
+        )
+        pytest_parser = PytestParser()
+        parser_result = pytest_parser.parse(trace_content)
+
+        # Convert unified parser result to legacy format
+        pytest_result = {
+            "status": "completed",
+            "raw_content": trace_content,
+            "failures": [
+                {
+                    "test_name": error.get("test_function", "unknown"),
+                    "failure_message": error.get("message", "No message"),
+                    "location": error.get("test_file", "unknown"),
+                    "traceback": "",
+                }
+                for error in parser_result.get("errors", [])
+            ],
+            "total_tests": parser_result.get("summary", {}).get("total_tests", 0),
+            "failed_count": parser_result.get("error_count", 0),
+            "passed_count": parser_result.get("summary", {}).get("passed", 0),
+            "error_count": 0,
+            "skipped_count": parser_result.get("summary", {}).get("skipped", 0),
+            "warnings": [],
+        }
+    else:
+        debug_print("🧪 STANDARD: Using standard pytest parser")
+        pytest_result = PytestLogParser.parse_pytest_log(trace_content)
 
     debug_print(
-        f"📊 PYTEST PARSER: Raw parser found {len(pytest_result.detailed_failures)} detailed failures"
+        f"📊 PYTEST PARSER: Raw parser found {pytest_result.get('failed_count', 0)} failed tests"
     )
-    if pytest_result.statistics.total_tests:
+    if pytest_result.get("total_tests", 0):
         debug_print(
-            f"📊 PYTEST STATS: {pytest_result.statistics.total_tests} total tests, {pytest_result.statistics.failed} failed, {pytest_result.statistics.passed} passed"
+            f"📊 PYTEST STATS: {pytest_result.get('total_tests', 0)} total tests, {pytest_result.get('failed_count', 0)} failed, {pytest_result.get('passed_count', 0)} passed"
         )
 
     # Convert to standardized format
     errors = []
     warnings: list[dict[str, Any]] = []
 
-    if pytest_result.detailed_failures:
+    if pytest_result.get("failures"):
         debug_print(
-            f"🔧 PYTEST PARSER: Converting {len(pytest_result.detailed_failures)} detailed failures to standardized format"
+            f"🔧 PYTEST PARSER: Converting {len(pytest_result['failures'])} failures to standardized format"
         )
-        for i, failure in enumerate(pytest_result.detailed_failures):
+        for i, failure in enumerate(pytest_result["failures"]):
             verbose_debug_print(
-                f"  ➤ Failure {i + 1}: {failure.test_name} - {failure.exception_type}"
+                f"  ➤ Failure {i + 1}: {failure.get('test_name', 'Unknown')}"
             )
             error_data = {
-                "test_file": failure.test_file or "unknown",
-                "test_function": failure.test_function or "unknown",
-                "exception_type": failure.exception_type or "Unknown",
-                "message": failure.exception_message or "No message",
-                "line_number": (
-                    failure.traceback[0].line_number
-                    if failure.traceback and failure.traceback[0].line_number
-                    else None
-                ),
-                "has_traceback": bool(failure.traceback and include_traceback),
+                "test_file": failure.get("location", "unknown"),
+                "test_function": failure.get("test_name", "unknown"),
+                "exception_type": "Django ValidationError",
+                "message": failure.get("failure_message", "No message"),
+                "line_number": None,  # Will be extracted from message if available
+                "has_traceback": False,  # Django setup errors don't have useful tracebacks
             }
-
-            if include_traceback and failure.traceback:
-                # Filter traceback if paths are specified
-                filtered_traceback = []
-                for tb in failure.traceback:
-                    if exclude_paths:
-                        skip = any(
-                            exclude_path in str(tb.file_path)
-                            for exclude_path in exclude_paths
-                        )
-                        if not skip:
-                            filtered_traceback.append(
-                                {
-                                    "file_path": tb.file_path,
-                                    "line_number": tb.line_number,
-                                    "function_name": tb.function_name,
-                                    "code_context": tb.code_line,
-                                }
-                            )
-                    else:
-                        filtered_traceback.append(
-                            {
-                                "file_path": tb.file_path,
-                                "line_number": tb.line_number,
-                                "function_name": tb.function_name,
-                                "code_context": tb.code_line,
-                            }
-                        )
-                error_data["traceback"] = filtered_traceback
 
             errors.append(error_data)
 
@@ -521,19 +518,21 @@ def parse_pytest_logs(
 
     return {
         "parser_type": "pytest",
+        "status": "completed",
+        "raw_content": trace_content,
         "errors": errors,
-        "warnings": warnings,  # Pytest parser doesn't extract warnings yet
         "error_count": len(errors),
+        "warnings": warnings,
         "warning_count": len(warnings),
         "test_summary": (
             {
-                "total_tests": pytest_result.statistics.total_tests,
-                "passed": pytest_result.statistics.passed,
-                "failed": pytest_result.statistics.failed,
-                "skipped": pytest_result.statistics.skipped,
-                "duration": pytest_result.statistics.duration_formatted,
+                "total_tests": pytest_result.get("total_tests", 0),
+                "passed": pytest_result.get("passed_count", 0),
+                "failed": pytest_result.get("failed_count", 0),
+                "skipped": pytest_result.get("skipped_count", 0),
+                "duration": "N/A",
             }
-            if pytest_result.statistics.total_tests
+            if pytest_result.get("total_tests", 0) > 0
             else None
         ),
     }

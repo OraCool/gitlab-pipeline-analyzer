@@ -1,14 +1,128 @@
 """
-Parser for extracting errors and warnings from CI/CD logs
+Generic log parser implementing SOLID principles.
+
+This parser provides utilities for extracting errors and warnings from CI/CD logs
+and serves as a fallback when no specific framework parser is available.
+
+Following SOLID principles:
+- Single Responsibility: Log parsing utilities and generic error extraction
+- Open/Closed: Extensible through framework-specific parsers
+- Liskov Substitution: Can be used as BaseFrameworkParser fallback
+- Interface Segregation: Focused on log parsing concerns
+- Dependency Inversion: Uses abstract BaseParser utilities
 
 Copyright (c) 2025 Siarhei Skuratovich
 Licensed under the MIT License - see LICENSE file for details
 """
 
 import re
+from typing import Any
 
 from ..models import LogEntry
-from .base_parser import BaseParser
+from .base_parser import (
+    BaseFrameworkDetector,
+    BaseFrameworkParser,
+    BaseParser,
+    TestFramework,
+)
+
+
+class GenericLogDetector(BaseFrameworkDetector):
+    """Fallback detector for generic logs when no specific framework detected"""
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.GENERIC
+
+    @property
+    def priority(self) -> int:
+        return 1  # Lowest priority - only as fallback
+
+    def detect(self, job_name: str, job_stage: str, trace_content: str) -> bool:
+        """Always returns True as fallback - but will be last due to low priority"""
+        return True
+
+
+class GenericLogParser(BaseFrameworkParser):
+    """Generic log parser implementing BaseFrameworkParser interface"""
+
+    @property
+    def framework(self) -> TestFramework:
+        return TestFramework.GENERIC
+
+    def parse(self, trace_content: str, **kwargs) -> dict[str, Any]:
+        """Parse logs using generic LogParser and convert to standard format"""
+        entries = LogParser.extract_log_entries(trace_content)
+
+        # Convert LogEntry objects to standardized format
+        errors = []
+        warnings = []
+
+        for entry in entries:
+            error_data = {
+                "message": entry.message,
+                "line_number": entry.line_number,
+                "exception_type": (
+                    "Generic Error" if entry.level == "error" else "Generic Warning"
+                ),
+                "test_file": "unknown",
+                "test_function": "unknown",
+                "has_traceback": False,
+            }
+
+            if entry.level == "error":
+                errors.append(error_data)
+            else:
+                warnings.append(error_data)
+
+        return self.validate_output(
+            {
+                "parser_type": "generic",
+                "framework": self.framework.value,
+                "errors": errors,
+                "error_count": len(errors),
+                "warnings": warnings,
+                "warning_count": len(warnings),
+                "summary": {
+                    "total_tests": len(errors),
+                    "failed": len(errors),
+                    "passed": 0,
+                    "skipped": 0,
+                },
+            }
+        )
+
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Extract source file path and line number from generic error messages.
+
+        This method handles various generic error message formats including:
+        - Python tracebacks: "File \"/path/to/file.py\", line 42, in function"
+        - Generic file:line patterns: "filename.py:42: error message"
+        - Make errors: "filename.py:42: error description"
+        """
+        import re
+
+        # Pattern 1: Python traceback format
+        traceback_match = re.search(r'File "([^"]+)", line (\d+)', error_message)
+        if traceback_match:
+            return traceback_match.group(1), int(traceback_match.group(2))
+
+        # Pattern 2: Generic file:line format
+        file_line_match = re.search(r"([a-zA-Z0-9_/.-]+\.py):(\d+):", error_message)
+        if file_line_match:
+            return file_line_match.group(1), int(file_line_match.group(2))
+
+        # Pattern 3: Look in full log text for more context
+        if full_log_text:
+            # Search for traceback in full text
+            traceback_match = re.search(r'File "([^"]+)", line (\d+)', full_log_text)
+            if traceback_match:
+                return traceback_match.group(1), int(traceback_match.group(2))
+
+        return None, None
 
 
 class LogParser(BaseParser):
@@ -69,11 +183,29 @@ class LogParser(BaseParser):
         # Import linting failures
         (r"No matches for ignored import (.+)", "error"),  # import-linter failures
         (r"(.*)import.*not allowed", "error"),  # import policy violations
-        # Make/build tool errors - exclude linting and test-related make failures
+        # Import-linter domain boundary violations (actual violations only)
         (
-            r"make: \*\*\* \[(?!.*(?:lint|test|check|format))(.+)\] Error (\d+)",
+            r"^\s*-\s+(.+)\s+->\s+(.+)\s+\(l\.(\d+)\)",
             "error",
-        ),  # make command failures (but not for linting/testing)
+        ),  # Specific import violation: "- file.py -> module (l.12)"
+        (
+            r"^(.+\.(py|serializers|views|models|services))\s+->\s+(.+)\s+\(l\.(\d+)\)",
+            "error",
+        ),  # Import violation without dash: "file.serializers -> users (l.12)"
+        # NOTE: Removed summary patterns - these are context, not separate errors:
+        # - "Contracts: .* broken." → this is just a summary line
+        # - "(.+domain.+BROKEN)" → this is just status information
+        # - "make: *** [.*py/lint/imports.*" → this is just tool failure message
+        # The actual error is the specific import violation line above
+        # Critical linting failures that cause job failures (main error indicators)
+        # NOTE: Removed make lint patterns - they are just tool status, not separate errors
+        # (r"make: \*\*\* \[.*py/lint/imports\] Error (\d+)", "error"),  # import-linter failures
+        # (r"make: \*\*\* \[.*lint.*\] Error (\d+)", "error"),  # general linting failures
+        # Make/build tool errors - exclude only test-related make failures (not linting)
+        (
+            r"make: \*\*\* \[(?!.*(?:test|check|format|lint))(.+)\] Error (\d+)",
+            "error",
+        ),  # make command failures (but not for testing/formatting/linting - those are tool status)
         (r"(.*)make.*failed", "error"),  # general make failures
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-09-17
+
+### 🚀 **New Features**
+
+- **Enhanced Django Parser Support**: Improved Django-specific error detection and analysis
+- **New Analysis Tools**: Added comprehensive job analysis tools for independent job investigation
+  - `analyze_job(project_id, job_id)` - Analyze specific GitLab CI/CD jobs independently
+  - `analyze_job_with_pipeline_context(project_id, pipeline_id, job_id)` - Job analysis with full pipeline context
+  - `get_clean_job_trace(project_id, job_id)` - Get cleaned, human-readable job traces without analysis overhead
+- **Documentation Updates**: Updated tool counts and descriptions to reflect all 13 available tools
+
+### 🐛 **Bug Fixes**
+
+- Fixed code formatting and linting issues across test files
+- Improved test reliability and error handling
+
+### 📚 **Documentation**
+
+- Updated README.md with accurate tool count (13 tools) and complete tool descriptions
+- Added documentation for new v0.12.0 tools with usage examples
+
 ## [0.11.0] - 2025-09-11
 
 ### 🚀 **New Features**

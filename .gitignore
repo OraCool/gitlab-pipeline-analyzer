@@ -189,3 +189,4 @@ tmp/
 config.local.py
 settings.local.py
 log-examples/
+coverage.*

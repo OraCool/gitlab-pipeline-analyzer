@@ -14,6 +14,7 @@ class LogEntry(BaseModel):
     level: str  # "error", "warning", "info"
     message: str
     line_number: int | None = None
+    file_path: str | None = None  # Source file path where error occurred
     timestamp: str | None = None
     context: str | None = None
     error_type: str | None = (
