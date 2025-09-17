@@ -34,6 +34,9 @@ class PytestFailureDetail:
     exception_message: str
     traceback: list[PytestTraceback]
     full_error_text: str
+    line_number: int | None = (
+        None  # Line number of the error (extracted from traceback)
+    )
 
 
 @dataclass
@@ -46,6 +49,7 @@ class PytestShortSummary:
     test_parameters: str | None
     error_type: str
     error_message: str
+    line_number: int | None = None
 
 
 @dataclass

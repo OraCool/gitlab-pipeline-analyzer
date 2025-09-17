@@ -151,11 +151,29 @@ class LogParser(BaseParser):
         # Import linting failures
         (r"No matches for ignored import (.+)", "error"),  # import-linter failures
         (r"(.*)import.*not allowed", "error"),  # import policy violations
-        # Make/build tool errors - exclude linting and test-related make failures
+        # Import-linter domain boundary violations (actual violations only)
         (
-            r"make: \*\*\* \[(?!.*(?:lint|test|check|format))(.+)\] Error (\d+)",
+            r"^\s*-\s+(.+)\s+->\s+(.+)\s+\(l\.(\d+)\)",
             "error",
-        ),  # make command failures (but not for linting/testing)
+        ),  # Specific import violation: "- file.py -> module (l.12)"
+        (
+            r"^(.+\.(py|serializers|views|models|services))\s+->\s+(.+)\s+\(l\.(\d+)\)",
+            "error",
+        ),  # Import violation without dash: "file.serializers -> users (l.12)"
+        # NOTE: Removed summary patterns - these are context, not separate errors:
+        # - "Contracts: .* broken." → this is just a summary line
+        # - "(.+domain.+BROKEN)" → this is just status information
+        # - "make: *** [.*py/lint/imports.*" → this is just tool failure message
+        # The actual error is the specific import violation line above
+        # Critical linting failures that cause job failures (main error indicators)
+        # NOTE: Removed make lint patterns - they are just tool status, not separate errors
+        # (r"make: \*\*\* \[.*py/lint/imports\] Error (\d+)", "error"),  # import-linter failures
+        # (r"make: \*\*\* \[.*lint.*\] Error (\d+)", "error"),  # general linting failures
+        # Make/build tool errors - exclude only test-related make failures (not linting)
+        (
+            r"make: \*\*\* \[(?!.*(?:test|check|format|lint))(.+)\] Error (\d+)",
+            "error",
+        ),  # make command failures (but not for testing/formatting/linting - those are tool status)
         (r"(.*)make.*failed", "error"),  # general make failures
         # Security/vulnerability errors
         (r"(.*)vulnerability", "error"),

@@ -81,6 +81,31 @@ class BaseFrameworkParser(ABC):
         """
         pass
 
+    @abstractmethod
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Extract source file path and line number from error messages.
+
+        This method should be implemented by each parser to handle framework-specific
+        error message formats and traceback structures.
+
+        Args:
+            error_message: The error message text from the test output
+            full_log_text: Complete log content for searching traceback information
+            error_type: The error type (e.g., "AttributeError", "TypeError") if already extracted
+
+        Returns:
+            Tuple of (source_file_path, line_number) or (None, None) if not found
+
+        Examples:
+            For pytest: Extract from "domains/gwpy-document/services.py:1101: AttributeError"
+            For jest: Extract from "at Object.<anonymous> (/path/to/file.js:42:5)"
+            For generic: Extract line numbers from stack traces or error messages
+        """
+        pass
+
     def validate_output(self, result: dict[str, Any]) -> dict[str, Any]:
         """
         Validate and normalize parser output to ensure consistency.

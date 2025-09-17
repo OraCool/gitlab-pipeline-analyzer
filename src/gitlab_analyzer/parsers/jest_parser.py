@@ -249,3 +249,67 @@ class JestParser(BaseFrameworkParser):
                 summary["time"] = match.group(1)
 
         return summary
+
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Jest-specific implementation of source file and line number extraction.
+
+        Jest typically provides stack traces in the format:
+        "at Object.<anonymous> (/path/to/file.js:42:5)"
+        """
+        # Jest stack trace patterns
+        patterns = [
+            # Standard Jest stack trace: "at Object.<anonymous> (/path/to/file.js:42:5)"
+            r"at\s+.+\(([^:]+):(\d+):(\d+)\)",
+            # Alternative format: "at /path/to/file.js:42:5"
+            r"at\s+([^:]+):(\d+):(\d+)",
+            # Simple file:line format that might appear in Jest output
+            r"([^\s:]+\.(js|ts|jsx|tsx)):(\d+)(?::(\d+))?",
+        ]
+
+        # First try to extract from error message
+        for pattern in patterns:
+            match = re.search(pattern, error_message)
+            if match:
+                groups = match.groups()
+                file_path = groups[0]
+                line_number = groups[1] if len(groups) > 1 else None
+
+                # Skip node_modules and system paths
+                if not any(
+                    skip in file_path for skip in ["node_modules", "/usr/", "internal/"]
+                ):
+                    try:
+                        return file_path.strip(), (
+                            int(line_number) if line_number else None
+                        )
+                    except (ValueError, TypeError):
+                        continue
+
+        # If not found in error message, search the full log text
+        if full_log_text:
+            for pattern in patterns:
+                matches = re.findall(pattern, full_log_text)
+                for match in matches:
+                    file_path = match[0] if isinstance(match, tuple) else match
+                    line_number = (
+                        match[1]
+                        if isinstance(match, tuple) and len(match) > 1
+                        else None
+                    )
+
+                    # Skip system paths
+                    if not any(
+                        skip in file_path
+                        for skip in ["node_modules", "/usr/", "internal/"]
+                    ):
+                        try:
+                            return file_path.strip(), (
+                                int(line_number) if line_number else None
+                            )
+                        except (ValueError, TypeError):
+                            continue
+
+        return None, None

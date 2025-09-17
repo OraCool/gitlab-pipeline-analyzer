@@ -30,6 +30,7 @@ from .base_parser import (
     BaseParser,
     TestFramework,
 )
+from ..utils.debug import debug_print, verbose_debug_print
 
 
 class PytestDetector(BaseFrameworkDetector):
@@ -91,6 +92,14 @@ class PytestParser(BaseFrameworkParser):
         (r"E\s+duplicate key value violates unique constraint \"(.+)\"", "error"),
         (r"django\.[a-zA-Z_.]+\.([A-Za-z]+(?:Error|Exception)): (.+)", "error"),
         (r"E\s+django\.[a-zA-Z_.]+\.([A-Za-z]+(?:Error|Exception)): (.+)", "error"),
+        # General Python errors that commonly occur in Django projects
+        (r"TypeError: (.+)", "error"),
+        (r"AttributeError: (.+)", "error"),
+        (r"ValueError: (.+)", "error"),
+        (r"KeyError: (.+)", "error"),
+        (r"NameError: (.+)", "error"),
+        (r"ImportError: (.+)", "error"),
+        (r"ModuleNotFoundError: (.+)", "error"),
     ]
 
     @property
@@ -147,7 +156,7 @@ class PytestParser(BaseFrameworkParser):
         for entry in django_errors:
             errors.append(
                 {
-                    "test_file": "Django Setup",
+                    "test_file": entry.file_path or "Django Setup",
                     "test_function": f"Django Error (Line {entry.line_number or 'Unknown'})",
                     "exception_type": "Django ValidationError",
                     "message": entry.message,
@@ -207,6 +216,7 @@ class PytestParser(BaseFrameworkParser):
                         "exception_type": summary.error_type or "Pytest Error",
                         "message": summary.error_message or "No message",
                         "line_number": summary.line_number,
+                        "file_path": summary.test_file,  # Use the test_file which now contains source file path
                         "has_traceback": False,
                     }
                 )
@@ -262,15 +272,31 @@ class PytestParser(BaseFrameworkParser):
             for pattern, level in self.DJANGO_ERROR_PATTERNS:
                 match = re.search(pattern, log_line, re.IGNORECASE)
                 if match:
-                    # Extract actual Python file line number if available
-                    actual_line_number = self._extract_source_line_number(
+                    # Extract actual Python file line number and file path if available
+                    file_info = self._extract_file_info_from_traceback(
                         lines, line_num, log_line
                     )
+                    actual_line_number = file_info["line_number"]
+                    actual_file_path = file_info["file_path"]
+
+                    # Look for file:line pattern in preceding lines if not found in current line
+                    if not actual_file_path and line_num > 0:
+                        # Check a few lines before for file:line patterns
+                        for check_line in range(max(0, line_num - 3), line_num):
+                            check_line_content = lines[check_line].strip()
+                            check_file_info = self._extract_file_info_from_traceback(
+                                lines, check_line, check_line_content
+                            )
+                            if check_file_info["file_path"]:
+                                actual_file_path = check_file_info["file_path"]
+                                actual_line_number = check_file_info["line_number"]
+                                break
 
                     entry = LogEntry(
                         level=level,
                         message=log_line,
                         line_number=actual_line_number,
+                        file_path=actual_file_path,
                         context=self._get_context(lines, line_num),
                         error_type=self._classify_django_error_type(log_line),
                     )
@@ -283,6 +309,15 @@ class PytestParser(BaseFrameworkParser):
         self, lines: list[str], current_line: int, log_line: str
     ) -> int:
         """Extract the actual source code line number from Django traceback"""
+        file_info = self._extract_file_info_from_traceback(
+            lines, current_line, log_line
+        )
+        return file_info["line_number"]
+
+    def _extract_file_info_from_traceback(
+        self, lines: list[str], current_line: int, log_line: str
+    ) -> dict[str, any]:
+        """Extract both file path and line number from Django traceback (legacy method)"""
         file_line_patterns = [
             r'^\s*File\s+"([^"]+)",\s+line\s+(\d+)',
             r"^\s*([^:\s]+):(\d+):\s*in\s+",
@@ -303,11 +338,14 @@ class PytestParser(BaseFrameworkParser):
                     ]
                 ):
                     try:
-                        return int(file_match.group(2))
+                        return {
+                            "file_path": file_path,
+                            "line_number": int(file_match.group(2)),
+                        }
                     except (ValueError, IndexError):
                         pass
 
-        return current_line
+        return {"file_path": None, "line_number": current_line}
 
     def _get_context(
         self, lines: list[str], current_line: int, context_size: int = 5
@@ -357,6 +395,18 @@ class PytestParser(BaseFrameworkParser):
             return "django_framework"
         else:
             return "unknown"
+
+    def _extract_source_file_and_line(
+        self, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Pytest-specific implementation of source file and line number extraction.
+
+        Delegates to the PytestLogParser utility for consistent behavior across all pytest parsing.
+        """
+        return PytestLogParser._extract_source_file_and_line(
+            error_message, full_log_text, error_type
+        )
 
 
 # Preserve the existing detailed parsing logic as a utility class
@@ -421,15 +471,20 @@ class PytestLogParser(BaseParser):
         Deduplicate test failures between detailed failures and short summary sections.
 
         Priority: Keep detailed failures (more information) over short summary entries.
+        Additionally, enhance short summary entries with line numbers from matching detailed failures.
+
         Remove duplicates based on:
         1. Same test function name
         2. Same exception type and message
         3. Same file path and approximate line number
         """
-        # Create a set to track seen test failures
+        # Create a set to track seen test failures and a map for line number enhancement
         seen_failures = set()
         deduplicated_detailed = []
         deduplicated_summary = []
+        detailed_failure_map = (
+            {}
+        )  # Maps fingerprint to detailed failure for line number lookup
 
         # First pass: Process detailed failures (higher priority)
         for detailed in detailed_failures:
@@ -439,15 +494,37 @@ class PytestLogParser(BaseParser):
             if fingerprint not in seen_failures:
                 seen_failures.add(fingerprint)
                 deduplicated_detailed.append(detailed)
+                # Store the detailed failure for potential line number enhancement
+                detailed_failure_map[fingerprint] = detailed
 
-        # Second pass: Process short summary, skip duplicates
+        # Second pass: Process short summary, skip duplicates but enhance with line numbers
         for summary in short_summary:
             # Create a fingerprint for this summary
             fingerprint = cls._create_summary_failure_fingerprint(summary)
 
             if fingerprint not in seen_failures:
-                seen_failures.add(fingerprint)
-                deduplicated_summary.append(summary)
+                # Check if we have a matching detailed failure with line number info
+                if fingerprint in detailed_failure_map:
+                    detailed_match = detailed_failure_map[fingerprint]
+                    # Enhance the summary with line number info from detailed failure
+                    if detailed_match.line_number and not summary.line_number:
+                        # Create enhanced summary with line number from detailed failure
+                        enhanced_summary = PytestShortSummary(
+                            test_name=summary.test_name,
+                            test_file=detailed_match.test_file
+                            or summary.test_file,  # Prefer detailed file path
+                            test_function=summary.test_function,
+                            test_parameters=summary.test_parameters,
+                            error_type=summary.error_type,
+                            error_message=summary.error_message,
+                            line_number=detailed_match.line_number,  # Use line number from detailed failure
+                        )
+                        deduplicated_summary.append(enhanced_summary)
+                    else:
+                        deduplicated_summary.append(summary)
+                else:
+                    seen_failures.add(fingerprint)
+                    deduplicated_summary.append(summary)
 
         return deduplicated_detailed, deduplicated_summary
 
@@ -765,6 +842,27 @@ class PytestLogParser(BaseParser):
         # Parse traceback
         traceback = cls._parse_traceback(content)
 
+        # Extract line number from traceback or error content
+        line_number = None
+        if traceback:
+            # Try to get line number from the first traceback entry in the test file
+            for tb_entry in traceback:
+                if tb_entry.file_path and test_file and tb_entry.file_path == test_file:
+                    line_number = tb_entry.line_number
+                    break
+
+            # If no exact match, use the first traceback entry's line number
+            if line_number is None and traceback:
+                line_number = traceback[0].line_number
+
+        # If still no line number, try extracting from exception message or content
+        if line_number is None:
+            _, extracted_line = cls._extract_source_file_and_line(
+                exception_message, content, exception_type
+            )
+            if extracted_line:
+                line_number = extracted_line
+
         return PytestFailureDetail(
             test_name=test_name,
             test_file=test_file,
@@ -776,6 +874,7 @@ class PytestLogParser(BaseParser):
             exception_message=exception_message,
             traceback=traceback,
             full_error_text=content,
+            line_number=line_number,
         )
 
     @classmethod
@@ -861,6 +960,13 @@ class PytestLogParser(BaseParser):
             other_entries = [tb for tb in traceback if tb != actual_error_entry]
             traceback = [actual_error_entry] + other_entries
 
+        # Extract line number from traceback or error location
+        line_number = None
+        if actual_error_line is not None:
+            line_number = actual_error_line
+        elif traceback and traceback[0].line_number:
+            line_number = traceback[0].line_number
+
         return PytestFailureDetail(
             test_name=f"Collection error in {test_file_path.split('/')[-1]}",
             test_file=actual_error_file or test_file_path,
@@ -872,6 +978,7 @@ class PytestLogParser(BaseParser):
             exception_message=exception_message,
             traceback=traceback,
             full_error_text=content,
+            line_number=line_number,
         )
 
     @classmethod
@@ -970,6 +1077,13 @@ class PytestLogParser(BaseParser):
                 )
             ]
 
+        # Extract line number from error location or traceback
+        line_number = None
+        if actual_error_line is not None:
+            line_number = actual_error_line
+        elif traceback and traceback[0].line_number:
+            line_number = traceback[0].line_number
+
         return PytestFailureDetail(
             test_name=f"{error_phase.title()} error: {test_name}",
             test_file=actual_error_file or test_file or "unknown",
@@ -981,6 +1095,7 @@ class PytestLogParser(BaseParser):
             exception_message=exception_message,
             traceback=traceback,
             full_error_text=content,
+            line_number=line_number,
         )
 
     @classmethod
@@ -1224,18 +1339,163 @@ class PytestLogParser(BaseParser):
                     error_type = "unknown"
                     error_message = error_info
 
+                # Extract line number from error message using Django patterns
+                line_number = None
+                source_file_path = None
+
+                # Try to extract source file and line number from the error message
+                if error_message:
+                    source_file_path, line_number = cls._extract_source_file_and_line(
+                        error_message, log_text, error_type
+                    )
+
                 short_summary.append(
                     PytestShortSummary(
                         test_name=test_spec,
-                        test_file=test_file,
+                        test_file=source_file_path if source_file_path else test_file,
                         test_function=test_function,
                         test_parameters=test_parameters,
                         error_type=error_type,
                         error_message=error_message,
+                        line_number=line_number,
                     )
                 )
 
         return short_summary
+
+    @classmethod
+    def _extract_source_file_and_line(
+        cls, error_message: str, full_log_text: str = "", error_type: str = ""
+    ) -> tuple[str | None, int | None]:
+        """
+        Extract source file path and line number from Django/Python error messages.
+        First tries to extract from error message directly, then searches full log for traceback summaries.
+
+        Examples:
+        - "domains/gwpy-document/document/apps/documents/views/actions.py:712: TypeError"
+        - "/builds/product/gwpy-core/domains/gwpy-document/document/apps/documents/access_management/services.py:1101: AttributeError"
+        """
+        debug_print(
+            f"[PYTEST] Extracting source file/line - error_message: '{error_message}', error_type: '{error_type}', log_text_length: {len(full_log_text)}"
+        )
+
+        # First, try to extract from the error message itself
+        patterns = [
+            # Standard Django/Python traceback format: path:line: ErrorType
+            r"([^\s:]+(?:\.py|\.pyx?|\.pyi))[:：]\s*(\d+)[:：]\s*(?:\w+Error|\w+Exception|\w+)",
+            # Alternative format with just path:line
+            r"([^\s:]+(?:\.py|\.pyx?|\.pyi))[:：]\s*(\d+)(?:\s|$)",
+            # Format with "line" keyword: "line 123 in file.py"
+            r"line\s+(\d+)\s+in\s+([^\s]+(?:\.py|\.pyx?|\.pyi))",
+            # Alternative "in file.py, line 123"
+            r"in\s+([^\s,]+(?:\.py|\.pyx?|\.pyi)),?\s+line\s+(\d+)",
+        ]
+
+        for i, pattern in enumerate(patterns):
+            verbose_debug_print(f"[PYTEST] Trying pattern {i}: {pattern}")
+            match = re.search(pattern, error_message, re.MULTILINE)
+            if match:
+                debug_print(f"[PYTEST] Pattern {i} matched: {match.groups()}")
+                groups = match.groups()
+                if len(groups) == 2:
+                    # For patterns that capture (file, line) or (line, file)
+                    if pattern.startswith("line") or "in" in pattern:
+                        # These patterns have (line, file) or special order
+                        if pattern.startswith("line"):
+                            line_num, file_path = groups
+                        else:  # "in file.py, line 123"
+                            file_path, line_num = groups
+                    else:
+                        # Standard (file, line) order
+                        file_path, line_num = groups
+
+                    try:
+                        result_file, result_line = file_path.strip(), int(line_num)
+                        debug_print(
+                            f"[PYTEST] Direct pattern match found: file='{result_file}', line={result_line}"
+                        )
+                        return result_file, result_line
+                    except ValueError:
+                        debug_print(
+                            f"[PYTEST] ValueError converting line number: {line_num}"
+                        )
+                        continue
+
+        debug_print(f"[PYTEST] No direct pattern matches found in error message")
+
+        # If not found in error message and we have full log text, search for traceback summary lines
+        if full_log_text and error_type:
+            debug_print(
+                f"[PYTEST] Searching for traceback summaries with error_type: {error_type}"
+            )
+            # Search for traceback summary lines that match this error type
+            # Format: "file.py:123: ErrorType"
+            traceback_pattern = rf"([^\s:]+\.py):(\d+):\s*{re.escape(error_type)}"
+            verbose_debug_print(f"[PYTEST] Traceback pattern: {traceback_pattern}")
+            traceback_matches = re.findall(traceback_pattern, full_log_text)
+            debug_print(
+                f"[PYTEST] Found {len(traceback_matches)} traceback matches: {traceback_matches}"
+            )
+
+            if traceback_matches:
+                # Return the first match (could be enhanced to find the best match)
+                file_path, line_num = traceback_matches[0]
+                try:
+                    result_file, result_line = file_path.strip(), int(line_num)
+                    debug_print(
+                        f"[PYTEST] Traceback match found: file='{result_file}', line={result_line}"
+                    )
+                    return result_file, result_line
+                except ValueError:
+                    debug_print(f"[PYTEST] ValueError in traceback match: {line_num}")
+                    pass
+
+        # Fallback: if we have full log text but no error type, try to extract from error message
+        elif full_log_text and error_message:
+            debug_print(
+                "[PYTEST] Fallback: trying to extract error type from error message"
+            )
+            # Look for error type from the error message
+            error_type_match = re.match(
+                r"(\w+(?:\.\w+)*(?:Exception|Error))", error_message.strip()
+            )
+            if error_type_match:
+                extracted_error_type = error_type_match.group(1)
+                debug_print(
+                    f"[PYTEST] Extracted error type from message: {extracted_error_type}"
+                )
+
+                # Search for traceback summary lines that match this error type
+                # Format: "file.py:123: ErrorType"
+                traceback_pattern = (
+                    rf"([^\s:]+\.py):(\d+):\s*{re.escape(extracted_error_type)}"
+                )
+                traceback_matches = re.findall(traceback_pattern, full_log_text)
+                debug_print(
+                    f"[PYTEST] Fallback found {len(traceback_matches)} traceback matches: {traceback_matches}"
+                )
+
+                if traceback_matches:
+                    # Return the first match (could be enhanced to find the best match)
+                    file_path, line_num = traceback_matches[0]
+                    try:
+                        result_file, result_line = file_path.strip(), int(line_num)
+                        debug_print(
+                            f"[PYTEST] Fallback match found: file='{result_file}', line={result_line}"
+                        )
+                        return result_file, result_line
+                    except ValueError:
+                        debug_print(
+                            f"[PYTEST] ValueError in fallback match: {line_num}"
+                        )
+                        pass
+            else:
+                debug_print(
+                    "[PYTEST] No error type found in error message for fallback"
+                )
+
+        debug_print("[PYTEST] No source file/line found, returning None, None")
+        return None, None
 
     @classmethod
     def _extract_statistics(cls, log_text: str) -> PytestStatistics:
