@@ -24,6 +24,7 @@ class TestFramework(Enum):
     VITEST = "vitest"
     SONARQUBE = "sonarqube"
     ESLINT = "eslint"
+    TYPESCRIPT = "typescript"
     GENERIC = "generic"
 
 

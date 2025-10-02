@@ -80,6 +80,16 @@ except ImportError:
     pass  # Graceful degradation
 
 try:
+    from .typescript_parser import TypeScriptDetector, TypeScriptParser
+
+    parser_registry.register_detector(
+        TypeScriptDetector()
+    )  # 82 - higher than ESLint, for compilation errors
+    parser_registry.register_parser(TestFramework.TYPESCRIPT, TypeScriptParser)
+except ImportError:
+    pass  # Graceful degradation
+
+try:
     from .eslint_parser import ESLintDetector, ESLintParser
 
     parser_registry.register_detector(
