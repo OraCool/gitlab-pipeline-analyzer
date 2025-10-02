@@ -73,33 +73,6 @@ class JestParser(BaseFrameworkParser):
         errors = []
         warnings = []
 
-        # Jest error patterns
-        jest_error_patterns = [
-            # Test failures
-            (r"FAIL\s+(.+\.test\.(js|ts|jsx|tsx))", "Jest Test Failure"),
-            # Syntax errors - enhanced patterns
-            (r"SyntaxError:\s+(.+)", "JavaScript Syntax Error"),
-            (r"Jest encountered an unexpected token", "Jest Parse Error"),
-            (r"Unexpected token.*", "JavaScript Syntax Error"),
-            (r"Parsing error:\s+(.+)", "JavaScript Parse Error"),
-            # TypeScript errors
-            (r"TS\d+:\s+(.+)", "TypeScript Error"),
-            # Module resolution errors
-            (r"Cannot find module '(.+)'", "Module Not Found"),
-            # Timeout errors
-            (r"Test timeout of \d+ms exceeded", "Test Timeout"),
-            # Async errors and assertions
-            (r"Error: expect\(received\)\.(.+)", "Jest Assertion Error"),
-            (
-                r"expect\(received\)\.toHaveLength\(expected\)",
-                "Jest Length Assertion Error",
-            ),
-            (r"Expected length:\s*\d+", "Jest Length Assertion Error"),
-            (r"Received length:\s*\d+", "Jest Length Assertion Error"),
-            # Test suite failures
-            (r"Test suite failed to run", "Jest Suite Failure"),
-        ]
-
         # Jest warning patterns
         jest_warning_patterns = [
             r"WARNING:\s+(.+)",
@@ -112,37 +85,13 @@ class JestParser(BaseFrameworkParser):
         lines = trace_content.split("\n")
         current_test_file = "unknown"
 
+        # Parse Jest failures by looking for individual test failure markers (●)
+        errors = self._parse_jest_test_failures(lines, current_test_file)
+
+        # Parse warnings separately
+        warnings = []
         for i, line in enumerate(lines):
             line_stripped = line.strip()
-
-            # Track current test file
-            file_match = re.search(
-                r"(PASS|FAIL)\s+(.+\.test\.(js|ts|jsx|tsx))", line_stripped
-            )
-            if file_match:
-                current_test_file = file_match.group(2)
-
-            # Check for errors
-            for pattern, error_type in jest_error_patterns:
-                match = re.search(pattern, line_stripped)
-                if match:
-                    # Extract additional context for better error reporting
-                    error_details = self._extract_error_context(lines, i, error_type)
-
-                    errors.append(
-                        {
-                            "test_file": self._extract_test_file(
-                                line_stripped, current_test_file
-                            ),
-                            "test_function": self._extract_test_function(lines, i),
-                            "exception_type": error_type,
-                            "message": line_stripped,
-                            "line_number": i + 1,
-                            "has_traceback": self._has_jest_traceback(lines, i),
-                            "jest_details": self._extract_jest_details(lines, i),
-                            "error_context": error_details,
-                        }
-                    )
 
             # Check for warnings
             for pattern in jest_warning_patterns:
@@ -167,9 +116,95 @@ class JestParser(BaseFrameworkParser):
             }
         )
 
+    def _parse_jest_test_failures(
+        self, lines: list[str], current_test_file: str
+    ) -> list[dict]:
+        """Parse Jest test failures by focusing on individual test failure markers (●)"""
+        errors = []
+
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Track current test file from FAIL/PASS lines
+            file_match = re.search(
+                r"(PASS|FAIL)\s+(.+\.(test|spec)\.(js|ts|jsx|tsx))", line_stripped
+            )
+            if file_match:
+                current_test_file = file_match.group(2)
+                continue
+
+            # Look for individual test failure markers (●)
+            test_failure_match = re.match(r"●\s+(.+)", line_stripped)
+            if test_failure_match:
+                test_name = test_failure_match.group(1)
+
+                # Extract error details from the following lines
+                error_message, error_type, source_line = (
+                    self._extract_test_failure_details(lines, i)
+                )
+
+                errors.append(
+                    {
+                        "test_file": current_test_file,
+                        "test_function": test_name,
+                        "exception_type": error_type,
+                        "message": error_message,
+                        "line_number": source_line if source_line else i + 1,
+                        "has_traceback": True,
+                    }
+                )
+
+        return errors
+
+    def _extract_test_failure_details(
+        self, lines: list[str], start_idx: int
+    ) -> tuple[str, str, int | None]:
+        """Extract error message, type, and source line number from test failure"""
+        error_message = ""
+        error_type = "Jest Test Failure"
+        source_line = None
+
+        # Look at the next several lines after the ● marker for error details
+        for i in range(start_idx + 1, min(len(lines), start_idx + 15)):
+            line = lines[i].strip()
+
+            # Stop if we hit another test failure or end of this failure block
+            if (
+                line.startswith("●")
+                or line.startswith("Test Suites:")
+                or line.startswith("Tests:")
+            ):
+                break
+
+            # Extract specific error types and messages
+            if re.search(r"expect\(received\)\.(.+)", line):
+                error_type = "Jest Assertion Error"
+                if not error_message:
+                    error_message = line
+            elif re.search(r"ReferenceError:\s+(.+)", line):
+                error_type = "JavaScript Reference Error"
+                error_message = line
+            elif re.search(r"TypeError:\s+(.+)", line):
+                error_type = "JavaScript Type Error"
+                error_message = line
+            elif re.search(r"SyntaxError:\s+(.+)", line):
+                error_type = "JavaScript Syntax Error"
+                error_message = line
+
+            # Extract source line number from stack trace
+            line_match = re.search(r"at .+ \(.+:(\d+):\d+\)", line)
+            if line_match and not source_line:
+                source_line = int(line_match.group(1))
+
+        # Use a default message if none found
+        if not error_message:
+            error_message = f"Test failure at line {start_idx + 1}"
+
+        return error_message, error_type, source_line
+
     def _extract_test_file(self, line: str, current_file: str) -> str:
         """Extract test file from Jest output line"""
-        file_match = re.search(r"(.+\.test\.(js|ts|jsx|tsx))", line)
+        file_match = re.search(r"(.+\.(test|spec)\.(js|ts|jsx|tsx))", line)
         if file_match:
             return file_match.group(1)
         return current_file

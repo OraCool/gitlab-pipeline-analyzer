@@ -86,12 +86,22 @@ async def analyze_job_trace(
 
         # Store analysis if requested
         if store_in_db:
+            # Reconstruct job object from available data
+            job_obj = {
+                "id": job_id,
+                "name": job_name,
+                "stage": job_stage,
+                "status": "unknown",  # We don't have status in analyze_job_trace
+                "ref": "unknown",
+                "sha": "unknown",
+            }
+
             await store_job_analysis_step(
                 cache_manager=cache_manager,
                 project_id=project_id,
                 pipeline_id=pipeline_id,  # Use the correct pipeline_id
                 job_id=job_id,
-                job={"id": job_id},  # Minimal job object
+                job=job_obj,  # Reconstructed job object with available data
                 trace_content=trace_content,
                 analysis_data=analysis_data,
             )

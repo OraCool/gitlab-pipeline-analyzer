@@ -73,6 +73,8 @@ async def store_job_analysis_step(
 
         async with aiosqlite.connect(cache_manager.db_path) as conn:
             # Step 1: Insert or update job with trace hash and metadata
+            errors = analysis_data.get("errors", [])
+
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO jobs
@@ -113,14 +115,14 @@ async def store_job_analysis_step(
                         str(hash(str(error))),
                         error.get("exception_type", "unknown"),
                         error.get("exception_message", ""),
-                        error.get("file_path", ""),
+                        error.get("test_file") or error.get("file_path", ""),
                         error.get("line_number", 0) or 0,
                         json.dumps(error),
                     ),
                 )
 
-                # Build file index
-                file_path = error.get("file", "")
+                # Build file index - handle both 'file_path' and 'test_file' from different parsers
+                file_path = error.get("test_file") or error.get("file_path", "")
                 if file_path:
                     if file_path not in file_errors:
                         file_errors[file_path] = []
@@ -382,18 +384,27 @@ def parse_job_logs(
         framework = detect_job_framework(job_name, job_stage, trace_content)
         debug_print(f"🎯 PARSE JOB LOGS: Auto-detected framework: {framework.value}")
 
-        # Use new framework-aware parsing
-        result = parse_with_framework(
-            trace_content,
-            framework,
-            include_traceback=include_traceback,
-            exclude_paths=exclude_paths,
+        # Clean ANSI sequences for better parsing accuracy (critical for Jest and other parsers)
+        from gitlab_analyzer.parsers.log_parser import LogParser
+
+        cleaned_trace = LogParser.clean_ansi_sequences(trace_content)
+        debug_print(
+            f"🧹 Cleaned trace content: {len(cleaned_trace)} characters (original: {len(trace_content)})"
         )
 
-        debug_print(
-            f"📊 FRAMEWORK RESULTS: Found {result.get('error_count', 0)} errors using {framework.value} parser"
-        )
-        return result
+        # Use framework-aware parsing with cleaned trace content
+        # Use new framework-aware parsing with cleaned content
+    result = parse_with_framework(
+        cleaned_trace,  # Use cleaned trace for explicit parser types too
+        framework,
+        include_traceback=include_traceback,
+        exclude_paths=exclude_paths,
+    )
+
+    debug_print(
+        f"📊 FRAMEWORK RESULTS: Found {result.get('error_count', 0)} errors using {framework.value} parser"
+    )
+    return result
 
     # Legacy compatibility - map old parser types to frameworks
     framework_map = {

@@ -15,6 +15,11 @@ from fastmcp import FastMCP
 
 from gitlab_analyzer.parsers.log_parser import LogParser
 from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.parsers.framework_registry import (
+    detect_job_framework,
+    parse_with_framework,
+)
+from gitlab_analyzer.parsers.base_parser import TestFramework
 from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 
 
@@ -88,14 +93,92 @@ def register_trace_analysis_tools(mcp: FastMCP) -> None:
             # Determine analysis type
             actual_analysis_type = analysis_type
             if analysis_type == "auto":
-                verbose_debug_print("Auto-detecting trace type")
-                actual_analysis_type = _detect_trace_type(cleaned_trace)
-                debug_print(f"Auto-detected trace type: {actual_analysis_type}")
+                verbose_debug_print(
+                    "Auto-detecting framework using full framework registry"
+                )
+                # Use the full framework detection system instead of limited pytest detection
+                detected_framework = detect_job_framework("", "", cleaned_trace)
+                debug_print(f"Auto-detected framework: {detected_framework.value}")
+
+                # Map framework to analysis type
+                if detected_framework == TestFramework.PYTEST:
+                    actual_analysis_type = "pytest"
+                elif detected_framework in [
+                    TestFramework.JEST,
+                    TestFramework.ESLINT,
+                    TestFramework.TYPESCRIPT,
+                    TestFramework.SONARQUBE,
+                ]:
+                    # Use framework parsing for Jest and other modern frameworks
+                    actual_analysis_type = "framework"
+                else:
+                    actual_analysis_type = "general"
+
+                debug_print(f"Mapped to analysis type: {actual_analysis_type}")
 
             results = {}
 
             # Perform analysis based on type
-            if actual_analysis_type == "general" or actual_analysis_type == "both":
+            if actual_analysis_type == "framework":
+                verbose_debug_print("Running framework-specific analysis")
+                framework_start = time.time()
+
+                # Use the detected framework for parsing
+                detected_framework = detect_job_framework("", "", cleaned_trace)
+                debug_print(
+                    f"Using {detected_framework.value} parser for framework analysis"
+                )
+
+                # Parse with the appropriate framework parser
+                framework_result = parse_with_framework(
+                    cleaned_trace, detected_framework
+                )
+
+                # Convert framework results to consistent format for trace analysis tool
+                framework_errors = []
+                if "errors" in framework_result:
+                    for error in framework_result["errors"]:
+                        error_detail = {
+                            "message": error.get("message", ""),
+                            "level": "error",
+                            "error_type": error.get("error_type", "framework_error"),
+                            "line_number": error.get(
+                                "source_line", error.get("line_number")
+                            ),
+                            "file_path": error.get("file_path", error.get("test_file")),
+                            "framework": detected_framework.value,
+                        }
+
+                        # Add framework-specific fields
+                        if "test_file" in error:
+                            error_detail["test_file"] = error["test_file"]
+                        if "test_function" in error:
+                            error_detail["test_function"] = error["test_function"]
+                        if "source_column" in error:
+                            error_detail["source_column"] = error["source_column"]
+
+                        if include_context and "context" in error:
+                            error_detail["context"] = error["context"]
+
+                        framework_errors.append(error_detail)
+
+                framework_duration = time.time() - framework_start
+                verbose_debug_print(
+                    f"Framework analysis completed in {framework_duration:.3f}s"
+                )
+
+                results["framework_analysis"] = {
+                    "framework": detected_framework.value,
+                    "errors": framework_errors,
+                    "total_errors": len(framework_errors),
+                    "error_count": framework_result.get(
+                        "error_count", len(framework_errors)
+                    ),
+                    "warning_count": framework_result.get("warning_count", 0),
+                    "processing_time": framework_duration,
+                }
+
+            elif actual_analysis_type == "general" or actual_analysis_type == "both":
                 verbose_debug_print("Running general log analysis")
                 general_start = time.time()
 
