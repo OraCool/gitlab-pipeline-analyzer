@@ -527,9 +527,7 @@ class PytestLogParser(BaseParser):
         seen_failures = set()
         deduplicated_detailed = []
         deduplicated_summary = []
-        detailed_failure_map = (
-            {}
-        )  # Maps fingerprint to detailed failure for line number lookup
+        detailed_failure_map = {}  # Maps fingerprint to detailed failure for line number lookup
 
         # First pass: Process detailed failures (higher priority)
         for detailed in detailed_failures:

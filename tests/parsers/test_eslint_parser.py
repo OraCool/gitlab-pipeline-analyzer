@@ -40,10 +40,10 @@ class TestESLintDetector:
         $ yarn run lint
         yarn run v1.22.22
         $ eslint "src/**/*.{ts,tsx}" --cache
-        
+
         /builds/product/appjs-document-wizard/src/@Development/subscription/SubscriptionModel.ts
           14:3  warning  Missing return type on function  @typescript-eslint/explicit-module-boundary-types
-        
+
         ✖ 191 problems (3 errors, 188 warnings)
         2 errors and 0 warnings potentially fixable with the `--fix` option.
         """

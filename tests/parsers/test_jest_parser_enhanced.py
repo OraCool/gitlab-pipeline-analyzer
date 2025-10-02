@@ -33,11 +33,11 @@ class TestJestDetectorEnhanced:
         $ yarn run test:ci
         yarn run v1.22.22
         $ node scripts/test.ci.js
-        
+
         PASS  src/@DocumentWizard/views/Steps/AddRecipientsStep/__tests__/AddRecipientsStep.spec.tsx (6.506 s)
         FAIL  src/@DocumentWizard/infra/redux/modules/features/__tests__/featureFlagsSelectors.spec.ts
           ● Test suite failed to run
-        
+
         Summary of all failing tests
         FAIL  src/@DocumentWizard/views/Steps/SelectDocumentStep/Screens/Upload/__tests__/Upload.spec.tsx
         """
