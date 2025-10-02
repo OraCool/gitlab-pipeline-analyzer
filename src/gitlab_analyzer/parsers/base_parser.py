@@ -23,6 +23,7 @@ class TestFramework(Enum):
     JUNIT = "junit"
     VITEST = "vitest"
     SONARQUBE = "sonarqube"
+    ESLINT = "eslint"
     GENERIC = "generic"
 
 

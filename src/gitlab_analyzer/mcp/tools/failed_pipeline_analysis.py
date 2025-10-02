@@ -28,6 +28,7 @@ import time
 from typing import Any, cast
 
 from fastmcp import FastMCP
+from httpx import HTTPStatusError
 
 from gitlab_analyzer.cache.mcp_cache import get_cache_manager
 from gitlab_analyzer.cache.models import ErrorRecord
@@ -531,12 +532,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[
-                str, dict[str, Any]
-            ] = {}  # Global file registry across all jobs
-            all_errors: dict[
-                str, dict[str, Any]
-            ] = {}  # Global error registry with trace references
+            all_files: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global file registry across all jobs
+            all_errors: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]
@@ -745,6 +746,47 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
             return result
 
+        except HTTPStatusError as e:
+            end_time = time.time()
+            total_duration = end_time - start_time
+
+            # Handle specific HTTP errors with user-friendly messages
+            if e.response.status_code == 404:
+                error_print(f"❌ Pipeline not found after {total_duration:.2f}s: {e}")
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"❌ Pipeline {pipeline_id} not found in project {project_id}. Please verify the pipeline ID and project ID are correct.",
+                        }
+                    ],
+                    "mcp_info": get_mcp_info("failed_pipeline_analysis", error=True),
+                    "debug_timing": {"duration_seconds": round(total_duration, 3)},
+                }
+            elif e.response.status_code == 403:
+                error_print(f"❌ Access forbidden after {total_duration:.2f}s: {e}")
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"❌ Access denied to pipeline {pipeline_id} in project {project_id}. Please check your GitLab token permissions.",
+                        }
+                    ],
+                    "mcp_info": get_mcp_info("failed_pipeline_analysis", error=True),
+                    "debug_timing": {"duration_seconds": round(total_duration, 3)},
+                }
+            else:
+                error_print(f"❌ HTTP error after {total_duration:.2f}s: {e}")
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"❌ HTTP error ({e.response.status_code}) accessing pipeline {pipeline_id}: {str(e)}",
+                        }
+                    ],
+                    "mcp_info": get_mcp_info("failed_pipeline_analysis", error=True),
+                    "debug_timing": {"duration_seconds": round(total_duration, 3)},
+                }
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
             end_time = time.time()
             total_duration = end_time - start_time

@@ -57,6 +57,21 @@ class PytestDetector(BaseFrameworkDetector):
         if self._exclude_by_patterns(trace_content, linting_indicators):
             return False
 
+        # Exclude JavaScript/Node.js/Jest jobs
+        js_indicators = [
+            r"\$ node\s",  # Node.js execution
+            r"npm\s+(run\s+)?test",  # npm test commands
+            r"yarn\s+(run\s+)?test",  # yarn test commands
+            r"jest",  # Jest framework mentions
+            r"Test Suites:",  # Jest output pattern
+            r"Browserslist:",  # Common in JS projects
+            r"\.spec\.(js|ts)",  # JS/TS test files
+            r"\.test\.(js|ts)",  # JS/TS test files
+        ]
+
+        if self._exclude_by_patterns(trace_content, js_indicators):
+            return False
+
         # Check job name patterns
         pytest_patterns = [
             r"test",
@@ -512,7 +527,9 @@ class PytestLogParser(BaseParser):
         seen_failures = set()
         deduplicated_detailed = []
         deduplicated_summary = []
-        detailed_failure_map = {}  # Maps fingerprint to detailed failure for line number lookup
+        detailed_failure_map = (
+            {}
+        )  # Maps fingerprint to detailed failure for line number lookup
 
         # First pass: Process detailed failures (higher priority)
         for detailed in detailed_failures:

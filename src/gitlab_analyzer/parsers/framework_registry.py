@@ -80,6 +80,16 @@ except ImportError:
     pass  # Graceful degradation
 
 try:
+    from .eslint_parser import ESLintDetector, ESLintParser
+
+    parser_registry.register_detector(
+        ESLintDetector()
+    )  # 80 - high priority for linting
+    parser_registry.register_parser(TestFramework.ESLINT, ESLintParser)
+except ImportError:
+    pass  # Graceful degradation
+
+try:
     from .log_parser import GenericLogDetector, GenericLogParser
 
     parser_registry.register_detector(

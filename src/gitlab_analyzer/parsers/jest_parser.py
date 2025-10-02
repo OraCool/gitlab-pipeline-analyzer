@@ -33,12 +33,13 @@ class JestDetector(BaseFrameworkDetector):
             r"ts.*test",
             r"javascript.*test",
             r"typescript.*test",
+            r"test.*ci",  # Common pattern like "test:ci"
         ]
 
         if self._check_job_name_patterns(job_name, jest_job_patterns):
             return True
 
-        # Trace content patterns
+        # Trace content patterns - enhanced for better detection
         jest_trace_patterns = [
             r"Test Suites:.*passed",
             r"Tests:.*passed.*failed",
@@ -46,6 +47,15 @@ class JestDetector(BaseFrameworkDetector):
             r"FAIL.*\.test\.(js|ts)",
             r"Jest CLI Options",
             r"Running tests with Jest",
+            r"yarn run.*test.*ci",  # yarn test:ci pattern
+            r"npm run.*test.*ci",  # npm test:ci pattern
+            r"node scripts/test\.ci\.js",  # Custom test script pattern
+            r"Jest encountered an unexpected token",
+            r"Test suite failed to run",
+            r"Summary of all failing tests",
+            r"Test Suites:.*failed.*passed.*total",  # Jest summary line
+            r"Tests:.*failed.*passed.*total",  # Jest test count line
+            # REMOVED: r"Browserslist:.*caniuse-lite.*outdated" - this is generic npm warning, not Jest-specific
         ]
 
         return self._check_trace_content_patterns(trace_content, jest_trace_patterns)
@@ -67,16 +77,27 @@ class JestParser(BaseFrameworkParser):
         jest_error_patterns = [
             # Test failures
             (r"FAIL\s+(.+\.test\.(js|ts|jsx|tsx))", "Jest Test Failure"),
-            # Syntax errors
+            # Syntax errors - enhanced patterns
             (r"SyntaxError:\s+(.+)", "JavaScript Syntax Error"),
+            (r"Jest encountered an unexpected token", "Jest Parse Error"),
+            (r"Unexpected token.*", "JavaScript Syntax Error"),
+            (r"Parsing error:\s+(.+)", "JavaScript Parse Error"),
             # TypeScript errors
             (r"TS\d+:\s+(.+)", "TypeScript Error"),
             # Module resolution errors
             (r"Cannot find module '(.+)'", "Module Not Found"),
             # Timeout errors
             (r"Test timeout of \d+ms exceeded", "Test Timeout"),
-            # Async errors
+            # Async errors and assertions
             (r"Error: expect\(received\)\.(.+)", "Jest Assertion Error"),
+            (
+                r"expect\(received\)\.toHaveLength\(expected\)",
+                "Jest Length Assertion Error",
+            ),
+            (r"Expected length:\s*\d+", "Jest Length Assertion Error"),
+            (r"Received length:\s*\d+", "Jest Length Assertion Error"),
+            # Test suite failures
+            (r"Test suite failed to run", "Jest Suite Failure"),
         ]
 
         # Jest warning patterns
@@ -84,6 +105,8 @@ class JestParser(BaseFrameworkParser):
             r"WARNING:\s+(.+)",
             r"DEPRECATED:\s+(.+)",
             r"Jest:\s+(.+deprecated.+)",
+            r"Browserslist:\s+(.+)",  # Common Jest warning
+            r"\(node:\d+\)\s+\[DEP\d+\]\s+DeprecationWarning:\s+(.+)",  # Node deprecation warnings
         ]
 
         lines = trace_content.split("\n")
@@ -103,6 +126,9 @@ class JestParser(BaseFrameworkParser):
             for pattern, error_type in jest_error_patterns:
                 match = re.search(pattern, line_stripped)
                 if match:
+                    # Extract additional context for better error reporting
+                    error_details = self._extract_error_context(lines, i, error_type)
+
                     errors.append(
                         {
                             "test_file": self._extract_test_file(
@@ -114,6 +140,7 @@ class JestParser(BaseFrameworkParser):
                             "line_number": i + 1,
                             "has_traceback": self._has_jest_traceback(lines, i),
                             "jest_details": self._extract_jest_details(lines, i),
+                            "error_context": error_details,
                         }
                     )
 
@@ -249,6 +276,54 @@ class JestParser(BaseFrameworkParser):
                 summary["time"] = match.group(1)
 
         return summary
+
+    def _extract_error_context(
+        self, lines: list[str], error_line: int, error_type: str
+    ) -> dict[str, Any]:
+        """Extract additional context for Jest errors"""
+        context: dict[str, Any] = {"error_type": error_type}
+
+        # Look for specific error patterns and extract relevant context
+        if error_type == "Jest Length Assertion Error":
+            # Look for Expected/Received lines
+            for i in range(error_line, min(len(lines), error_line + 10)):
+                line = lines[i].strip()
+                if "Expected length:" in line:
+                    context["expected_length"] = re.search(
+                        r"Expected length:\s*(\d+)", line
+                    )
+                    if context["expected_length"]:
+                        context["expected_length"] = int(
+                            context["expected_length"].group(1)
+                        )
+                elif "Received length:" in line:
+                    context["received_length"] = re.search(
+                        r"Received length:\s*(\d+)", line
+                    )
+                    if context["received_length"]:
+                        context["received_length"] = int(
+                            context["received_length"].group(1)
+                        )
+
+        elif error_type in [
+            "JavaScript Syntax Error",
+            "Jest Parse Error",
+            "JavaScript Parse Error",
+        ]:
+            # Look for file and line information in syntax errors
+            for i in range(error_line, min(len(lines), error_line + 15)):
+                line = lines[i].strip()
+                # Extract line number from error context
+                line_match = re.search(r">\s*(\d+)\s+\|", line)
+                if line_match:
+                    context["syntax_error_line"] = int(line_match.group(1))
+                    break
+
+        elif error_type == "Jest Suite Failure":
+            # Extract details about why the test suite failed
+            context["failure_reason"] = "Configuration or setup error"
+
+        return context
 
     def _extract_source_file_and_line(
         self, error_message: str, full_log_text: str = "", error_type: str = ""
