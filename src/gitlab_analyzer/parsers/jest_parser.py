@@ -121,9 +121,16 @@ class JestParser(BaseFrameworkParser):
     ) -> list[dict]:
         """Parse Jest test failures by focusing on individual test failure markers (●)"""
         errors = []
+        parsed_failures = set()  # Track parsed failure signatures to avoid duplicates
+        in_summary_section = False
 
         for i, line in enumerate(lines):
             line_stripped = line.strip()
+
+            # Detect the "Summary of all failing tests" section to avoid duplicates
+            if "Summary of all failing tests" in line_stripped:
+                in_summary_section = True
+                continue
 
             # Track current test file from FAIL/PASS lines
             file_match = re.search(
@@ -138,21 +145,29 @@ class JestParser(BaseFrameworkParser):
             if test_failure_match:
                 test_name = test_failure_match.group(1)
 
+                # Create a unique signature for this failure to detect duplicates
+                failure_signature = f"{current_test_file}::{test_name}"
+
+                # Skip if we've already parsed this exact failure (duplicates in summary section)
+                if failure_signature in parsed_failures and in_summary_section:
+                    continue
+
                 # Extract error details from the following lines
                 error_message, error_type, source_line = (
                     self._extract_test_failure_details(lines, i)
                 )
 
-                errors.append(
-                    {
-                        "test_file": current_test_file,
-                        "test_function": test_name,
-                        "exception_type": error_type,
-                        "message": error_message,
-                        "line_number": source_line if source_line else i + 1,
-                        "has_traceback": True,
-                    }
-                )
+                error_entry = {
+                    "test_file": current_test_file,
+                    "test_function": test_name,
+                    "exception_type": error_type,
+                    "message": error_message,
+                    "line_number": source_line if source_line else i + 1,
+                    "has_traceback": True,
+                }
+
+                errors.append(error_entry)
+                parsed_failures.add(failure_signature)
 
         return errors
 

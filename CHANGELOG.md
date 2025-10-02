@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ **Architecture Improvements**
+
+- **Unified Analysis Architecture**: Eliminated code duplication between `failed_pipeline_analysis` and `analyze_job` tools
+  - Refactored `failed_pipeline_analysis` to use `analyze_job_trace` instead of duplicating `parse_job_logs` logic
+  - Removed ~50 lines of duplicate error standardization code
+  - Created single source of truth for all job analysis operations
+  - ✅ **Real-world Validated**: Tested with production pipeline 1647653 (3 jobs, identical results)
+  - ✅ **Test Coverage Maintained**: All 93 existing tests continue to pass
+
+### 🐛 **Bug Fixes**
+
+- **Jest Parser Accuracy Fix**: Fixed duplicate test failure counting in Jest parser
+  - **Problem**: Jest outputs same failures in detailed section AND "Summary of all failing tests" section
+  - **Solution**: Added intelligent duplicate detection using failure signatures (`file::test_name`)
+  - **Impact**: Job 79986334 now correctly shows 3 errors instead of 6 (with duplicates)
+  - **Validation**: Pipeline 1647653 total corrected from 20 to 17 errors (accurate count)
+
+### 📚 **Documentation**
+
+- Added comprehensive [ARCHITECTURE_REFERENCE.md](docs/ARCHITECTURE_REFERENCE.md) documenting unified architecture
+- Updated GitLab analysis flow diagram with corrected error counts and validation results
+- Enhanced architecture documentation with real-world validation data
+
 ## [0.12.0] - 2025-09-17
 
 ### 🚀 **New Features**

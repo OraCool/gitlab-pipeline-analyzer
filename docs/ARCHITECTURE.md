@@ -4,6 +4,13 @@
 
 This FastMCP server analyzes GitLab CI/CD pipeline failures and extracts structured error/warning information for AI analysis.
 
+**Recent Improvements (2025-10-02)**:
+- ✅ **Unified Architecture**: Eliminated code duplication between pipeline and job analysis
+- ✅ **Parser Accuracy**: Fixed Jest parser duplicate counting issue  
+- ✅ **Real-world Validated**: Tested with production pipeline data
+
+For detailed architecture information, see [ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md).
+
 ## Project Structure
 
 ```

@@ -4,7 +4,16 @@ Failed Pipeline Analysis Tool - Focused on analyzing only failed pipeline jobs
 This module provides efficient analysis by focusing specifically on failed jobs:
 1. Gets pipeline info and stores in database
 2. Gets only failed jobs using get_failed_pipeline_jobs (more efficient)
-3. Stores failed job da                                error_dict["line_number"] = str(tb.line_number)
+3. Stores failed job                          # Job trace analysis completed via analyze_job_trace             # analyze_job_trace completed successfully                  f"🔧 analyze_job_trace result: {analysis_result.get('parser_type', 'unknown')} parser (unified path)"            debug_print(
+                    f"🔧 analyze_job_trace result: {analysis_result.get('parser_type', 'unknown')} parser (unified analysis path)"
+                )           debug_print(
+                    f"🔧 analyze_job_trace result: {analysis_result.get('parser_type', 'unknown')} parser"
+                )                  f"🔧 Enhanced parsing result: {analysis_result.get('parser_type', 'unknown')} parser"         debug_print(
+                    f"🔧 analyze_job_trace result: {analysis_result.get('parser_type', 'unknown')} parser"
+                )
+
+                # Get standardized errors from analyze_job_trace result (no conversion needed - already standardized)
+                errors = analysis_result.get("errors", [])                            error_dict["line_number"] = str(tb.line_number)
                                 break
                         errors.append(error_dict)
                     debug_print(f"📊 PYTEST ERRORS CREATED: {len(errors)} errors from pytest parser")
@@ -282,50 +291,35 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                 trace_length = len(trace) if trace else 0
                 verbose_debug_print(f"📊 Trace retrieved: {trace_length} characters")
 
-                # Use enhanced parsing logic from analysis.py with auto-detection
-                # This ensures consistency with job analysis tools
-                from gitlab_analyzer.core.analysis import parse_job_logs
+                # Use analyze_job_trace for consistent job analysis (eliminates code duplication)
+                from .job_analysis_tools import analyze_job_trace
 
                 debug_print(
-                    f"🔧 Using enhanced parsing with auto-detection for job {job.name} (stage: {job.stage})"
+                    f"🔧 Using unified analyze_job_trace for job {job.name} (stage: {job.stage})"
                 )
-                parsed_result = parse_job_logs(
+
+                # Call analyze_job_trace with the same parameters that would be used
+                analysis_result = await analyze_job_trace(
+                    project_id=project_id,
+                    job_id=job.id,
                     trace_content=trace,
-                    parser_type="auto",
-                    job_name=job.name,  # Pass actual job name for proper pytest detection
-                    job_stage=job.stage,  # Pass actual job stage for proper pytest detection
-                    include_traceback=True,
-                    exclude_paths=exclude_patterns,
+                    job_name=job.name,
+                    job_stage=job.stage,
+                    exclude_file_patterns=exclude_file_patterns,
+                    disable_file_filtering=disable_file_filtering,
+                    store_in_db=store_in_db,  # This will handle database storage if needed
+                    pipeline_id=pipeline_id,
                 )
 
                 debug_print(
-                    f"� Enhanced parsing result: {parsed_result.get('parser_type', 'unknown')} parser"
+                    f"🔧 analyze_job_trace result: {analysis_result.get('parser_type', 'unknown')} parser (unified analysis)"
                 )
 
-                # Convert to expected format for consistency with existing pipeline analysis logic
-                errors = parsed_result.get("errors", [])
-
-                # Ensure all errors have required fields for storage
-                standardized_errors = []
-                for error in errors:
-                    standardized_error = {
-                        "exception_type": error.get("exception_type", "unknown"),
-                        "exception_message": error.get("message", ""),
-                        "file_path": error.get("test_file")
-                        or error.get("file_path", ""),
-                        "line_number": error.get("line_number"),
-                        "test_function": error.get("test_function", ""),
-                        "test_name": error.get("test_name", ""),
-                        "message": error.get("message", ""),
-                        "error_type": error.get("error_type", "unknown"),
-                        "level": error.get("level", "error"),
-                        "context": error.get("context", ""),
-                        "traceback": error.get("traceback", []),
-                    }
-                    standardized_errors.append(standardized_error)
-
-                errors = standardized_errors
-                debug_print(f"📊 Enhanced parsing found {len(errors)} errors")
+                # Get standardized errors from analyze_job_trace (already properly formatted)
+                errors = analysis_result.get("errors", [])
+                debug_print(
+                    f"📊 analyze_job_trace returned {len(errors)} standardized errors"
+                )
 
                 # Optimize error processing: group by file path first to reduce processing
                 debug_print(
@@ -471,7 +465,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                         trace_text=trace,
                         trace_hash=trace_hash,
                         errors=error_records,  # Use ErrorRecord objects
-                        parser_type=parsed_result.get("parser_type", "unknown"),
+                        parser_type=analysis_result.get("parser_type", "unknown"),
                     )
 
                     # Store just the errors using the standard storage method
@@ -480,7 +474,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
 
                     analysis_data = {
                         "errors": filtered_errors,
-                        "parser_type": parsed_result.get("parser_type", "unknown"),
+                        "parser_type": analysis_result.get("parser_type", "unknown"),
                         "trace_hash": trace_hash,
                     }
                     # Store only errors and trace segments without overwriting job metadata
@@ -503,7 +497,7 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
                     {
                         "job_id": job.id,
                         "job_name": job.name,
-                        "parser_type": parsed_result.get("parser_type", "unknown"),
+                        "parser_type": analysis_result.get("parser_type", "unknown"),
                         "file_groups": list(file_groups.values()),
                         "categorized_files": categorized,
                         "errors": filtered_errors,  # Use filtered errors
@@ -532,12 +526,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[
-                str, dict[str, Any]
-            ] = {}  # Global file registry across all jobs
-            all_errors: dict[
-                str, dict[str, Any]
-            ] = {}  # Global error registry with trace references
+            all_files: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global file registry across all jobs
+            all_errors: dict[str, dict[str, Any]] = (
+                {}
+            )  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]
