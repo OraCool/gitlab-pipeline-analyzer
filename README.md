@@ -10,7 +10,7 @@ A comprehensive FastMCP server that analyzes GitLab CI/CD pipeline failures with
 - **🧠 NEW in v0.11.0**: AI-powered root cause analysis with intelligent error pattern detection
 - **📊 NEW in v0.11.0**: Dynamic error grouping and classification with confidence scoring
 - Intelligent error categorization and pattern detection
-- Support for pytest, build, and general CI/CD failures
+- Support for pytest, Jest, ESLint, TypeScript, SonarQube, and general CI/CD failures
 - **✨ NEW in v0.8.0**: Complete merge request information integration with Jira ticket extraction
 - **🎯 NEW in v0.8.0**: Smart filtering of MR data based on pipeline type (only shows MR data for actual MR pipelines)
 - **📝 NEW in v0.8.2**: Code review integration - automatically includes discussions, notes, approval status, and unresolved feedback from merge requests for AI-powered context-aware fixes
@@ -741,7 +741,7 @@ fastmcp run gitlab_analyzer.py:mcp
 
 ### Available tools
 
-The MCP server provides **13 essential tools** for GitLab CI/CD pipeline analysis:
+The MCP server provides **14 essential tools** for GitLab CI/CD pipeline analysis:
 
 #### 🎯 Core Analysis Tool
 

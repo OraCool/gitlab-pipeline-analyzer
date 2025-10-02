@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2025-10-02
+
+### 🚀 **New Parsers & Enhanced Support**
+
+- **ESLint Parser**: Complete ESLint output analysis for JavaScript/TypeScript projects
+  - Detects linting errors, warnings, and style violations
+  - Extracts file locations, rule violations, and severity levels
+  - Supports both individual file and project-wide linting results
+- **Jest Parser**: Comprehensive Jest test framework support
+  - Parses test failures, assertion errors, and timeout issues
+  - Extracts test context, expected vs received values, and stack traces
+  - Handles both single test files and complete test suite results
+- **TypeScript Parser**: Advanced TypeScript compilation error detection
+  - Type errors, interface mismatches, and compilation failures
+  - Source map integration for accurate error location mapping
+  - Support for both tsc and build tool TypeScript outputs
+
 ### 🏗️ **Architecture Improvements**
 
 - **Unified Analysis Architecture**: Eliminated code duplication between `failed_pipeline_analysis` and `analyze_job` tools
@@ -14,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed ~50 lines of duplicate error standardization code
   - Created single source of truth for all job analysis operations
   - ✅ **Real-world Validated**: Tested with production pipeline 1647653 (3 jobs, identical results)
-  - ✅ **Test Coverage Maintained**: All 93 existing tests continue to pass
+  - ✅ **Test Coverage Maintained**: All 903 existing tests continue to pass with 65.23% coverage
 
 ### 🐛 **Bug Fixes**
 
@@ -23,12 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Solution**: Added intelligent duplicate detection using failure signatures (`file::test_name`)
   - **Impact**: Job 79986334 now correctly shows 3 errors instead of 6 (with duplicates)
   - **Validation**: Pipeline 1647653 total corrected from 20 to 17 errors (accurate count)
+- **Enhanced Error Context**: Improved error context extraction for Jest assertion failures
+  - Added `error_context` metadata with expected/received values
+  - Enhanced test failure detection with multiple error markers (● and ✗)
+
+### ✨ **Enhanced Features**
+
+- **Framework Registry**: Improved parser auto-detection with priority-based selection
+- **Test Coverage**: Comprehensive test coverage for all new parsers (42 Jest tests, 14 ESLint tests)
+- **Error Pattern Matching**: Enhanced regex patterns for better error detection across all frameworks
 
 ### 📚 **Documentation**
 
 - Added comprehensive [ARCHITECTURE_REFERENCE.md](docs/ARCHITECTURE_REFERENCE.md) documenting unified architecture
 - Updated GitLab analysis flow diagram with corrected error counts and validation results
 - Enhanced architecture documentation with real-world validation data
+- Updated tool count documentation (now 14 comprehensive MCP tools)
 
 ## [0.12.0] - 2025-09-17
 
