@@ -13,13 +13,13 @@ from typing import Any, cast
 
 from fastmcp import FastMCP
 
-from gitlab_analyzer.parsers.log_parser import LogParser
-from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
+from gitlab_analyzer.parsers.base_parser import TestFramework
 from gitlab_analyzer.parsers.framework_registry import (
     detect_job_framework,
     parse_with_framework,
 )
-from gitlab_analyzer.parsers.base_parser import TestFramework
+from gitlab_analyzer.parsers.log_parser import LogParser
+from gitlab_analyzer.parsers.pytest_parser import PytestLogParser
 from gitlab_analyzer.utils.debug import debug_print, error_print, verbose_debug_print
 
 

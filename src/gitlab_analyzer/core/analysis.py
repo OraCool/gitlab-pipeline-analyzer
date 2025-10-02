@@ -13,7 +13,6 @@ from typing import Any
 from gitlab_analyzer.api.client import GitLabAnalyzer
 from gitlab_analyzer.cache.models import generate_standard_error_id
 from gitlab_analyzer.parsers.framework_registry import (
-    TestFramework,
     detect_job_framework,
     parse_with_framework,
 )
@@ -396,32 +395,6 @@ def parse_job_logs(
         # Use new framework-aware parsing with cleaned content
     result = parse_with_framework(
         cleaned_trace,  # Use cleaned trace for explicit parser types too
-        framework,
-        include_traceback=include_traceback,
-        exclude_paths=exclude_paths,
-    )
-
-    debug_print(
-        f"📊 FRAMEWORK RESULTS: Found {result.get('error_count', 0)} errors using {framework.value} parser"
-    )
-    return result
-
-    # Legacy compatibility - map old parser types to frameworks
-    framework_map = {
-        "pytest": TestFramework.PYTEST,
-        "sonarqube": TestFramework.SONARQUBE,
-        "jest": TestFramework.JEST,
-        "generic": TestFramework.GENERIC,
-    }
-
-    framework = framework_map.get(parser_type, TestFramework.GENERIC)
-    debug_print(
-        f"🔧 PARSE JOB LOGS: Using explicit '{framework.value}' parser for job '{job_name}'"
-    )
-
-    # Use new framework parsing for ALL frameworks consistently
-    result = parse_with_framework(
-        trace_content,
         framework,
         include_traceback=include_traceback,
         exclude_paths=exclude_paths,

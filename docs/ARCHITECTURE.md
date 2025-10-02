@@ -5,8 +5,9 @@
 This FastMCP server analyzes GitLab CI/CD pipeline failures and extracts structured error/warning information for AI analysis.
 
 **Recent Improvements (2025-10-02)**:
+
 - ✅ **Unified Architecture**: Eliminated code duplication between pipeline and job analysis
-- ✅ **Parser Accuracy**: Fixed Jest parser duplicate counting issue  
+- ✅ **Parser Accuracy**: Fixed Jest parser duplicate counting issue
 - ✅ **Real-world Validated**: Tested with production pipeline data
 
 For detailed architecture information, see [ARCHITECTURE_REFERENCE.md](ARCHITECTURE_REFERENCE.md).
@@ -33,11 +34,13 @@ mcp/
 ### 1. GitLab Analyzer (`gitlab_analyzer.py`)
 
 **Main Classes:**
+
 - `GitLabAnalyzer`: GitLab API client for fetching pipeline/job data
 - `LogParser`: Extracts errors/warnings from CI/CD logs using regex patterns
 - `JobInfo`, `LogEntry`, `PipelineAnalysis`: Pydantic models for structured data
 
 **MCP Tools:**
+
 - `analyze_failed_pipeline(pipeline_id)`: Complete pipeline failure analysis
 - `get_pipeline_jobs(pipeline_id)`: Get all jobs for a pipeline
 - `get_job_trace(job_id)`: Get trace log for a specific job
@@ -47,6 +50,7 @@ mcp/
 ### 2. Log Parsing Patterns
 
 **Error Patterns:**
+
 - Python exceptions (Error, Exception, Traceback)
 - Test failures (FAILED, FAIL, AssertionError)
 - Build errors (fatal error, ERROR)
@@ -54,12 +58,14 @@ mcp/
 - Process exit codes
 
 **Warning Patterns:**
+
 - General warnings (Warning, WARNING, WARN)
 - Python warnings (DeprecationWarning, UserWarning, FutureWarning)
 
 ### 3. Configuration (`config.py`)
 
 **Environment Variables:**
+
 - `GITLAB_URL`: GitLab instance URL (default: https://gitlab.com)
 - `GITLAB_TOKEN`: Personal access token (required)
 - `GITLAB_PROJECT_ID`: Target project ID (required)
@@ -67,6 +73,7 @@ mcp/
 ### 4. Usage Examples
 
 **Python Client:**
+
 ```python
 from fastmcp import Client
 
@@ -77,6 +84,7 @@ async with Client("gitlab_analyzer.py") as client:
 ```
 
 **FastMCP CLI:**
+
 ```bash
 fastmcp run gitlab_analyzer.py:mcp
 ```
@@ -84,6 +92,7 @@ fastmcp run gitlab_analyzer.py:mcp
 ## Supported CI/CD Stages
 
 The analyzer is optimized for Python projects with these common stages:
+
 - **Lint Stage**: Code quality checks (pylint, flake8, mypy)
 - **Test Stage**: Unit tests, integration tests (pytest, unittest)
 - **Build Stage**: Package building, compilation
@@ -99,6 +108,7 @@ The analyzer is optimized for Python projects with these common stages:
 ## API Response Format
 
 **Pipeline Analysis Response:**
+
 ```json
 {
   "pipeline_id": 12345,
@@ -136,6 +146,7 @@ The analyzer is optimized for Python projects with these common stages:
 ## Development
 
 **Setup:**
+
 ```bash
 ./setup.sh
 make setup
@@ -143,12 +154,14 @@ make install
 ```
 
 **Testing:**
+
 ```bash
 make test
 python example.py
 ```
 
 **Running:**
+
 ```bash
 make run              # Python script
 make run-cli          # FastMCP CLI

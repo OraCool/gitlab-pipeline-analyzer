@@ -71,7 +71,7 @@ class JestParser(BaseFrameworkParser):
     def parse(self, trace_content: str, **kwargs) -> dict[str, Any]:
         """Parse Jest test output"""
         errors = []
-        warnings = []
+        warnings: list[dict[str, Any]] = []
 
         # Jest warning patterns
         jest_warning_patterns = [
@@ -85,8 +85,14 @@ class JestParser(BaseFrameworkParser):
         lines = trace_content.split("\n")
         current_test_file = "unknown"
 
-        # Parse Jest failures by looking for individual test failure markers (●)
-        errors = self._parse_jest_test_failures(lines, current_test_file)
+        # Parse different types of errors
+        errors.extend(self._parse_jest_test_failures(lines, current_test_file))
+        errors.extend(self._parse_syntax_errors(lines))
+        errors.extend(self._parse_typescript_errors(lines))
+        errors.extend(self._parse_module_errors(lines))
+        errors.extend(self._parse_timeout_errors(lines))
+        errors.extend(self._parse_assertion_errors(lines))
+        errors.extend(self._parse_suite_failures(lines))
 
         # Parse warnings separately
         warnings = []
@@ -140,8 +146,8 @@ class JestParser(BaseFrameworkParser):
                 current_test_file = file_match.group(2)
                 continue
 
-            # Look for individual test failure markers (●)
-            test_failure_match = re.match(r"●\s+(.+)", line_stripped)
+            # Look for individual test failure markers (● or ✗)
+            test_failure_match = re.match(r"[●✗]\s+(.+)", line_stripped)
             if test_failure_match:
                 test_name = test_failure_match.group(1)
 
@@ -157,18 +163,166 @@ class JestParser(BaseFrameworkParser):
                     self._extract_test_failure_details(lines, i)
                 )
 
+                # Include file context in message for better compatibility
+                message_with_context = (
+                    f"{error_message} (in {current_test_file})"
+                    if current_test_file != "unknown"
+                    else error_message
+                )
+
                 error_entry = {
                     "test_file": current_test_file,
                     "test_function": test_name,
                     "exception_type": error_type,
-                    "message": error_message,
+                    "message": message_with_context,
                     "line_number": source_line if source_line else i + 1,
                     "has_traceback": True,
                 }
 
+                # Add error_context for assertion errors
+                if (
+                    "Jest Assertion Error" in error_type
+                    or "expect" in error_message.lower()
+                ):
+                    error_context = self._extract_error_context(lines, i, error_type)
+                    error_entry["error_context"] = error_context
+
                 errors.append(error_entry)
                 parsed_failures.add(failure_signature)
 
+        return errors
+
+    def _parse_syntax_errors(self, lines: list[str]) -> list[dict]:
+        """Parse JavaScript/TypeScript syntax errors"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for SyntaxError patterns
+            if re.search(r"SyntaxError:\s+(.+)", line_stripped):
+                error_match = re.search(r"SyntaxError:\s+(.+)", line_stripped)
+                if error_match:
+                    errors.append(
+                        {
+                            "exception_type": "JavaScript Syntax Error",
+                            "message": line_stripped,
+                            "line_number": i + 1,
+                            "has_traceback": True,
+                            "test_file": "unknown",
+                            "test_function": "unknown",
+                        }
+                    )
+        return errors
+
+    def _parse_typescript_errors(self, lines: list[str]) -> list[dict]:
+        """Parse TypeScript compiler errors"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for TypeScript error patterns
+            if re.search(r"TS\d+:\s+(.+)", line_stripped):
+                errors.append(
+                    {
+                        "exception_type": "TypeScript Error",
+                        "message": line_stripped,
+                        "line_number": i + 1,
+                        "has_traceback": True,
+                        "test_file": "unknown",
+                        "test_function": "unknown",
+                    }
+                )
+        return errors
+
+    def _parse_module_errors(self, lines: list[str]) -> list[dict]:
+        """Parse module not found and import errors"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for module not found patterns
+            if re.search(
+                r"Cannot find module\s+['\"](.+)['\"]|Module not found", line_stripped
+            ):
+                errors.append(
+                    {
+                        "exception_type": "Module Not Found Error",
+                        "message": line_stripped,
+                        "line_number": i + 1,
+                        "has_traceback": True,
+                        "test_file": "unknown",
+                        "test_function": "unknown",
+                    }
+                )
+        return errors
+
+    def _parse_timeout_errors(self, lines: list[str]) -> list[dict]:
+        """Parse test timeout errors"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for timeout patterns
+            if re.search(r"Test timeout.*exceeded|Timeout.*test", line_stripped):
+                errors.append(
+                    {
+                        "exception_type": "Test Timeout Error",
+                        "message": line_stripped,
+                        "line_number": i + 1,
+                        "has_traceback": False,
+                        "test_file": "unknown",
+                        "test_function": "unknown",
+                    }
+                )
+        return errors
+
+    def _parse_assertion_errors(self, lines: list[str]) -> list[dict]:
+        """Parse Jest assertion errors (expect statements)"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for Jest assertion patterns
+            if re.search(
+                r"Error:\s+expect\(received\)\.|expect\(received\)\.|Error:\s+Expected.*(?:but )?received|Error:\s+.*(?:expected|received)",
+                line_stripped,
+            ):
+                # Extract error context for assertions
+                error_context = self._extract_error_context(
+                    lines, i, "Jest Assertion Error"
+                )
+
+                errors.append(
+                    {
+                        "exception_type": "Jest Assertion Error",
+                        "message": line_stripped,
+                        "line_number": i + 1,
+                        "has_traceback": True,
+                        "test_file": "unknown",
+                        "test_function": "unknown",
+                        "error_context": error_context,
+                    }
+                )
+        return errors
+
+    def _parse_suite_failures(self, lines: list[str]) -> list[dict]:
+        """Parse test suite failures (configuration/setup errors)"""
+        errors = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+
+            # Look for suite failure patterns
+            if "Test suite failed to run" in line_stripped:
+                errors.append(
+                    {
+                        "exception_type": "Jest Suite Failure",
+                        "message": line_stripped,
+                        "line_number": i + 1,
+                        "has_traceback": False,
+                        "test_file": "unknown",
+                        "test_function": "unknown",
+                    }
+                )
         return errors
 
     def _extract_test_failure_details(
@@ -334,26 +488,26 @@ class JestParser(BaseFrameworkParser):
         context: dict[str, Any] = {"error_type": error_type}
 
         # Look for specific error patterns and extract relevant context
-        if error_type == "Jest Length Assertion Error":
-            # Look for Expected/Received lines
+        if error_type == "Jest Assertion Error":
+            # Look for Expected/Received lines and assertion details
             for i in range(error_line, min(len(lines), error_line + 10)):
                 line = lines[i].strip()
                 if "Expected length:" in line:
-                    context["expected_length"] = re.search(
-                        r"Expected length:\s*(\d+)", line
-                    )
-                    if context["expected_length"]:
-                        context["expected_length"] = int(
-                            context["expected_length"].group(1)
-                        )
+                    match = re.search(r"Expected length:\s*(\d+)", line)
+                    if match:
+                        context["expected_length"] = int(match.group(1))
                 elif "Received length:" in line:
-                    context["received_length"] = re.search(
-                        r"Received length:\s*(\d+)", line
-                    )
-                    if context["received_length"]:
-                        context["received_length"] = int(
-                            context["received_length"].group(1)
-                        )
+                    match = re.search(r"Received length:\s*(\d+)", line)
+                    if match:
+                        context["received_length"] = int(match.group(1))
+                elif "Expected:" in line:
+                    context["expected"] = line.split("Expected:")[-1].strip()
+                elif "Received:" in line:
+                    context["received"] = line.split("Received:")[-1].strip()
+                elif "toHaveLength" in line:
+                    context["assertion_type"] = "length"
+                elif "toBe" in line:
+                    context["assertion_type"] = "equality"
 
         elif error_type in [
             "JavaScript Syntax Error",
@@ -368,10 +522,52 @@ class JestParser(BaseFrameworkParser):
                 if line_match:
                     context["syntax_error_line"] = int(line_match.group(1))
                     break
+                # Extract file path from syntax error
+                file_match = re.search(r"([^\s:]+\.(js|ts|jsx|tsx)):(\d+):(\d+)", line)
+                if file_match:
+                    context["error_file"] = file_match.group(1)
+                    context["error_line"] = int(file_match.group(3))
+                    context["error_column"] = int(file_match.group(4))
 
         elif error_type == "Jest Suite Failure":
             # Extract details about why the test suite failed
             context["failure_reason"] = "Configuration or setup error"
+            # Look for specific failure reasons
+            for i in range(error_line, min(len(lines), error_line + 5)):
+                line = lines[i].strip()
+                if "Jest encountered an unexpected token" in line:
+                    context["failure_reason"] = "Unexpected token"
+                elif "cannot parse" in line.lower():
+                    context["failure_reason"] = "Parse error"
+
+        elif error_type == "TypeScript Error":
+            # Extract TypeScript error details
+            for i in range(error_line, min(len(lines), error_line + 5)):
+                line = lines[i].strip()
+                file_match = re.search(r"at\s+([^\s:]+\.(ts|tsx)):(\d+):(\d+)", line)
+                if file_match:
+                    context["error_file"] = file_match.group(1)
+                    context["error_line"] = int(file_match.group(3))
+                    context["error_column"] = int(file_match.group(4))
+
+        elif error_type == "Module Not Found Error":
+            # Extract module name
+            for i in range(error_line, min(len(lines), error_line + 5)):
+                line = lines[i].strip()
+                module_match = re.search(
+                    r"Cannot find module\s+['\"](.*?)['\"]|Module not found:\s+(.+)",
+                    line,
+                )
+                if module_match:
+                    context["missing_module"] = module_match.group(
+                        1
+                    ) or module_match.group(2)
+
+        elif error_type == "Test Timeout Error":
+            # Extract timeout duration
+            timeout_match = re.search(r"(\d+)ms", lines[error_line])
+            if timeout_match:
+                context["timeout_duration"] = int(timeout_match.group(1))
 
         return context
 

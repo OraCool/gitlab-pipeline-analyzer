@@ -526,12 +526,12 @@ def register_failed_pipeline_analysis_tools(mcp: FastMCP) -> None:
             }
 
             # Create file hierarchy with error links
-            all_files: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global file registry across all jobs
-            all_errors: dict[str, dict[str, Any]] = (
-                {}
-            )  # Global error registry with trace references
+            all_files: dict[
+                str, dict[str, Any]
+            ] = {}  # Global file registry across all jobs
+            all_errors: dict[
+                str, dict[str, Any]
+            ] = {}  # Global error registry with trace references
 
             for job_result in job_analysis_results:
                 job_id = job_result["job_id"]

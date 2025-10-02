@@ -220,7 +220,7 @@ flowchart TD
 ### 5. Unified Architecture Benefits
 
 - **✅ Zero Code Duplication**: `failed_pipeline_analysis` now calls `analyze_job_trace` instead of duplicating `parse_job_logs` logic
-- **✅ Single Source of Truth**: All job analysis, error standardization, and processing happens in one place  
+- **✅ Single Source of Truth**: All job analysis, error standardization, and processing happens in one place
 - **✅ Easier Maintenance**: Changes to job analysis logic only need to be made in `analyze_job_trace`
 - **✅ Consistent Results**: Both pipeline and individual job analysis produce identical results
 - **✅ Reduced Testing Complexity**: Only need to test job analysis logic once
